@@ -1,3 +1,54 @@
+import streamlit as st
+from modulos.registro_usuario import registrar_usuario
+from modulos.login import login
+
+
+# ⚙️ Configuración de la app
+st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
+
+# 🧠 Inicialización del estado
+if "sesion_iniciada" not in st.session_state:
+    st.session_state["sesion_iniciada"] = False
+if "pagina_actual" not in st.session_state:
+    st.session_state["pagina_actual"] = "inicio"
+
+# --- NAVEGACIÓN LATERAL ---
+st.sidebar.title("📋 Menú principal")
+
+# 💅 Estilo visual personalizado
+st.markdown("""
+    <style>
+        .titulo {
+            text-align: center;
+            color: #6C3483;
+            font-size: 2.2em;
+            font-weight: bold;
+        }
+        .subtitulo {
+            text-align: center;
+            color: #2E4053;
+            font-size: 1.3em;
+        }
+        .descripcion {
+            background-color: #F8F9F9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 10px;
+            box-shadow: 0 0 10px rgba(108, 52, 131, 0.2);
+        }
+        .emoji {
+            font-size: 1.4em;
+        }
+        .sesion-cerrada {
+            text-align: center;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # 🟢 Si ya hay sesión iniciada
 if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
@@ -7,11 +58,11 @@ if st.session_state["sesion_iniciada"]:
 
     # Menú dinámico según tipo
     if tipo.lower() == "administradora":
-        opciones = ["Consolidado por distrito", "Registrar usuario", "Registrar grupo", "Cerrar sesión"]  # ← AGREGADO AQUÍ
+        opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
     elif tipo.lower() == "promotora":
-        opciones = ["Consolidado por grupos", "Registrar grupo", "Cerrar sesión"]  # ← AGREGADO AQUÍ
+        opciones = ["Consolidado por grupos", "Cerrar sesión"]
     else:
-        opciones = ["Dashboard", "Registrar grupo", "Cerrar sesión"]  # ← AGREGADO AQUÍ
+        opciones = ["Dashboard", "Cerrar sesión"]
 
     opcion = st.sidebar.selectbox("Ir a:", opciones)
 
@@ -22,27 +73,101 @@ if st.session_state["sesion_iniciada"]:
             mostrar_ahorros()  # Aquí irá tu función real
         elif opcion == "Registrar usuario":
             registrar_usuario()
-        elif opcion == "Registrar grupo":  # ← NUEVA OPCIÓN AQUÍ
-            mostrar_grupo()
         elif opcion == "Cerrar sesión":
-            # ... (código existente)
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
+            st.rerun()
 
     # --- Promotora ---
     elif tipo.lower() == "promotora":
         if opcion == "Consolidado por grupos":
             st.title("📈 Consolidado por grupos del distrito asignado 💰")
             mostrar_ahorros()  # Aquí irá tu función real
-        elif opcion == "Registrar grupo":  # ← NUEVA OPCIÓN AQUÍ
-            mostrar_grupo()
         elif opcion == "Cerrar sesión":
-            # ... (código existente)
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
+            st.rerun()
 
     # --- Otros tipos de usuario ---
     else:
         if opcion == "Dashboard":
             st.title("📊 Dashboard")
             # Aquí irá tu función real del dashboard
-        elif opcion == "Registrar grupo":  # ← NUEVA OPCIÓN AQUÍ
-            mostrar_grupo()
         elif opcion == "Cerrar sesión":
-            # ... (código existente)
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
+            st.rerun()
+
+# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida o sesión cerrada
+else:
+    # --- Página de sesión cerrada ---
+    if st.session_state["pagina_actual"] == "sesion_cerrada":
+        st.markdown("<div class='sesion-cerrada'>", unsafe_allow_html=True)
+        st.markdown("### ✅ Sesión finalizada")
+        st.markdown("<p>Has cerrado sesión exitosamente.</p>", unsafe_allow_html=True)
+        
+        if st.button("🏠 Volver al inicio"):
+            st.session_state["pagina_actual"] = "inicio"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- Página de inicio normal ---
+    elif st.session_state["pagina_actual"] == "inicio":
+        st.markdown("<h1 class='titulo'> Bienvenido al Sistema GAPCSV </h1>", unsafe_allow_html=True)
+        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class='descripcion'>
+            <p class='emoji'> Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
+            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local🤝.</p>
+            <p>Si ya tienes una cuenta, inicia sesión .<br>
+            Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🔑 Iniciar sesión"):
+                st.session_state["pagina_actual"] = "login"
+                st.rerun()
+
+        with col2:
+            if st.button("📝 Registrarme"):
+                st.session_state["pagina_actual"] = "registro"
+                st.rerun()
+
+    # --- Pantalla de login ---
+    elif st.session_state["pagina_actual"] == "login":
+        login()
+
+    # --- Pantalla de registro ---
+    elif st.session_state["pagina_actual"] == "registro":
+        registrar_usuario()
