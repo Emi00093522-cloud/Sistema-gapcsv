@@ -1,7 +1,7 @@
 import streamlit as st
 from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
-from modulos.grupos import mostrar_grupo
+# from modulos.grupos import mostrar_grupo
 mostrar_grupo()
 # ⚙️ Configuración de la app
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
