@@ -2,6 +2,7 @@ import streamlit as st
 import hashlib
 from modulos.config.conexion import obtener_conexion
 
+
 def verificar_usuario(usuario, contrasena):
     """Verifica usuario y contraseña en la base de datos."""
     con = obtener_conexion()
@@ -15,7 +16,6 @@ def verificar_usuario(usuario, contrasena):
         # Encriptar la contraseña para compararla con la guardada
         contrasena_hash = hashlib.sha256(contrasena.encode()).hexdigest()
 
-        # ✅ Ajustado al nombre real de tu columna: Tipo_usuario
         query = """
             SELECT 
                 u.ID_Usuario,
@@ -28,9 +28,11 @@ def verificar_usuario(usuario, contrasena):
         cursor.execute(query, (usuario, contrasena_hash))
         result = cursor.fetchone()
         return result
+
     except Exception as e:
         st.error(f"❌ Error al verificar usuario: {e}")
         return None
+
     finally:
         con.close()
 
@@ -42,15 +44,24 @@ def login():
     usuario = st.text_input("Usuario", key="usuario_input")
     contrasena = st.text_input("Contraseña", type="password", key="contrasena_input")
 
-    if st.button("Iniciar sesión"):
-        datos_usuario = verificar_usuario(usuario, contrasena)
+    col1, col2 = st.columns(2)
 
-        if datos_usuario:
-            st.session_state["sesion_iniciada"] = True
-            st.session_state["usuario"] = datos_usuario["Usuario"]
-            st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
+    with col1:
+        if st.button("🔐 Iniciar sesión"):
+            datos_usuario = verificar_usuario(usuario, contrasena)
 
-            st.success(f"Bienvenido, {datos_usuario['Usuario']} 👋 (Tipo: {datos_usuario['tipo_usuario']})")
+            if datos_usuario:
+                st.session_state["sesion_iniciada"] = True
+                st.session_state["usuario"] = datos_usuario["Usuario"]
+                st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
+
+                st.success(f"Bienvenido, {datos_usuario['Usuario']} 👋 (Tipo: {datos_usuario['tipo_usuario']})")
+                st.rerun()
+            else:
+                st.error("❌ Usuario o contraseña incorrectos.")
+
+    with col2:
+        # 👇 Botón para regresar al inicio
+        if st.button("⬅️ Cancelar y volver al inicio"):
+            st.session_state["pagina_actual"] = "inicio"
             st.rerun()
-        else:
-            st.error("❌ Usuario o contraseña incorrectos.")
