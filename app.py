@@ -118,8 +118,7 @@ if st.session_state["sesion_iniciada"]:
             usuario_temp = st.session_state.get("usuario", "")
             
             # Limpiar toda la sesión
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
+            
             
             # Restablecer estado básico
             st.session_state["sesion_iniciada"] = False
