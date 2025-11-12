@@ -30,7 +30,7 @@ def mostrar_promotora():
             # Campo 6: (int, opcional, default 1) - Estado: 1=Activo, 2=Desactivo
             estado = st.selectbox("Estado", 
                                 options=[1, 2], 
-                                format_func=lambda x: "Activo" if x == 1 else "Desactivo",
+                                format_func=lambda x: "Activo" if x == 1 else "Inactivo",
                                 index=0)
             
             enviar = st.form_submit_button("✅ Guardar Promotora")
