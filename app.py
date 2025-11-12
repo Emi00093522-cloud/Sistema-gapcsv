@@ -21,12 +21,6 @@ st.markdown(
         color: #4A4A4A;
     }
 
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: transparent !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-    }
-
     .fondo {
         background: rgba(255, 255, 255, 0.4);
         padding: 50px;
@@ -89,7 +83,6 @@ if st.session_state["sesion_iniciada"]:
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
-    # Opciones según el tipo de usuario
     if tipo.lower() == "administradora":
         opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
     elif tipo.lower() == "promotora":
@@ -99,15 +92,8 @@ if st.session_state["sesion_iniciada"]:
 
     opcion = st.sidebar.selectbox("Ir a:", opciones)
 
-    # --- Administradora ---
     if tipo.lower() == "administradora":
         if opcion == "Consolidado por distrito":
             st.title("📊 Consolidado general por distrito")
             mostrar_ahorros()
-        elif opcion == "Registrar usuario":
-            registrar_usuario()
-        elif opcion == "Cerrar sesión":
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            # 🔁 Volver a pantalla de bienvenida
-            st.session_state_
+        elif opcion == "Regi
