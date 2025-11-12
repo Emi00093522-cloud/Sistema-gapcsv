@@ -3,13 +3,16 @@ from modulos.config.conexion import obtener_conexion
 
 def mostrar_distrito():
     st.header("🏛️ Registrar Distrito")
-    
-    # Mensaje de bienvenida personalizado
     st.success("👋 ¡Hola, promotor!")
     
     try:
         con = obtener_conexion()
         cursor = con.cursor()
+
+        # **NUEVO: Mostrar tablas disponibles para diagnóstico**
+        cursor.execute("SHOW TABLES")
+        tablas = cursor.fetchall()
+        st.info(f"📊 Tablas disponibles en la base de datos: {[tabla[0] for tabla in tablas]}")
 
         # Formulario para registrar el distrito
         with st.form("form_distrito"):
@@ -25,16 +28,30 @@ def mostrar_distrito():
                     st.warning("⚠ Debes ingresar el nombre del distrito.")
                 else:
                     try:
-                        # Si el código está vacío, lo convertimos a None (NULL en la BD)
                         codigo_valor = codigo.strip() if codigo.strip() != "" else None
                         
+                        # **POSIBLES NOMBRES DE TABLA - prueba uno por uno**
+                        # Intenta con diferentes nombres comunes de tabla:
+                        nombres_tablas = ['distritos', 'Distritos', 'distrito', 'Distrito', 'tb_distritos']
+                        
+                        for nombre_tabla in nombres_tablas:
+                            try:
+                                cursor.execute(f"SELECT 1 FROM {nombre_tabla} LIMIT 1")
+                                st.success(f"✅ Tabla encontrada: {nombre_tabla}")
+                                tabla_correcta = nombre_tabla
+                                break
+                            except:
+                                continue
+                        else:
+                            st.error("❌ No se encontró ninguna tabla de distritos")
+                            return
+                        
                         cursor.execute(
-                            "INSERT INTO Distritos (nombre, codigo) VALUES (%s, %s)",
+                            f"INSERT INTO {tabla_correcta} (nombre, codigo) VALUES (%s, %s)",
                             (nombre.strip(), codigo_valor)
                         )
                         con.commit()
                         
-                        # Obtener el ID del distrito recién insertado
                         cursor.execute("SELECT LAST_INSERT_ID()")
                         id_distrito = cursor.fetchone()[0]
                         
@@ -58,33 +75,3 @@ def mostrar_distrito():
             cursor.close()
         if 'con' in locals():
             con.close()
-
-# Función adicional para mostrar los distritos existentes (opcional)
-def mostrar_distritos_existentes():
-    try:
-        con = obtener_conexion()
-        cursor = con.cursor()
-        
-        cursor.execute("SELECT ID_Distrito, nombre, codigo FROM Distritos ORDER BY ID_Distrito DESC LIMIT 10")
-        distritos = cursor.fetchall()
-        
-        if distritos:
-            st.subheader("📋 Últimos distritos registrados")
-            for distrito in distritos:
-                id_dist, nombre, codigo = distrito
-                codigo_display = codigo if codigo else "No asignado"
-                st.write(f"**ID {id_dist}:** {nombre} - Código: {codigo_display}")
-                
-    except Exception as e:
-        st.error(f"Error al cargar distritos: {e}")
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'con' in locals():
-            con.close()
-
-# Función principal que puedes llamar desde tu app
-def gestionar_distritos():
-    mostrar_distrito()
-    st.divider()
-    mostrar_distritos_existentes()
