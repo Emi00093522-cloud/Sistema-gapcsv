@@ -34,6 +34,12 @@ def registrar_usuario():
 
             # Insertar en la BD
             try:
+                try:
+    cursor.execute("SELECT ID_Tipo_usuario, Tipo FROM Tipo_usuario")
+except Exception as e:
+    st.error(f"Error SQL: {e}")
+    return
+
                 cursor.execute("""
                     INSERT INTO Usuario (ID_Tipo_usuario, ID_Cargo, usuario, contraseña)
                     VALUES (%s, %s, %s, %s)
