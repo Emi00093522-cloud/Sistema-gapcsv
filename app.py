@@ -2,7 +2,7 @@ import streamlit as st
 from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
 from modulos.grupos import mostrar_grupo
-
+mostrar_grupo()
 # ⚙️ Configuración de la app
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
 
@@ -49,70 +49,83 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
 # 🟢 Si ya hay sesión iniciada
-# =====================================================
 if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
     tipo = st.session_state.get("tipo_usuario", "Desconocido")
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
-    # --- Menú dinámico según tipo de usuario ---
+    # Menú dinámico según tipo
     if tipo.lower() == "administradora":
-        opciones = ["Consolidado por distrito", "Cerrar sesión"]
-        opcion = st.sidebar.selectbox("Ir a:", opciones)
-
-        if opcion == "Consolidado por distrito":
-            st.title("📊 Consolidado general por distrito 💲")
-            st.info("Aquí se mostrará el consolidado de todos los grupos por distrito.")
-        elif opcion == "Cerrar sesión":
-            usuario_temp = st.session_state.get("usuario", "")
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
-
+        opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
     elif tipo.lower() == "promotora":
         opciones = ["Consolidado por grupos", "Cerrar sesión"]
-        opcion = st.sidebar.selectbox("Ir a:", opciones)
+    else:
+        opciones = ["Dashboard", "Cerrar sesión"]
 
+    opcion = st.sidebar.selectbox("Ir a:", opciones)
+
+    # --- Administradora ---
+    if tipo.lower() == "administradora":
+        if opcion == "Consolidado por distrito":
+            st.title("📊 Consolidado general por distrito 💲")
+            mostrar_ahorros()  # Aquí irá tu función real
+        elif opcion == "Registrar usuario":
+            registrar_usuario()
+        elif opcion == "Cerrar sesión":
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
+            st.rerun()
+
+    # --- Promotora ---
+    elif tipo.lower() == "promotora":
         if opcion == "Consolidado por grupos":
             st.title("📈 Consolidado por grupos del distrito asignado 💰")
-            st.info("Aquí se mostrará el consolidado de los grupos bajo tu distrito.")
+            mostrar_ahorros()  # Aquí irá tu función real
         elif opcion == "Cerrar sesión":
+            # Guardar el nombre del usuario para el mensaje de despedida
             usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
+            
+            # Restablecer estado básico
             st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
+            
             st.rerun()
 
-    elif tipo.lower() in ["presidenta", "secretaria"]:
-        opciones = ["Registrar grupo", "Ver grupos", "Cerrar sesión"]
-        opcion = st.sidebar.selectbox("Ir a:", opciones)
-
-        if opcion == "Registrar grupo":
-            st.title("👥 Registro y edición de grupos")
-            mostrar_grupo()
-        elif opcion == "Ver grupos":
-            st.title("📋 Listado de grupos existentes")
-            st.info("Aquí podrás consultar los grupos ya registrados.")
-        elif opcion == "Cerrar sesión":
-            usuario_temp = st.session_state.get("usuario", "")
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
-
+    # --- Otros tipos de usuario ---
     else:
-        st.warning("⚠️ Tipo de usuario no reconocido. Contacte al administrador.")
+        if opcion == "Dashboard":
+            st.title("📊 Dashboard")
+            # Aquí irá tu función real del dashboard
+        elif opcion == "Cerrar sesión":
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
+            st.rerun()
 
-# =====================================================
-# 🔴 Si NO hay sesión iniciada
-# =====================================================
+# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida o sesión cerrada
 else:
     # --- Página de sesión cerrada ---
     if st.session_state["pagina_actual"] == "sesion_cerrada":
@@ -128,13 +141,13 @@ else:
     # --- Página de inicio normal ---
     elif st.session_state["pagina_actual"] == "inicio":
         st.markdown("<h1 class='titulo'> Bienvenido al Sistema GAPCSV </h1>", unsafe_allow_html=True)
-        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Préstamo Comunitario </h3>", unsafe_allow_html=True)
+        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
 
         st.markdown("""
         <div class='descripcion'>
-            <p class='emoji'>💰 Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
-            <p class='emoji'>🤝 Promueve la colaboración, la transparencia y el crecimiento económico local.</p>
-            <p>Si ya tienes una cuenta, inicia sesión.<br>
+            <p class='emoji'> Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
+            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local🤝.</p>
+            <p>Si ya tienes una cuenta, inicia sesión .<br>
             Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
         </div>
         """, unsafe_allow_html=True)
