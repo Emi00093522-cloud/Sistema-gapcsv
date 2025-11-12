@@ -4,78 +4,127 @@ from modulos.config.conexion import obtener_conexion
 def mostrar_promotora():
     st.header("👩‍💼 Registrar Promotora")
 
+    # Estado para controlar el mensaje de éxito
+    if 'promotora_registrada' not in st.session_state:
+        st.session_state.promotora_registrada = False
+    if 'id_promotora_creada' not in st.session_state:
+        st.session_state.id_promotora_creada = None
+    if 'nombre_promotora_creada' not in st.session_state:
+        st.session_state.nombre_promotora_creada = ""
+
+    # Mostrar mensaje de éxito si ya se registró
+    if st.session_state.promotora_registrada:
+        st.success("🎉 ¡Promotora registrada con éxito!")
+        st.info(f"**ID de la promotora:** {st.session_state.id_promotora_creada}")
+        st.info(f"**Nombre:** {st.session_state.nombre_promotora_creada}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🆕 Registrar otra promotora"):
+                st.session_state.promotora_registrada = False
+                st.session_state.id_promotora_creada = None
+                st.session_state.nombre_promotora_creada = ""
+                st.rerun()
+        with col2:
+            if st.button("🏠 Volver al menú"):
+                st.session_state.promotora_registrada = False
+                st.success("Redirigiendo al menú principal...")
+        return
+
     try:
         con = obtener_conexion()
         cursor = con.cursor()
+
+        # Obtener opciones para las llaves foráneas
+        cursor.execute("SELECT ID_Estado, nombre FROM Estado")
+        estados = cursor.fetchall()
+        
+        cursor.execute("SELECT ID_grupo, nombre FROM Grupo")
+        grupos = cursor.fetchall()
 
         # Formulario para registrar la promotora
         with st.form("form_promotora"):
             st.subheader("Datos de la Promotora")
             
-            # Campo 2: nombre (varchar(100), obligatorio)
+            # Campo obligatorio: nombre
             nombre = st.text_input("Nombre completo *", 
                                  placeholder="Ingrese el nombre completo de la promotora",
                                  max_chars=100)
             
-            # Campo 4: (varchar(100), opcional) - Asumo que es dirección o email
-            direccion_email = st.text_input("Dirección o Email (opcional)", 
-                                          placeholder="Ingrese dirección o email",
-                                          max_chars=100)
-            
-            # Campo 5: (varchar(20), opcional) - Asumo que es teléfono
+            # Campo opcional: teléfono
             telefono = st.text_input("Teléfono (opcional)", 
                                    placeholder="Ingrese número de teléfono",
                                    max_chars=20)
             
-            # Campo 6: (int, opcional, default 1) - Estado: 1=Activo, 2=Desactivo
-            estado = st.selectbox("Estado", 
-                                options=[1, 2], 
-                                format_func=lambda x: "Activo" if x == 1 else "Inactivo",
-                                index=0)
+            # Llave foránea: ID_Estado (obligatorio)
+            if estados:
+                estado_options = {f"{estado[1]} (ID: {estado[0]})": estado[0] for estado in estados}
+                estado_seleccionado = st.selectbox("Estado *", 
+                                                 options=list(estado_options.keys()))
+                ID_Estado = estado_options[estado_seleccionado]
+            else:
+                st.error("No hay estados disponibles en la base de datos")
+                ID_Estado = None
+            
+            # Llave foránea: ID_grupo (opcional)
+            if grupos:
+                grupo_options = {f"Sin grupo": None}
+                grupo_options.update({f"{grupo[1]} (ID: {grupo[0]})": grupo[0] for grupo in grupos})
+                grupo_seleccionado = st.selectbox("Grupo (opcional)", 
+                                                options=list(grupo_options.keys()),
+                                                index=0)
+                ID_grupo = grupo_options[grupo_seleccionado]
+            else:
+                ID_grupo = None
+                st.info("No hay grupos disponibles")
             
             enviar = st.form_submit_button("✅ Guardar Promotora")
 
             if enviar:
                 if nombre.strip() == "":
                     st.warning("⚠ Debes ingresar el nombre de la promotora.")
+                elif ID_Estado is None:
+                    st.warning("⚠ Debes seleccionar un estado.")
                 else:
                     try:
-                        # Convertir valores opcionales a NULL si están vacíos
-                        direccion_val = direccion_email.strip() if direccion_email.strip() != "" else None
+                        # Convertir teléfono a NULL si está vacío
                         telefono_val = telefono.strip() if telefono.strip() != "" else None
                         
-                        cursor.execute(
-                            """INSERT INTO Promotora 
-                            (nombre, campo4, campo5, campo6) 
-                            VALUES (%s, %s, %s, %s)""",
-                            (nombre.strip(), direccion_val, telefono_val, estado)
-                        )
+                        # INSERT con los nombres REALES de las columnas
+                        if ID_grupo:
+                            cursor.execute(
+                                """INSERT INTO Promotora 
+                                (nombre, telefono, ID_Estado, ID_grupo) 
+                                VALUES (%s, %s, %s, %s)""",
+                                (nombre.strip(), telefono_val, ID_Estado, ID_grupo)
+                            )
+                        else:
+                            cursor.execute(
+                                """INSERT INTO Promotora 
+                                (nombre, telefono, ID_Estado) 
+                                VALUES (%s, %s, %s)""",
+                                (nombre.strip(), telefono_val, ID_Estado)
+                            )
+                        
                         con.commit()
                         
                         # Obtener el ID de la promotora recién insertada
                         cursor.execute("SELECT LAST_INSERT_ID()")
                         id_promotora = cursor.fetchone()[0]
                         
-                        st.success(f"✅ Promotora registrada correctamente!")
-                        st.info(f"**ID de la promotora:** {id_promotora}")
-                        st.info(f"**Nombre:** {nombre.strip()}")
-                        st.info(f"**Estado:** {'Activo' if estado == 1 else 'Inactivo'}")
+                        # Guardar en session_state para mostrar mensaje de éxito
+                        st.session_state.promotora_registrada = True
+                        st.session_state.id_promotora_creada = id_promotora
+                        st.session_state.nombre_promotora_creada = nombre.strip()
                         
-                        # Botones de acción después del registro
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("🆕 Registrar otra promotora"):
-                                st.rerun()
-                        with col2:
-                            if st.button("🏠 Volver al menú principal"):
-                                st.success("Redirigiendo al menú principal...")
+                        st.rerun()
                         
                     except Exception as e:
                         con.rollback()
                         st.error(f"❌ Error al registrar la promotora: {e}")
 
     except Exception as e:
-        st.error(f"❌ Error general: {e}")
+        st.error(f"❌ Error de conexión: {e}")
 
     finally:
         if 'cursor' in locals():
