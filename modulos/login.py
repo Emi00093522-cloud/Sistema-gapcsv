@@ -35,12 +35,37 @@ def verificar_usuario(usuario, contrasena):
         con.close()
 
 
+def obtener_cargos_por_tipo_usuario(tipo_usuario):
+    """Obtiene los cargos disponibles según el tipo de usuario."""
+    if tipo_usuario == "LECTOR":
+        return ["ADMINISTRADOR", "PROMOTORA", "TESORERA", "SOCIA"]
+    elif tipo_usuario == "EDITOR":
+        return ["PRESIDENTE", "SECRETARIA"]
+    else:
+        return []
+
+
 def login():
     """Interfaz del login."""
     st.title("Inicio de sesión 👩‍💼")
 
     usuario = st.text_input("Usuario", key="usuario_input")
     contrasena = st.text_input("Contraseña", type="password", key="contrasena_input")
+    
+    # Selector de tipo de usuario
+    tipo_usuario = st.selectbox(
+        "Tipo de usuario",
+        ["LECTOR", "EDITOR"],
+        key="tipo_usuario_select"
+    )
+    
+    # Selector de cargo que se actualiza según el tipo de usuario seleccionado
+    cargos_disponibles = obtener_cargos_por_tipo_usuario(tipo_usuario)
+    cargo = st.selectbox(
+        "Cargo",
+        cargos_disponibles,
+        key="cargo_select"
+    )
 
     if st.button("Iniciar sesión"):
         datos_usuario = verificar_usuario(usuario, contrasena)
@@ -49,8 +74,20 @@ def login():
             st.session_state["sesion_iniciada"] = True
             st.session_state["usuario"] = datos_usuario["Usuario"]
             st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
+            st.session_state["cargo"] = cargo
 
-            st.success(f"Bienvenido, {datos_usuario['Usuario']} 👋 (Tipo: {datos_usuario['tipo_usuario']})")
+            st.success(f"Bienvenido, {datos_usuario['Usuario']} 👋 (Tipo: {datos_usuario['tipo_usuario']}, Cargo: {cargo})")
             st.rerun()
         else:
             st.error("❌ Usuario o contraseña incorrectos.")
+
+
+# Función adicional para usar en otras partes de tu aplicación
+def obtener_cargo_actual():
+    """Retorna el cargo actual del usuario logueado."""
+    return st.session_state.get("cargo", "")
+
+
+def obtener_tipo_usuario_actual():
+    """Retorna el tipo de usuario actual."""
+    return st.session_state.get("tipo_usuario", "")
