@@ -107,7 +107,7 @@ if st.session_state["sesion_iniciada"]:
                 
         elif opcion == "Registrar Promotora":
             st.title("👩‍💼 Registrar Nueva Promotora")
-            mostrar_promotora()
+            modulo_promotora()
             
         elif opcion == "Registrar Distrito":
             st.title("🏛️ Registrar Nuevo Distrito")
