@@ -83,17 +83,16 @@ if st.session_state["sesion_iniciada"]:
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
-    if tipo.lower() == "administradora":
-        opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
-    elif tipo.lower() == "promotora":
-        opciones = ["Consolidado por grupos", "Cerrar sesión"]
-    else:
-        opciones = ["Dashboard", "Cerrar sesión"]
-
-    opcion = st.sidebar.selectbox("Ir a:", opciones)
-
-    if tipo.lower() == "administradora":
+      if tipo.lower() == "administradora":
         if opcion == "Consolidado por distrito":
             st.title("📊 Consolidado general por distrito")
             mostrar_ahorros()
-        elif opcion == "Regi
+        elif opcion == "Registrar usuario":
+            registrar_usuario()
+        elif opcion == "Cerrar sesión":
+            # 🔁 Cerrar sesión limpiando todo y regresando al inicio
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "inicio"
+            st.success("👋 Sesión cerrada correctamente.")
+            st.rerun()
