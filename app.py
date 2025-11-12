@@ -93,8 +93,8 @@ else:
 
         st.markdown("""
         <div class='descripcion'>
-            <p class='emoji'>💰 Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
-            <p class='emoji'>🤝 Promueve la colaboración, la transparencia y el crecimiento económico local.</p>
+            <p class='emoji'> Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
+            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local🤝💰.</p>
             <p>Si ya tienes una cuenta, inicia sesión .<br>
             Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
         </div>
