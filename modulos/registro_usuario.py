@@ -12,7 +12,7 @@ def registrar_usuario():
     cursor = conexion.cursor(dictionary=True)
 
     # Cargar catálogos
-    cursor.execute("SELECT ID_Tipo_usuario, Tipo FROM Tipo_usuario")
+    cursor.execute("SELECT ID_Tipo_usuario, Tipo FROM Tipo_de_usuario")
     tipos = cursor.fetchall()
     cursor.execute("SELECT ID_Cargo, Cargo FROM Cargo")
     cargos = cursor.fetchall()
