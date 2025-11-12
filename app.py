@@ -66,7 +66,7 @@ if st.session_state["sesion_iniciada"]:
         # Menú especial para PROMOTORAS
         opciones = ["Dashboard Promotora", "Registrar Promotora", "Registrar Distrito", "Cerrar sesión"]
     else:
-        opciones = ["Dashboard", "Cerrar sesión"]
+        opciones = ["Dashboard","Registrar Promotora","Registrar Distritos" "Cerrar sesión"]
 
     opcion = st.sidebar.selectbox("Ir a:", opciones)
 
@@ -107,7 +107,7 @@ if st.session_state["sesion_iniciada"]:
                 
         elif opcion == "Registrar Promotora":
             st.title("👩‍💼 Registrar Nueva Promotora")
-            modulo_promotora()
+            mostrar_promotora()
             
         elif opcion == "Registrar Distrito":
             st.title("🏛️ Registrar Nuevo Distrito")
