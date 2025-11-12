@@ -15,12 +15,12 @@ def verificar_usuario(usuario, contrasena):
         # Encriptar la contraseña para compararla con la guardada
         contrasena_hash = hashlib.sha256(contrasena.encode()).hexdigest()
 
-        # Ajusta nombres de columnas según tu tabla real
+        # ✅ Ajustado al nombre real de tu columna: Tipo_usuario
         query = """
             SELECT 
                 u.ID_Usuario,
                 u.Usuario,
-                t.Tipo AS tipo_usuario
+                t.Tipo_usuario AS tipo_usuario
             FROM Usuario u
             INNER JOIN Tipo_de_usuario t ON u.ID_Tipo_usuario = t.ID_Tipo_usuario
             WHERE u.Usuario = %s AND u.Contraseña = %s
