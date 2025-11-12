@@ -123,8 +123,8 @@ if st.session_state["sesion_iniciada"]:
 # 🔴 Si no hay sesión iniciada, mostrar página de bienvenida
 else:
     st.markdown("<div class='fondo'>", unsafe_allow_html=True)
-    st.markdown("<h1 class='titulo'>💜 Bienvenida al Sistema GAPCSV</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 class='subtitulo'>Grupos de Ahorro Comunitario Solidario y Visionario</h3>", unsafe_allow_html=True)
+    st.markdown("<h1 class='titulo'> Bienvenida al Sistema GAPCSV💰🤝 </h1>", unsafe_allow_html=True)
+    st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
     st.markdown(
         "<p class='texto'>Este sistema permite gestionar la información de los grupos de ahorro comunitario.<br>"
         "Si ya tienes una cuenta, <b>inicia sesión</b> para acceder a tus datos.<br>"
