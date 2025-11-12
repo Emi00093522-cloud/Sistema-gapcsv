@@ -11,6 +11,12 @@ if "sesion_iniciada" not in st.session_state:
     st.session_state["sesion_iniciada"] = False
 if "pagina_actual" not in st.session_state:
     st.session_state["pagina_actual"] = "inicio"
+if "usuario" not in st.session_state:
+    st.session_state["usuario"] = ""
+if "tipo_usuario" not in st.session_state:
+    st.session_state["tipo_usuario"] = ""
+if "cargo" not in st.session_state:
+    st.session_state["cargo"] = ""
 
 # --- NAVEGACIÓN LATERAL ---
 st.sidebar.title("📋 Menú principal")
@@ -42,80 +48,124 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 🟢 Si ya hay sesión iniciada
-if st.session_state["sesion_iniciada"]:
+# 🔴 Si no hay sesión iniciada, mostrar login automáticamente
+if not st.session_state.get("sesion_iniciada", False):
+    login()
+    
+# 🟢 Si hay sesión iniciada, mostrar la aplicación principal
+else:
     usuario = st.session_state.get("usuario", "Usuario")
     tipo = st.session_state.get("tipo_usuario", "Desconocido")
+    cargo = st.session_state.get("cargo", "")
 
-    st.sidebar.write(f"👤 **{usuario}** ({tipo})")
+    st.sidebar.write(f"👤 **{usuario}**")
+    st.sidebar.write(f"🏷️ **Tipo:** {tipo}")
+    st.sidebar.write(f"💼 **Cargo:** {cargo}")
 
-    # Menú dinámico según tipo
-    if tipo.lower() == "administradora":
-        opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
-    elif tipo.lower() == "promotora":
-        opciones = ["Consolidado por grupos", "Cerrar sesión"]
+    # Menú dinámico según tipo de usuario y cargo
+    if tipo.upper() == "EDITOR":
+        if cargo.upper() == "PRESIDENTE":
+            opciones = ["Dashboard Presidente", "Reportes", "Cerrar sesión"]
+        elif cargo.upper() == "SECRETARIA":
+            opciones = ["Dashboard Secretaria", "Registros", "Cerrar sesión"]
+        else:
+            opciones = ["Dashboard", "Cerrar sesión"]
+            
+    elif tipo.upper() == "LECTOR":
+        if cargo.upper() == "ADMINISTRADOR":
+            opciones = ["Consolidado por distrito", "Registrar usuario", "Reportes", "Cerrar sesión"]
+        elif cargo.upper() == "PROMOTORA":
+            opciones = ["Consolidado por grupos", "Cerrar sesión"]
+        elif cargo.upper() == "TESORERA":
+            opciones = ["Control de tesorería", "Reportes financieros", "Cerrar sesión"]
+        elif cargo.upper() == "SOCIA":
+            opciones = ["Mi ahorro", "Mis préstamos", "Cerrar sesión"]
+        else:
+            opciones = ["Dashboard", "Cerrar sesión"]
     else:
         opciones = ["Dashboard", "Cerrar sesión"]
 
     opcion = st.sidebar.selectbox("Ir a:", opciones)
 
-    # --- Administradora ---
-    if tipo.lower() == "administradora":
-        if opcion == "Consolidado por distrito":
-            st.title("📊 Consolidado general por distrito 💲")
-            mostrar_ahorros()  # Aquí irá tu función real
-        elif opcion == "Registrar usuario":
-            registrar_usuario()
-        elif opcion == "Cerrar sesión":
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.session_state["pagina_actual"] = "inicio"
-            st.success("👋 Sesión cerrada correctamente.")
-            st.rerun()
+    # --- EDITORES ---
+    if tipo.upper() == "EDITOR":
+        if "Dashboard Presidente" in opcion:
+            st.title("🎯 Dashboard Presidente")
+            st.info("Funcionalidades específicas para el Presidente")
+            # mostrar_dashboard_presidente()  # Tu función real aquí
+            
+        elif "Dashboard Secretaria" in opcion:
+            st.title("📋 Dashboard Secretaria")
+            st.info("Funcionalidades específicas para la Secretaria")
+            # mostrar_dashboard_secretaria()  # Tu función real aquí
+            
+        elif "Reportes" in opcion:
+            st.title("📊 Reportes")
+            st.info("Módulo de reportes para editores")
+            
+        elif "Registros" in opcion:
+            st.title("📝 Registros")
+            st.info("Módulo de registros para secretaría")
 
-    # --- Promotora ---
-    elif tipo.lower() == "promotora":
-        if opcion == "Consolidado por grupos":
-            st.title("📈 Consolidado por grupos del distrito asignado 💰")
-            mostrar_ahorros()  # Aquí irá tu función real
-        elif opcion == "Cerrar sesión":
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.session_state["pagina_actual"] = "inicio"
-            st.success("👋 Sesión cerrada correctamente.")
-            st.rerun()
+    # --- LECTORES ---
+    elif tipo.upper() == "LECTOR":
+        if cargo.upper() == "ADMINISTRADOR":
+            if opcion == "Consolidado por distrito":
+                st.title("📊 Consolidado general por distrito 💲")
+                # mostrar_ahorros()  # Tu función real aquí
+                st.info("Módulo de consolidado por distrito - ADMINISTRADOR")
+                
+            elif opcion == "Registrar usuario":
+                registrar_usuario()
+                
+            elif opcion == "Reportes":
+                st.title("📈 Reportes Administrativos")
+                st.info("Módulo de reportes para administradores")
 
-# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida
-else:
-    if st.session_state["pagina_actual"] == "inicio":
-        st.markdown("<h1 class='titulo'>💰 Bienvenid@ al Sistema GAPCSV 💲</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
+        elif cargo.upper() == "PROMOTORA":
+            if opcion == "Consolidado por grupos":
+                st.title("📈 Consolidado por grupos del distrito asignado 💰")
+                # mostrar_ahorros()  # Tu función real aquí
+                st.info("Módulo de consolidado por grupos - PROMOTORA")
 
-        st.markdown("""
-        <div class='descripcion'>
-            <p class='emoji'> Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
-            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local🤝💰.</p>
-            <p>Si ya tienes una cuenta, inicia sesión .<br>
-            Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
-        </div>
-        """, unsafe_allow_html=True)
+        elif cargo.upper() == "TESORERA":
+            if opcion == "Control de tesorería":
+                st.title("💰 Control de Tesorería")
+                st.info("Módulo de control de tesorería")
+                
+            elif opcion == "Reportes financieros":
+                st.title("📊 Reportes Financieros")
+                st.info("Módulo de reportes financieros")
 
-        col1, col2 = st.columns(2)
+        elif cargo.upper() == "SOCIA":
+            if opcion == "Mi ahorro":
+                st.title("💵 Mi Ahorro Personal")
+                st.info("Módulo de consulta de ahorro personal")
+                
+            elif opcion == "Mis préstamos":
+                st.title("🏦 Mis Préstamos")
+                st.info("Módulo de consulta de préstamos")
 
-        with col1:
-            if st.button("🔑 Iniciar sesión"):
-                st.session_state["pagina_actual"] = "login"
-                st.rerun()
+    # --- CERRAR SESIÓN (para todos) ---
+    if opcion == "Cerrar sesión":
+        # Guardar información temporal si es necesario
+        usuario_temp = st.session_state.get("usuario", "")
+        
+        # Limpiar toda la sesión
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+            
+        # Restablecer estado básico
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["pagina_actual"] = "inicio"
+        
+        st.success(f"👋 Sesión cerrada correctamente. Hasta luego, {usuario_temp}!")
+        st.rerun()
 
-        with col2:
-            if st.button("📝 Registrarme"):
-                st.session_state["pagina_actual"] = "registro"
-                st.rerun()
-
-    # --- Pantalla de login ---
-    elif st.session_state["pagina_actual"] == "login":
-        login()
-
-    # --- Pantalla de registro ---
-    elif st.session_state["pagina_actual"] == "registro":
-        registrar_usuario()
+    # --- CONTENIDO PRINCIPAL ---
+    st.markdown("---")
+    st.markdown(f"### 🏠 Página principal - {cargo}")
+    st.write(f"Bienvenido/a **{usuario}** - Tipo: **{tipo}** - Cargo: **{cargo}**")
+    
+    # Aquí puedes agregar el contenido principal de tu aplicación
+    # mostrar_bienvenida()  # O tus dashboards reales
