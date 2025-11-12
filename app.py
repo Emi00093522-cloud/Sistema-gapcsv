@@ -4,9 +4,7 @@ from modulos.login import login
 # from modulos.grupos import mostrar_grupo
 # mostrar_grupo()
 from modulos.promotora import mostrar_promotora
-mostrar_promotora()
 from modulos.distrito import mostrar_distrito
-mostrar_distrito()
 # ⚙️ Configuración de la app
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
 
@@ -57,14 +55,16 @@ st.markdown("""
 if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
     tipo = st.session_state.get("tipo_usuario", "Desconocido")
+    cargo = st.session_state.get("cargo_usuario", "")
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
-    # Menú dinámico según tipo
+    # Menú dinámico según tipo y cargo
     if tipo.lower() == "administradora":
         opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
-    elif tipo.lower() == "promotora":
-        opciones = ["Consolidado por grupos", "Cerrar sesión"]
+    elif tipo.lower() == "promotora" or cargo.upper() == "PROMOTORA":
+        # Menú especial para PROMOTORAS
+        opciones = ["Dashboard Promotora", "Registrar Promotora", "Registrar Distrito", "Cerrar sesión"]
     else:
         opciones = ["Dashboard", "Cerrar sesión"]
 
@@ -74,7 +74,7 @@ if st.session_state["sesion_iniciada"]:
     if tipo.lower() == "administradora":
         if opcion == "Consolidado por distrito":
             st.title("📊 Consolidado general por distrito 💲")
-            mostrar_ahorros()  # Aquí irá tu función real
+            # mostrar_ahorros()  # Aquí irá tu función real
         elif opcion == "Registrar usuario":
             registrar_usuario()
         elif opcion == "Cerrar sesión":
@@ -91,11 +91,28 @@ if st.session_state["sesion_iniciada"]:
             
             st.rerun()
 
-    # --- Promotora ---
-    elif tipo.lower() == "promotora":
-        if opcion == "Consolidado por grupos":
-            st.title("📈 Consolidado por grupos del distrito asignado 💰")
-            mostrar_ahorros()  # Aquí irá tu función real
+    # --- PROMOTORA --- (tipo PROMOTORA o cargo PROMOTORA)
+    elif tipo.lower() == "promotora" or cargo.upper() == "PROMOTORA":
+        if opcion == "Dashboard Promotora":
+            st.title("👩‍💼 Dashboard de Promotora")
+            st.success(f"¡Bienvenida, {usuario}!")
+            st.info("Desde aquí puedes gestionar promotoras y distritos.")
+            
+            # Mostrar estadísticas rápidas o información relevante
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Tu Cargo", "PROMOTORA")
+            with col2:
+                st.metric("Acciones Disponibles", "2")
+                
+        elif opcion == "Registrar Promotora":
+            st.title("👩‍💼 Registrar Nueva Promotora")
+            mostrar_promotora()
+            
+        elif opcion == "Registrar Distrito":
+            st.title("🏛️ Registrar Nuevo Distrito")
+            mostrar_distrito()
+            
         elif opcion == "Cerrar sesión":
             # Guardar el nombre del usuario para el mensaje de despedida
             usuario_temp = st.session_state.get("usuario", "")
@@ -175,4 +192,3 @@ else:
     # --- Pantalla de registro ---
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
-
