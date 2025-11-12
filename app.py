@@ -116,7 +116,7 @@ if st.session_state["sesion_iniciada"]:
             st.title("👩‍💼 Registrar Promotora")
             mostrar_promotora()
         elif route == "dist_registrar":
-            st.title("👩‍💼 Registrar Distrito")
+            st.title("🏛️ Registrar Distrito")
             mostrar_distrito()
         elif route == "logout":
             st.session_state.clear()
