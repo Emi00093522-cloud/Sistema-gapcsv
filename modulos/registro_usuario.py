@@ -44,34 +44,44 @@ def registrar_usuario():
     # Mostrar tipo de usuario asignado (solo lectura)
     st.text_input("Tipo de usuario asignado", tipo_sel, disabled=True)
 
-    # --- BOTÓN REGISTRAR ---
-    if st.button("Registrar usuario"):
-        if usuario and contraseña:
-            try:
-                id_tipo = tipo_opciones.get(tipo_sel.capitalize())
-                id_cargo = cargo_opciones.get(cargo_sel.capitalize())
+    # --- BOTONES ---
+    col1, col2 = st.columns(2)
 
-                if not id_tipo or not id_cargo:
-                    st.error("⚠️ No se encontró el tipo o cargo en la base de datos.")
-                    return
+    with col1:
+        if st.button("✅ Registrar usuario"):
+            if usuario and contraseña:
+                try:
+                    id_tipo = tipo_opciones.get(tipo_sel.capitalize())
+                    id_cargo = cargo_opciones.get(cargo_sel.capitalize())
 
-                # Encriptar contraseña
-                contraseña_hash = hashlib.sha256(contraseña.encode()).hexdigest()
+                    if not id_tipo or not id_cargo:
+                        st.error("⚠️ No se encontró el tipo o cargo en la base de datos.")
+                        return
 
-                # Insertar usuario
-                cursor.execute("""
-                    INSERT INTO Usuario (ID_Tipo_usuario, ID_Cargo, usuario, contraseña)
-                    VALUES (%s, %s, %s, %s)
-                """, (id_tipo, id_cargo, usuario, contraseña_hash))
-                conexion.commit()
+                    # Encriptar contraseña
+                    contraseña_hash = hashlib.sha256(contraseña.encode()).hexdigest()
 
-                st.success(f"✅ Usuario '{usuario}' registrado correctamente como {cargo_sel} ({tipo_sel}).")
+                    # Insertar usuario
+                    cursor.execute("""
+                        INSERT INTO Usuario (ID_Tipo_usuario, ID_Cargo, usuario, contraseña)
+                        VALUES (%s, %s, %s, %s)
+                    """, (id_tipo, id_cargo, usuario, contraseña_hash))
+                    conexion.commit()
 
-            except Exception as e:
-                st.error(f"❌ Error al registrar usuario: {e}")
-        else:
-            st.warning("Por favor completa todos los campos antes de continuar.")
+                    st.success(f"✅ Usuario '{usuario}' registrado correctamente como {cargo_sel} ({tipo_sel}).")
+
+                except Exception as e:
+                    st.error(f"❌ Error al registrar usuario: {e}")
+            else:
+                st.warning("Por favor completa todos los campos antes de continuar.")
+
+    with col2:
+        # 👇 BOTÓN PARA VOLVER A LA PÁGINA PRINCIPAL
+        if st.button("⬅️ Cancelar y volver al inicio"):
+            st.session_state["pagina_actual"] = "inicio"
+            st.rerun()
 
     cursor.close()
     conexion.close()
+
 
