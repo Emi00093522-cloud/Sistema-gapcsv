@@ -63,47 +63,67 @@ if st.session_state["sesion_iniciada"]:
 else:
     # 💜 Estilo visual con HTML y CSS
     st.markdown(
-        """
-        <style>
-        .fondo {
-            background: linear-gradient(135deg, #E6E6FA 0%, #F8E1F4 100%);
-            padding: 50px;
-            border-radius: 20px;
-            box-shadow: 0 0 25px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .titulo {
-            color: #5E3C77;
-            font-size: 36px;
-            font-weight: bold;
-        }
-        .subtitulo {
-            color: #7A4D96;
-            font-size: 20px;
-            margin-top: 10px;
-            margin-bottom: 30px;
-        }
-        .texto {
-            color: #4A4A4A;
-            font-size: 18px;
-            margin-bottom: 40px;
-        }
-        .boton {
-            background-color: #7A4D96;
-            color: white;
-            border-radius: 10px;
-            font-size: 18px;
-            padding: 10px 20px;
-            border: none;
-        }
-        .boton:hover {
-            background-color: #5E3C77;
-            color: white;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    """
+    <style>
+    /* --- Fondo general de la página --- */
+    .stApp {
+        background: linear-gradient(135deg, #E6E6FA 0%, #F8E1F4 100%) !important;
+        color: #4A4A4A;
+    }
+
+    /* --- Contenedor del mensaje de bienvenida --- */
+    .fondo {
+        background: rgba(255, 255, 255, 0.4); /* más transparente */
+        padding: 50px;
+        border-radius: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        text-align: center;
+        backdrop-filter: blur(10px); /* da efecto cristal elegante */
+    }
+
+    /* --- Título y textos --- */
+    .titulo {
+        color: #5E3C77;
+        font-size: 38px;
+        font-weight: bold;
+        margin-bottom: 0px;
+    }
+    .subtitulo {
+        color: #7A4D96;
+        font-size: 20px;
+        margin-top: 5px;
+        margin-bottom: 25px;
+    }
+    .texto {
+        color: #4A4A4A;
+        font-size: 18px;
+        margin-bottom: 30px;
+    }
+
+    /* --- Botones personalizados --- */
+    button[kind="primary"] {
+        background-color: #7A4D96 !important;
+        color: white !important;
+        border-radius: 10px !important;
+        font-size: 18px !important;
+        border: none !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    button[kind="primary"]:hover {
+        background-color: #5E3C77 !important;
+    }
+
+    /* --- Ocultar el borde gris del contenedor Streamlit --- */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 
     # 💜 Contenido de bienvenida
     st.markdown("<div class='fondo'>", unsafe_allow_html=True)
