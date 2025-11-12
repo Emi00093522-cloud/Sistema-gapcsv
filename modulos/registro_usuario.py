@@ -7,15 +7,22 @@ def registrar_usuario():
 
     conexion = obtener_conexion()
     if not conexion:
+        st.error("No se pudo establecer la conexión con la base de datos.")
         return
 
     cursor = conexion.cursor(dictionary=True)
 
-    # Cargar catálogos
-    cursor.execute("SELECT ID_Tipo_usuario, Tipo FROM Tipo_de_usuario")
-    tipos = cursor.fetchall()
-    cursor.execute("SELECT ID_Cargo, Cargo FROM Cargo")
-    cargos = cursor.fetchall()
+    try:
+        # Cargar catálogos
+        cursor.execute("SELECT ID_Tipo_usuario, Tipo FROM Tipo_de_usuario")
+        tipos = cursor.fetchall()
+        cursor.execute("SELECT ID_Cargo, Cargo FROM Cargo")
+        cargos = cursor.fetchall()
+    except Exception as e:
+        st.error(f"Error al cargar catálogos: {e}")
+        cursor.close()
+        conexion.close()
+        return
 
     # Crear listas para los select
     tipo_opciones = {t["Tipo"]: t["ID_Tipo_usuario"] for t in tipos}
@@ -34,12 +41,6 @@ def registrar_usuario():
 
             # Insertar en la BD
             try:
-                try:
-    cursor.execute("SELECT ID_Tipo_usuario, Tipo FROM Tipo_usuario")
-except Exception as e:
-    st.error(f"Error SQL: {e}")
-    return
-
                 cursor.execute("""
                     INSERT INTO Usuario (ID_Tipo_usuario, ID_Cargo, usuario, contraseña)
                     VALUES (%s, %s, %s, %s)
