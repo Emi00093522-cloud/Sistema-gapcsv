@@ -66,7 +66,7 @@ if st.session_state["sesion_iniciada"]:
         # Menú especial para PROMOTORAS
         opciones = ["Dashboard Promotora", "Registrar Promotora", "Registrar Distrito", "Cerrar sesión"]
     else:
-        opciones = ["Dashboard","Registrar Promotora","Registrar Distritos" "Cerrar sesión"]
+        opciones = ["Dashboard","Registrar Promotora","Registrar Distritos", "Cerrar sesión"]
 
     opcion = st.sidebar.selectbox("Ir a:", opciones)
 
