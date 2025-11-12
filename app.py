@@ -1,32 +1,29 @@
+
 import streamlit as st
 from modulos.registro_usuario import registrar_usuario
-from modulos.login import login
 from modulos.ahorros import mostrar_ahorros
+from modulos.login import login
 
-# Configuración básica de la página
+# Configuración básica de la app
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="🧁", layout="centered")
 
-# Título general del sistema
-st.title("🧁 Sistema de Gestión GAPCSV")
+# Inicialización del estado de sesión
+if "sesion_iniciada" not in st.session_state:
+    st.session_state["sesion_iniciada"] = False
+if "pagina_actual" not in st.session_state:
+    st.session_state["pagina_actual"] = "login"
 
-# Menú lateral
-menu = st.sidebar.selectbox(
-    "Menú principal",
-    ["Iniciar sesión", "Registrar usuario", "Ver ahorros"]
-)
+# --- Control de navegación lateral ---
+st.sidebar.title("📋 Menú principal")
 
-# Control de navegación
-if menu == "Iniciar sesión":
-    login()
+# Si la sesión ya está iniciada, mostrar opciones del sistema
+if st.session_state["sesion_iniciada"]:
+    usuario = st.session_state.get("usuario", "Usuario")
+    tipo = st.session_state.get("tipo_usuario", "Desconocido")
 
-elif menu == "Registrar usuario":
-    registrar_usuario()
+    st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
-elif menu == "Ver ahorros":
-    # Solo mostrar si hay sesión activa
-    if "usuario" in st.session_state:
-        st.success(f"Bienvenido/a {st.session_state['usuario']} 👋")
-        mostrar_ahorros()
-    else:
-        st.warning("Debes iniciar sesión primero para ver los ahorros.")
-
+    opcion = st.sidebar.selectbox(
+        "Ir a:",
+        ["Dashboard", "Registrar usuario", "Cerrar sesión"],
+        index=["Dashboard", "Registrar usuario", "Cerrar sesi]()
