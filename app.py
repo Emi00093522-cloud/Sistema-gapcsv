@@ -3,6 +3,8 @@ from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
 # from modulos.grupos import mostrar_grupo
 # mostrar_grupo()
+from modulos.distrito import mostrar_promotora
+mostrar_promotora()
 from modulos.distrito import mostrar_distrito
 mostrar_distrito()
 # ⚙️ Configuración de la app
