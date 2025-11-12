@@ -77,7 +77,7 @@ def registrar_usuario():
 
     with col2:
         # 👇 BOTÓN PARA VOLVER A LA PÁGINA PRINCIPAL
-        if st.button("⬅️ Cancelar y volver al inicio"):
+        if st.button("⬅️volver al inicio"):
             st.session_state["pagina_actual"] = "inicio"
             st.rerun()
 
