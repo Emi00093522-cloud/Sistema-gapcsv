@@ -34,9 +34,9 @@ def registrar_usuario():
     cargo_sel = st.selectbox("Cargo", list(cargo_opciones.keys()))
 
     # 🔒 Asignar tipo automáticamente según el cargo seleccionado
-    if cargo_sel.lower() in ["administradora", "promotora"]:
+    if cargo_sel.lower() in ["administradora"]:
         tipo_sel = "Lector"
-    elif cargo_sel.lower() in ["presidenta", "secretaria"]:
+    elif cargo_sel.lower() in ["presidenta", "secretaria", "promotora"]:
         tipo_sel = "Editor"
     else:
         tipo_sel = "Lector"  # Por defecto, lector para cualquier otro cargo
