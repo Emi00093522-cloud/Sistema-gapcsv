@@ -105,7 +105,7 @@ if st.session_state["sesion_iniciada"]:
             with col2:
                 st.metric("Acciones Disponibles", "2")
                 
-        elif opcion == "Registrar Promotora":
+        elif opcion == "Registrar Promotora"
             st.title("👩‍💼 Registrar Nueva Promotora")
             mostrar_promotora()
             
