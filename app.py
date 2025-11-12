@@ -1,82 +1,121 @@
 import streamlit as st
-import hashlib
-from modulos.config.conexion import obtener_conexion
+from modulos.registro_usuario import registrar_usuario
+from modulos.login import login
+from modulos.bienvenida import mostrar_bienvenida  # Puedes reemplazar luego por tus dashboards reales
 
-def registrar_usuario():
-    st.title("Registro de nuevo usuario 👩‍💼")
+# ⚙️ Configuración de la app
+st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
 
-    # Botón para regresar al menú principal
-    if st.button("← Volver al menú principal"):
-        st.session_state["pagina_actual"] = "inicio"
-        st.rerun()
+# 🧠 Inicialización del estado
+if "sesion_iniciada" not in st.session_state:
+    st.session_state["sesion_iniciada"] = False
+if "pagina_actual" not in st.session_state:
+    st.session_state["pagina_actual"] = "inicio"
 
-    conexion = obtener_conexion()
-    if not conexion:
-        st.error("❌ No se pudo establecer la conexión con la base de datos.")
-        return
+# --- NAVEGACIÓN LATERAL ---
+st.sidebar.title("📋 Menú principal")
 
-    cursor = conexion.cursor(dictionary=True)
+# 💅 Estilo visual personalizado
+st.markdown("""
+    <style>
+        .titulo {
+            text-align: center;
+            color: #6C3483;
+            font-size: 2.2em;
+            font-weight: bold;
+        }
+        .subtitulo {
+            text-align: center;
+            color: #2E4053;
+            font-size: 1.3em;
+        }
+        .descripcion {
+            background-color: #F8F9F9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 10px;
+            box-shadow: 0 0 10px rgba(108, 52, 131, 0.2);
+        }
+        .emoji {
+            font-size: 1.4em;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-    try:
-        # Cargar catálogos desde la base de datos
-        cursor.execute("SELECT ID_Tipo_usuario, tipo_usuario AS Tipo FROM Tipo_de_usuario")
-        tipos = cursor.fetchall()
-        cursor.execute("SELECT ID_Cargo, tipo_de_cargo AS Cargo FROM Cargo")
-        cargos = cursor.fetchall()
-    except Exception as e:
-        st.error(f"⚠️ Error al cargar catálogos: {e}")
-        cursor.close()
-        conexion.close()
-        return
+# 🟢 Si ya hay sesión iniciada
+if st.session_state["sesion_iniciada"]:
+    usuario = st.session_state.get("usuario", "Usuario")
+    tipo = st.session_state.get("tipo_usuario", "Desconocido")
 
-    # Crear diccionarios {nombre: id}
-    tipo_opciones = {t["Tipo"].capitalize(): t["ID_Tipo_usuario"] for t in tipos}
-    cargo_opciones = {c["Cargo"].capitalize(): c["ID_Cargo"] for c in cargos}
+    st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
-    # --- FORMULARIO ---
-    usuario = st.text_input("Nombre de usuario")
-    contraseña = st.text_input("Contraseña", type="password")
-    cargo_sel = st.selectbox("Cargo", list(cargo_opciones.keys()))
-
-    # 🔒 Asignar tipo automáticamente según el cargo seleccionado
-    if cargo_sel.lower() in ["administradora", "promotora"]:
-        tipo_sel = "Lector"
-    elif cargo_sel.lower() in ["presidenta", "secretaria"]:
-        tipo_sel = "Editor"
+    # Menú dinámico según tipo
+    if tipo.lower() == "administradora":
+        opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
+    elif tipo.lower() == "promotora":
+        opciones = ["Consolidado por grupos", "Cerrar sesión"]
     else:
-        tipo_sel = "Lector"  # Por defecto, lector para cualquier otro cargo
+        opciones = ["Dashboard", "Cerrar sesión"]
 
-    # Mostrar tipo de usuario asignado (solo lectura)
-    st.text_input("Tipo de usuario asignado", tipo_sel, disabled=True)
+    opcion = st.sidebar.selectbox("Ir a:", opciones)
 
-    # --- BOTÓN REGISTRAR ---
-    if st.button("Registrar usuario"):
-        if usuario and contraseña:
-            try:
-                id_tipo = tipo_opciones.get(tipo_sel.capitalize())
-                id_cargo = cargo_opciones.get(cargo_sel.capitalize())
+    # --- Administradora ---
+    if tipo.lower() == "administradora":
+        if opcion == "Consolidado por distrito":
+            st.title("📊 Consolidado general por distrito 💲")
+            mostrar_ahorros()  # Aquí irá tu función real
+        elif opcion == "Registrar usuario":
+            registrar_usuario()
+        elif opcion == "Cerrar sesión":
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.session_state["pagina_actual"] = "inicio"
+            st.success("👋 Sesión cerrada correctamente.")
+            st.rerun()
 
-                if not id_tipo or not id_cargo:
-                    st.error("⚠️ No se encontró el tipo o cargo en la base de datos.")
-                    return
+    # --- Promotora ---
+    elif tipo.lower() == "promotora":
+        if opcion == "Consolidado por grupos":
+            st.title("📈 Consolidado por grupos del distrito asignado 💰")
+            mostrar_ahorros()  # Aquí irá tu función real
+        elif opcion == "Cerrar sesión":
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.session_state["pagina_actual"] = "inicio"
+            st.success("👋 Sesión cerrada correctamente.")
+            st.rerun()
 
-                # Encriptar contraseña
-                contraseña_hash = hashlib.sha256(contraseña.encode()).hexdigest()
+# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida
+else:
+    if st.session_state["pagina_actual"] == "inicio":
+        st.markdown("<h1 class='titulo'> Bienvenido al Sistema GAPCSV </h1>", unsafe_allow_html=True)
+        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
 
-                # Insertar usuario
-                cursor.execute("""
-                    INSERT INTO Usuario (ID_Tipo_usuario, ID_Cargo, usuario, contraseña)
-                    VALUES (%s, %s, %s, %s)
-                """, (id_tipo, id_cargo, usuario, contraseña_hash))
-                conexion.commit()
+        st.markdown("""
+        <div class='descripcion'>
+            <p class='emoji'> Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
+            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local🤝.</p>
+            <p>Si ya tienes una cuenta, inicia sesión .<br>
+            Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-                st.success(f"✅ Usuario '{usuario}' registrado correctamente como {cargo_sel} ({tipo_sel}).")
+        col1, col2 = st.columns(2)
 
-            except Exception as e:
-                st.error(f"❌ Error al registrar usuario: {e}")
-        else:
-            st.warning("Por favor completa todos los campos antes de continuar.")
+        with col1:
+            if st.button("🔑 Iniciar sesión"):
+                st.session_state["pagina_actual"] = "login"
+                st.rerun()
 
-    cursor.close()
-    conexion.close()
+        with col2:
+            if st.button("📝 Registrarme"):
+                st.session_state["pagina_actual"] = "registro"
+                st.rerun()
 
+    # --- Pantalla de login ---
+    elif st.session_state["pagina_actual"] == "login":
+        login()
+
+    # --- Pantalla de registro ---
+    elif st.session_state["pagina_actual"] == "registro":
+        registrar_usuario()
