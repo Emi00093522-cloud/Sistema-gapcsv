@@ -109,11 +109,11 @@ else:
     st.markdown("<div class='fondo'>", unsafe_allow_html=True)
 
     st.markdown("<p class='titulo'>💜 Sistema GAPCSV</p>", unsafe_allow_html=True)
-    st.markdown("<p class='subtitulo'>Grupos de Ahorro Comunitario Solidario y Visionario</p>", unsafe_allow_html=True)
+    st.markdown("<p class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario</p>", unsafe_allow_html=True)
     st.image("https://cdn-icons-png.flaticon.com/512/706/706830.png", width=130)
     st.markdown(
-        "<p class='texto'>Bienvenida al sistema digital de apoyo para los grupos de ahorro comunitario. "
-        "Aquí puedes administrar tus grupos, registrar participantes y consultar consolidaciones "
+        "<p class='texto'>Bienvenid@ al sistema digital de apoyo para los grupos de ahorro comunitario. "
+        "Aquí puedes administrar tus grupos, registrar participantes y consultar información relevante "
         "según tu rol como <b>Promotora</b> o <b>Administradora</b>.</p>",
         unsafe_allow_html=True
     )
