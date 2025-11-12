@@ -89,6 +89,7 @@ if st.session_state["sesion_iniciada"]:
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
+    # Opciones según el tipo de usuario
     if tipo.lower() == "administradora":
         opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
     elif tipo.lower() == "promotora":
@@ -98,6 +99,7 @@ if st.session_state["sesion_iniciada"]:
 
     opcion = st.sidebar.selectbox("Ir a:", opciones)
 
+    # --- Administradora ---
     if tipo.lower() == "administradora":
         if opcion == "Consolidado por distrito":
             st.title("📊 Consolidado general por distrito")
@@ -107,44 +109,5 @@ if st.session_state["sesion_iniciada"]:
         elif opcion == "Cerrar sesión":
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-            st.success("👋 Sesión cerrada correctamente.")
-            st.rerun()
-
-    elif tipo.lower() == "promotora":
-        if opcion == "Consolidado por grupos":
-            st.title("📈 Consolidado por grupos del distrito asignado")
-            mostrar_ahorros()
-        elif opcion == "Cerrar sesión":
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.success("👋 Sesión cerrada correctamente.")
-            st.rerun()
-
-# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida
-else:
-    st.markdown("<div class='fondo'>", unsafe_allow_html=True)
-    st.markdown("<h1 class='titulo'>💜 Bienvenida al Sistema GAPCSV</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 class='subtitulo'>Grupos de Ahorro Comunitario Solidario y Visionario</h3>", unsafe_allow_html=True)
-    st.markdown(
-        "<p class='texto'>Este sistema permite gestionar la información de los grupos de ahorro comunitario.<br>"
-        "Si ya tienes una cuenta, <b>inicia sesión</b> para acceder a tus datos.<br>"
-        "Si aún no tienes usuario, <b>regístrate</b> fácilmente aquí.</p>",
-        unsafe_allow_html=True
-    )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔑 Iniciar sesión"):
-            st.session_state["pagina_actual"] = "login"
-    with col2:
-        if st.button("📝 Registrarme"):
-            st.session_state["pagina_actual"] = "registro"
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    if st.session_state["pagina_actual"] == "login":
-        login()
-    elif st.session_state["pagina_actual"] == "registro":
-        registrar_usuario()
-
-
+            # 🔁 Volver a pantalla de bienvenida
+            st.session_state_
