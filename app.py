@@ -1,7 +1,9 @@
 import streamlit as st
 from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
+from modulos.bienvenida import mostrar_bienvenida  # Puedes reemplazar luego por tus dashboards reales
 
+# ⚙️ Configuración de la app
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
 
 # 🧠 Inicialización del estado
