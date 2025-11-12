@@ -59,7 +59,7 @@ def mostrar_promotora():
                         st.success(f"✅ Promotora registrada correctamente!")
                         st.info(f"**ID de la promotora:** {id_promotora}")
                         st.info(f"**Nombre:** {nombre.strip()}")
-                        st.info(f"**Estado:** {'Activo' if estado == 1 else 'Desactivo'}")
+                        st.info(f"**Estado:** {'Activo' if estado == 1 else 'Inactivo'}")
                         
                         # Botones de acción después del registro
                         col1, col2 = st.columns(2)
