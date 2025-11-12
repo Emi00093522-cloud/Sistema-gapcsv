@@ -1,4 +1,3 @@
-
 import streamlit as st
 from modulos.registro_usuario import registrar_usuario
 from modulos.ahorros import mostrar_ahorros
@@ -26,4 +25,34 @@ if st.session_state["sesion_iniciada"]:
     opcion = st.sidebar.selectbox(
         "Ir a:",
         ["Dashboard", "Registrar usuario", "Cerrar sesión"],
-        index=["Dashboard", "Registrar usuario", "Cerrar sesi]()
+        index=["Dashboard", "Registrar usuario", "Cerrar sesión"].index(
+            "Dashboard" if st.session_state["pagina_actual"] == "dashboard" else "Registrar usuario"
+        ),
+    )
+
+    if opcion == "Dashboard":
+        st.session_state["pagina_actual"] = "dashboard"
+        mostrar_ahorros()
+
+    elif opcion == "Registrar usuario":
+        st.session_state["pagina_actual"] = "registro"
+        registrar_usuario()
+
+    elif opcion == "Cerrar sesión":
+        # Limpiar variables de sesión
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.success("👋 Sesión cerrada correctamente.")
+        st.rerun()
+
+# Si no hay sesión iniciada, mostrar solo el login
+else:
+    menu = st.sidebar.selectbox("Selecciona una opción", ["Iniciar sesión", "Registrar usuario"])
+
+    if menu == "Iniciar sesión":
+        st.session_state["pagina_actual"] = "login"
+        login()
+
+    elif menu == "Registrar usuario":
+        st.session_state["pagina_actual"] = "registro"
+        registrar_usuario()
