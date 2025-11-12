@@ -37,11 +37,6 @@ def verificar_usuario(usuario, contrasena):
 
 def login():
     """Interfaz del login."""
-    # Botón para regresar al menú principal
-    if st.button("← Volver al menú principal"):
-        st.session_state["pagina_actual"] = "inicio"
-        st.rerun()
-    
     st.title("Inicio de sesión 👩‍💼")
 
     usuario = st.text_input("Usuario", key="usuario_input")
