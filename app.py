@@ -4,51 +4,118 @@ from modulos.login import login
 from modulos.ahorros import mostrar_ahorros  # Puedes reemplazar luego por tus dashboards reales
 
 # ⚙️ Configuración de la app
-st.set_page_config(page_title="Sistema GAPCSV", page_icon="🧁", layout="centered")
+st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
 
-# 🎨 --- ESTILOS VISUALES ---
-st.markdown(
-    """
+# 🧠 Inicialización del estado
+if "sesion_iniciada" not in st.session_state:
+    st.session_state["sesion_iniciada"] = False
+if "pagina_actual" not in st.session_state:
+    st.session_state["pagina_actual"] = "inicio"
+
+# --- NAVEGACIÓN LATERAL ---
+st.sidebar.title("📋 Menú principal")
+
+# 💅 Estilo visual personalizado
+st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+        .titulo {
+            text-align: center;
+            color: #6C3483;
+            font-size: 2.2em;
+            font-weight: bold;
+        }
+        .subtitulo {
+            text-align: center;
+            color: #2E4053;
+            font-size: 1.3em;
+        }
+        .descripcion {
+            background-color: #F8F9F9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 10px;
+            box-shadow: 0 0 10px rgba(108, 52, 131, 0.2);
+        }
+        .emoji {
+            font-size: 1.4em;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-    html, body, [class*="st-"] {
-        font-family: 'Poppins', sans-serif;
-    }
+# 🟢 Si ya hay sesión iniciada
+if st.session_state["sesion_iniciada"]:
+    usuario = st.session_state.get("usuario", "Usuario")
+    tipo = st.session_state.get("tipo_usuario", "Desconocido")
 
-    .stApp {
-        background: linear-gradient(135deg, #E6E6FA 0%, #F8E1F4 100%) !important;
-        color: #4A4A4A;
-    }
+    st.sidebar.write(f"👤 **{usuario}** ({tipo})")
 
-    .fondo {
-        background: rgba(255, 255, 255, 0.4);
-        padding: 50px;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        text-align: center;
-        backdrop-filter: blur(10px);
-    }
+    # Menú dinámico según tipo
+    if tipo.lower() == "administradora":
+        opciones = ["Consolidado por distrito", "Registrar usuario", "Cerrar sesión"]
+    elif tipo.lower() == "promotora":
+        opciones = ["Consolidado por grupos", "Cerrar sesión"]
+    else:
+        opciones = ["Dashboard", "Cerrar sesión"]
 
-    .titulo {
-        color: #5E3C77;
-        font-size: 38px;
-        font-weight: 700;
-        margin-bottom: 10px;
-    }
-    .subtitulo {
-        color: #7A4D96;
-        font-size: 22px;
-        font-weight: 600;
-        margin-bottom: 25px;
-    }
-    .texto {
-        color: #4A4A4A;
-        font-size: 18px;
-        margin-bottom: 30px;
-    }
+    opcion = st.sidebar.selectbox("Ir a:", opciones)
 
-    button[kind="primary"] {
-        background-color: #7A4D96 !important;
-        color: white !important;
-        border-radius: 12px !important;
+    # --- Administradora ---
+    if tipo.lower() == "administradora":
+        if opcion == "Consolidado por distrito":
+            st.title("📊 Consolidado general por distrito 💲")
+            mostrar_ahorros()  # Aquí irá tu función real
+        elif opcion == "Registrar usuario":
+            registrar_usuario()
+        elif opcion == "Cerrar sesión":
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.session_state["pagina_actual"] = "inicio"
+            st.success("👋 Sesión cerrada correctamente.")
+            st.rerun()
+
+    # --- Promotora ---
+    elif tipo.lower() == "promotora":
+        if opcion == "Consolidado por grupos":
+            st.title("📈 Consolidado por grupos del distrito asignado 💰")
+            mostrar_ahorros()  # Aquí irá tu función real
+        elif opcion == "Cerrar sesión":
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.session_state["pagina_actual"] = "inicio"
+            st.success("👋 Sesión cerrada correctamente.")
+            st.rerun()
+
+# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida
+else:
+    if st.session_state["pagina_actual"] == "inicio":
+        st.markdown("<h1 class='titulo'>💜 Bienvenida al Sistema GAPCSV 💲</h1>", unsafe_allow_html=True)
+        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro Comunitario Solidario y Visionario</h3>", unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class='descripcion'>
+            <p class='emoji'>💰 Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
+            <p class='emoji'>🤝 Promueve la colaboración, la transparencia y el crecimiento económico local.</p>
+            <p>Si ya tienes una cuenta, inicia sesión para ver tus reportes.<br>
+            Si aún no tienes usuario, puedes registrarte fácilmente para comenzar a formar parte de esta comunidad de ahorro. 🌱</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🔑 Iniciar sesión"):
+                st.session_state["pagina_actual"] = "login"
+                st.rerun()
+
+        with col2:
+            if st.button("📝 Registrarme"):
+                st.session_state["pagina_actual"] = "registro"
+                st.rerun()
+
+    # --- Pantalla de login ---
+    elif st.session_state["pagina_actual"] == "login":
+        login()
+
+    # --- Pantalla de registro ---
+    elif st.session_state["pagina_actual"] == "registro":
+        registrar_usuario()
