@@ -39,6 +39,13 @@ st.markdown("""
         .emoji {
             font-size: 1.4em;
         }
+        .sesion-cerrada {
+            text-align: center;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -67,10 +74,17 @@ if st.session_state["sesion_iniciada"]:
         elif opcion == "Registrar usuario":
             registrar_usuario()
         elif opcion == "Cerrar sesión":
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-            st.session_state["pagina_actual"] = "inicio"
-            st.success("👋 Sesión cerrada correctamente.")
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
             st.rerun()
 
     # --- Promotora ---
@@ -79,15 +93,53 @@ if st.session_state["sesion_iniciada"]:
             st.title("📈 Consolidado por grupos del distrito asignado 💰")
             mostrar_ahorros()  # Aquí irá tu función real
         elif opcion == "Cerrar sesión":
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-            st.session_state["pagina_actual"] = "inicio"
-            st.success("👋 Sesión cerrada correctamente.")
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
             st.rerun()
 
-# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida
+    # --- Otros tipos de usuario ---
+    else:
+        if opcion == "Dashboard":
+            st.title("📊 Dashboard")
+            # Aquí irá tu función real del dashboard
+        elif opcion == "Cerrar sesión":
+            # Guardar el nombre del usuario para el mensaje de despedida
+            usuario_temp = st.session_state.get("usuario", "")
+            
+            # Limpiar toda la sesión
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            
+            # Restablecer estado básico
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            
+            st.rerun()
+
+# 🔴 Si no hay sesión iniciada, mostrar página de bienvenida o sesión cerrada
 else:
-    if st.session_state["pagina_actual"] == "inicio":
+    # --- Página de sesión cerrada ---
+    if st.session_state["pagina_actual"] == "sesion_cerrada":
+        st.markdown("<div class='sesion-cerrada'>", unsafe_allow_html=True)
+        st.markdown("### ✅ Sesión finalizada")
+        st.markdown("<p>Has cerrado sesión exitosamente.</p>", unsafe_allow_html=True)
+        
+        if st.button("🏠 Volver al inicio"):
+            st.session_state["pagina_actual"] = "inicio"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- Página de inicio normal ---
+    elif st.session_state["pagina_actual"] == "inicio":
         st.markdown("<h1 class='titulo'> Bienvenido al Sistema GAPCSV </h1>", unsafe_allow_html=True)
         st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
 
