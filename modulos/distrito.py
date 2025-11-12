@@ -31,6 +31,32 @@ def mostrar_distrito():
         con = obtener_conexion()
         cursor = con.cursor()
 
+        # **DIAGNÓSTICO: Mostrar todas las tablas disponibles**
+        cursor.execute("SHOW TABLES")
+        tablas = cursor.fetchall()
+        st.info(f"📊 **Tablas disponibles en tu base de datos:**")
+        for tabla in tablas:
+            st.write(f"- `{tabla[0]}`")
+
+        # **ENCONTRAR EL NOMBRE CORRECTO DE LA TABLA**
+        nombres_posibles = ['distritos', 'Distritos', 'distrito', 'Distrito', 'tb_distritos', 'tbl_distritos']
+        tabla_correcta = None
+        
+        for nombre_tabla in nombres_posibles:
+            try:
+                cursor.execute(f"SELECT 1 FROM {nombre_tabla} LIMIT 1")
+                tabla_correcta = nombre_tabla
+                st.success(f"✅ **Tabla encontrada:** `{tabla_correcta}`")
+                break
+            except:
+                continue
+        
+        if not tabla_correcta:
+            st.error("❌ No se encontró ninguna tabla de distritos. Verifica el nombre en PHPMyAdmin.")
+            cursor.close()
+            con.close()
+            return
+
         # Formulario para registrar el distrito
         with st.form("form_distrito"):
             nombre = st.text_input("Nombre del distrito", 
@@ -48,9 +74,9 @@ def mostrar_distrito():
                         # Si el código está vacío, lo convertimos a None (NULL en la BD)
                         codigo_valor = codigo.strip() if codigo.strip() != "" else None
                         
-                        # Insertar en la tabla usando la estructura de tu foto
+                        # Insertar en la tabla usando el nombre CORRECTO
                         cursor.execute(
-                            "INSERT INTO Distritos (nombre, codigo) VALUES (%s, %s)",
+                            f"INSERT INTO {tabla_correcta} (nombre, codigo) VALUES (%s, %s)",
                             (nombre.strip(), codigo_valor)
                         )
                         con.commit()
@@ -79,35 +105,6 @@ def mostrar_distrito():
         if 'con' in locals():
             con.close()
 
-# Función para mostrar distritos existentes (opcional)
-def mostrar_distritos_existentes():
-    try:
-        con = obtener_conexion()
-        cursor = con.cursor()
-        
-        cursor.execute("SELECT ID_Distrito, nombre, codigo FROM Distritos ORDER BY ID_Distrito DESC LIMIT 5")
-        distritos = cursor.fetchall()
-        
-        if distritos:
-            st.subheader("📋 Distritos recientes")
-            for distrito in distritos:
-                id_dist, nombre, codigo = distrito
-                codigo_display = codigo if codigo else "Sin código"
-                st.write(f"**ID {id_dist}:** {nombre} - {codigo_display}")
-                
-    except Exception as e:
-        st.error(f"Error al cargar distritos: {e}")
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'con' in locals():
-            con.close()
-
 # Función principal
 def gestionar_distritos():
     mostrar_distrito()
-    
-    # Solo mostrar distritos existentes si no estamos en estado de éxito
-    if not st.session_state.distrito_creado:
-        st.divider()
-        mostrar_distritos_existentes()
