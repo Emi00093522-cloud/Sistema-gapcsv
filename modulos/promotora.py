@@ -35,12 +35,9 @@ def mostrar_promotora():
         con = obtener_conexion()
         cursor = con.cursor()
 
-        # Obtener opciones para las llaves foráneas
+        # Obtener opciones para el estado
         cursor.execute("SELECT ID_Estado, nombre FROM Estado")
         estados = cursor.fetchall()
-        
-        cursor.execute("SELECT ID_grupo, nombre FROM Grupo")
-        grupos = cursor.fetchall()
 
         # Formulario para registrar la promotora
         with st.form("form_promotora"):
@@ -66,18 +63,6 @@ def mostrar_promotora():
                 st.error("No hay estados disponibles en la base de datos")
                 ID_Estado = None
             
-            # Llave foránea: ID_grupo (opcional)
-            if grupos:
-                grupo_options = {f"Sin grupo": None}
-                grupo_options.update({f"{grupo[1]} (ID: {grupo[0]})": grupo[0] for grupo in grupos})
-                grupo_seleccionado = st.selectbox("Grupo (opcional)", 
-                                                options=list(grupo_options.keys()),
-                                                index=0)
-                ID_grupo = grupo_options[grupo_seleccionado]
-            else:
-                ID_grupo = None
-                st.info("No hay grupos disponibles")
-            
             enviar = st.form_submit_button("✅ Guardar Promotora")
 
             if enviar:
@@ -91,20 +76,12 @@ def mostrar_promotora():
                         telefono_val = telefono.strip() if telefono.strip() != "" else None
                         
                         # INSERT con los nombres REALES de las columnas
-                        if ID_grupo:
-                            cursor.execute(
-                                """INSERT INTO Promotora 
-                                (nombre, telefono, ID_Estado, ID_grupo) 
-                                VALUES (%s, %s, %s, %s)""",
-                                (nombre.strip(), telefono_val, ID_Estado, ID_grupo)
-                            )
-                        else:
-                            cursor.execute(
-                                """INSERT INTO Promotora 
-                                (nombre, telefono, ID_Estado) 
-                                VALUES (%s, %s, %s)""",
-                                (nombre.strip(), telefono_val, ID_Estado)
-                            )
+                        cursor.execute(
+                            """INSERT INTO Promotora 
+                            (nombre, telefono, ID_Estado) 
+                            VALUES (%s, %s, %s)""",
+                            (nombre.strip(), telefono_val, ID_Estado)
+                        )
                         
                         con.commit()
                         
