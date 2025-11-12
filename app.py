@@ -105,7 +105,7 @@ if st.session_state["sesion_iniciada"]:
         options = {
             "📊 Dashboard": "otros_dashboard",
             "📝 Registro de promotora": "prom_registrar",
-            " Registro de distrito" : "dist_registrar",
+            "🏛️ Registro de distrito" : "dist_registrar",
             "🚪 Cerrar sesión": "logout"
         }
         route = make_menu(options, default_label="📊 Dashboard")
