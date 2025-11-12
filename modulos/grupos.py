@@ -57,7 +57,12 @@ def mostrar_grupo():
             distrito_seleccionado = st.selectbox("Distrito*", distritos)
             id_distrito = distritos.index(distrito_seleccionado) + 1
             
-            id_estado = st.number_input("ID Estado", min_value=1, step=1, value=1)
+            # Menú desplegable para estado del grupo
+            estado_grupo = st.selectbox(
+                "Estado del Grupo*",
+                ["1 - Activo", "2 - Inactivo"]
+            )
+            id_estado = int(estado_grupo.split(" - ")[0])  # Extrae el ID (1 o 2)
 
             enviar = st.form_submit_button("✅ Registrar Grupo")
 
