@@ -88,13 +88,13 @@ if st.session_state["sesion_iniciada"]:
 # 🔴 Si no hay sesión iniciada, mostrar página de bienvenida
 else:
     if st.session_state["pagina_actual"] == "inicio":
-        st.markdown("<h1 class='titulo'>💰 Bienvenid@ al Sistema GAPCSV 💲</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='titulo'> Bienvenido al Sistema GAPCSV </h1>", unsafe_allow_html=True)
         st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
 
         st.markdown("""
         <div class='descripcion'>
             <p class='emoji'> Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
-            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local🤝💰.</p>
+            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local🤝.</p>
             <p>Si ya tienes una cuenta, inicia sesión .<br>
             Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
         </div>
