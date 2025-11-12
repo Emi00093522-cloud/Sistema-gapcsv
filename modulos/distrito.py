@@ -20,9 +20,8 @@ def mostrar_distrito():
                 st.rerun()
         with col2:
             if st.button("🏠 Volver al menú principal"):
-                # Aquí puedes redirigir a tu menú principal
                 st.success("Redirigiendo al menú principal...")
-                # st.experimental_rerun() o tu función de navegación
+                # Aquí puedes agregar tu lógica de navegación
         return
 
     try:
@@ -70,8 +69,9 @@ def mostrar_distrito():
 def guardar_distrito(nombre, codigo, cursor, con):
     """Función para guardar el distrito en la base de datos"""
     try:
+        # USANDO EL NOMBRE CORRECTO: "Distrito" (con D mayúscula)
         cursor.execute(
-            "INSERT INTO Distritos (nombre, codigo) VALUES (%s, %s)",
+            "INSERT INTO Distrito (nombre, codigo) VALUES (%s, %s)",
             (nombre, codigo)
         )
         con.commit()
@@ -83,6 +83,7 @@ def guardar_distrito(nombre, codigo, cursor, con):
         st.session_state.distrito_creado = True
         st.session_state.ultimo_id = id_distrito
         st.session_state.ultimo_nombre = nombre
+        
         st.rerun()
         
     except Exception as e:
