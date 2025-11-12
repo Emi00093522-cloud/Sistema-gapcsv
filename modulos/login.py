@@ -1,43 +1,45 @@
 import streamlit as st
+import hashlib
 from modulos.config.conexion import obtener_conexion
 
 
 def verificar_usuario(usuario, contrasena):
+    """
+    Verifica si el usuario y la contraseña son válidos en la base de datos.
+    Las contraseñas se comparan en su versión encriptada (SHA-256).
+    """
     con = obtener_conexion()
     if not con:
         st.error("⚠️ No se pudo conectar a la base de datos.")
         return None
-    else:
-        # ✅ Guardar en el estado que la conexión fue exitosa
-        st.session_state["conexion_exitosa"] = True
 
     try:
-        cursor = con.cursor()
-        query = "SELECT Tipo_usuario FROM USUARIO WHERE usuario = %s AND contrasena = %s"
-        cursor.execute(query, (usuario, contrasena))
+        cursor = con.cursor(dictionary=True)
+
+        # Encriptar la contraseña ingresada
+        contrasena_hash = hashlib.sha256(contrasena.encode()).hexdigest()
+
+        # Consulta de validación
+        query = """
+            SELECT u.usuario, t.Tipo_usuario
+            FROM Usuario u
+            JOIN Tipo_usuario t ON u.ID_Tipo_usuario = t.ID_Tipo_usuario
+            WHERE u.usuario = %s AND u.contraseña = %s
+        """
+        cursor.execute(query, (usuario, contrasena_hash))
         result = cursor.fetchone()
-        return result[0] if result else None
+        return result
+    except Exception as e:
+        st.error(f"❌ Error al verificar usuario: {e}")
+        return None
     finally:
         con.close()
 
 
 def login():
-    st.title("Inicio de sesión")
+    """
+    Interfaz de inicio de sesión con control de estado y redirección automática.
+    """
+    st.title("🔐 Inicio de sesión")
 
-    # 🟢 Mostrar mensaje persistente si ya hubo conexión exitosa
-    if st.session_state.get("conexion_exitosa"):
-        st.success("✅ Conexión a la base de datos establecida correctamente.")
-
-    usuario = st.text_input("Usuario", key="usuario_input")
-    contrasena = st.text_input("Contraseña", type="password", key="contrasena_input")
-
-    if st.button("Iniciar sesión"):
-        tipo = verificar_usuario(usuario, contrasena)
-        if tipo:
-            st.session_state["usuario"] = usuario
-            st.session_state["tipo_usuario"] = tipo
-            st.success(f"Bienvenido ({tipo}) 👋")
-            st.session_state["sesion_iniciada"] = True
-            st.rerun()
-        else:
-            st.error("❌ Credenciales incorrectas.")
+    # Mostrar mensaje si la conexión previa fue exi
