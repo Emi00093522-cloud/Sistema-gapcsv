@@ -1,17 +1,32 @@
 import streamlit as st
 from modulos.registro_usuario import registrar_usuario
-from modulos.ahorros import mostrar_ahorros  # Importamos la función mostrar_venta del módulo venta
 from modulos.login import login
-mostrar_ahorros()
-login()
-# Llamamos a la función mostrar_venta para mostrar el mensaje en la app
-mostrar_ahorros()
+from modulos.ahorros import mostrar_ahorros
 
+# Configuración básica de la página
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="🧁", layout="centered")
 
-menu = st.sidebar.selectbox("Menú", ["Registrar usuario", "Login"])
+# Título general del sistema
+st.title("🧁 Sistema de Gestión GAPCSV")
 
-if menu == "Registrar usuario":
+# Menú lateral
+menu = st.sidebar.selectbox(
+    "Menú principal",
+    ["Iniciar sesión", "Registrar usuario", "Ver ahorros"]
+)
+
+# Control de navegación
+if menu == "Iniciar sesión":
+    login()
+
+elif menu == "Registrar usuario":
     registrar_usuario()
-elif menu == "Login":
-    st.write("Aquí irá tu formulario de login")
+
+elif menu == "Ver ahorros":
+    # Solo mostrar si hay sesión activa
+    if "usuario" in st.session_state:
+        st.success(f"Bienvenido/a {st.session_state['usuario']} 👋")
+        mostrar_ahorros()
+    else:
+        st.warning("Debes iniciar sesión primero para ver los ahorros.")
+
