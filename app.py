@@ -135,6 +135,9 @@ if st.session_state["sesion_iniciada"]:
         elif opcion == "Cerrar sesión":
             # Guardar el nombre del usuario para el mensaje de despedida
             usuario_temp = st.session_state.get("usuario", "")
+        elif opcion == "Registrar Promotora"
+            st.title("Registrar Promotora")
+            mostrar_promotora()
             
             # Limpiar toda la sesión
             for key in list(st.session_state.keys()):
