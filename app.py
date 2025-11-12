@@ -115,6 +115,9 @@ if st.session_state["sesion_iniciada"]:
         elif route == "prom_registrar":
             st.title("👩‍💼 Registrar Promotora")
             mostrar_promotora()
+        elif route == "dist_registrar":
+            st.title("👩‍💼 Registrar Distrito")
+            mostrar_distrito()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
