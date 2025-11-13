@@ -36,7 +36,7 @@ def registrar_usuario():
     # 🔒 Asignar tipo automáticamente según el cargo seleccionado
     if cargo_sel.lower() in ["administradora"]:
         tipo_sel = "Lector"
-    elif cargo_sel.lower() in ["presidenta", "secretaria", "promotora"]:
+    elif cargo_sel.lower() in ["presidenta", "presidente", "secretaria", "secretario", "promotora", "promotor"]:
         tipo_sel = "Editor"
     else:
         tipo_sel = "Lector"  # Por defecto, lector para cualquier otro cargo
@@ -83,5 +83,3 @@ def registrar_usuario():
 
     cursor.close()
     conexion.close()
-
-
