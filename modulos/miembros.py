@@ -188,3 +188,4 @@ def mostrar_miembro():
             cursor.close()
         if 'con' in locals():
             con.close()
+
