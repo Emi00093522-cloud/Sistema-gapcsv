@@ -80,7 +80,7 @@ if st.session_state["sesion_iniciada"]:
                 st.session_state["pagina_actual"] = "sesion_cerrada"
                 st.rerun()
 
-        elif (tipo == "promotora") or (cargo == "PROMOTORA"):
+    elif (tipo == "promotora") or (cargo == "PROMOTORA"):
             options = {
                 "📈 Dashboard promotora": "prom_dashboard",
                 "👩‍💼 Registro de promotora": "prom_registrar",
