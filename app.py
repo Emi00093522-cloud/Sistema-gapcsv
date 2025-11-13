@@ -104,7 +104,7 @@ if st.session_state["sesion_iniciada"]:
                 st.session_state["pagina_actual"] = "sesion_cerrada"
                 st.rerun()
 
-     elif (cargo == "Presidente") or (cargo == "Secretaria"):
+elif (cargo == "Presidente") or (cargo == "Secretaria"):
             # Otros tipos
             options = {
                  "👥 Registro de grupos": "grupos_registrar",
