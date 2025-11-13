@@ -173,14 +173,13 @@ def mostrar_reglamentos():
                         try:
                             cursor.execute(
                                 """INSERT INTO Reglamento 
-                                   (ID_Grupo, nombre_regla, descripcion, monto_multa, tipo_sanción, ID_Estado) 
-                                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                                   (ID_Grupo, nombre_regla, descripcion, monto_multa, ID_Estado) 
+                                   VALUES (%s, %s, %s, %s, %s)""",
                                 (
                                     id_grupo,
                                     fila['nombre_regla'].strip(),
                                     fila['descripcion'].strip() if fila['descripcion'] else None,
                                     fila['monto_multa'],
-                                    "Multa económica",
                                     fila['estado']
                                 )
                             )
