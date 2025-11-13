@@ -1,7 +1,7 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 
-def mostrar_reglamento():
+def mostrar_reglamentos():
     st.header("📜 Registrar Reglamento")
 
     try:
