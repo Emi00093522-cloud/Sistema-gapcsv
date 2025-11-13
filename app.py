@@ -57,78 +57,76 @@ if st.session_state["sesion_iniciada"]:
     tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
     cargo = (st.session_state.get("cargo_usuario", "") or "").strip().upper()
 
-    st.sidebar.write(f"👤 **{usuario}** ({cargo or 'desconocido'})")
+    st.sidebar.write(f"👤 **{usuario}** ({cargo or 'DESCONOCIDO'})")
 
-    # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
-        # Usuario no SECRETARIA/PRESIDENTE: menú normal por tipo
+    # 👑 1) ADMINISTRADORA
     if tipo == "administradora":
-            options = {
-                "📊 Consolidado por distrito": "admin_consolidado",
-                "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
-                "🚪 Cerrar sesión": "logout"
-            }
-            route = make_menu(options, default_label="📊 Consolidado por distrito")
+        options = {
+            "📊 Consolidado por distrito": "admin_consolidado",
+            "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
+            "🚪 Cerrar sesión": "logout"
+        }
+        route = make_menu(options, default_label="📊 Consolidado por distrito")
 
-            if route == "admin_consolidado":
-                st.title("📊 Consolidado general por distrito 💲")
-                # mostrar_ahorros()
-            elif route == "admin_registrar_usuario":
-                registrar_usuario()
-            elif route == "logout":
-                st.session_state.clear()
-                st.session_state["sesion_iniciada"] = False
-                st.session_state["pagina_actual"] = "sesion_cerrada"
-                st.rerun()
+        if route == "admin_consolidado":
+            st.title("📊 Consolidado general por distrito 💲")
+            # TODO: función de consolidado (ej. mostrar_ahorros())
+        elif route == "admin_registrar_usuario":
+            registrar_usuario()
+        elif route == "logout":
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
 
+    # 👩‍💼 2) PROMOTORA (por tipo o por cargo)
     elif (tipo == "promotora") or (cargo == "PROMOTORA"):
-            options = {
-                "📈 Dashboard promotora": "prom_dashboard",
-                "👩‍💼 Registro de promotora": "prom_registrar",
-                "🏛️ Registro de distrito": "dist_registrar",
-                "🚪 Cerrar sesión": "logout"
-            }
-            route = make_menu(options, default_label="📈 Dashboard promotora")
+        options = {
+            "📈 Dashboard promotora": "prom_dashboard",
+            "👩‍💼 Registro de promotora": "prom_registrar",
+            "🏛️ Registro de distrito": "dist_registrar",
+            "🚪 Cerrar sesión": "logout"
+        }
+        route = make_menu(options, default_label="📈 Dashboard promotora")
 
-            if route == "prom_dashboard":
-                dashboard_promotora(usuario)
-            elif route == "prom_registrar":
-                st.title("👩‍💼 Registrar Nueva Promotora")
-                mostrar_promotora()
-            elif route == "dist_registrar":
-                st.title("🏛️ Registrar Nuevo Distrito")
-                mostrar_distrito()
-           
-            elif route == "logout":
-                st.session_state.clear()
-                st.session_state["sesion_iniciada"] = False
-                st.session_state["pagina_actual"] = "sesion_cerrada"
-                st.rerun()
+        if route == "prom_dashboard":
+            dashboard_promotora(usuario)
+        elif route == "prom_registrar":
+            st.title("👩‍💼 Registrar Nueva Promotora")
+            mostrar_promotora()
+        elif route == "dist_registrar":
+            st.title("🏛️ Registrar Nuevo Distrito")
+            mostrar_distrito()
+        elif route == "logout":
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
 
-    elif (cargo == "Presidente") or (cargo == "Secretaria"):
-            # Otros tipos
-            options = {
-                 "👥 Registro de grupos": "grupos_registrar",
-                "📜 Registro de reglamentos": "reglamentos_registrar",
-                "🚪 Cerrar sesión": "logout"
-            }
-            route = make_menu(options, default_label="📊 Dashboard")
+    # 🧑‍🤝‍🧑 3) SECRETARIA o PRESIDENTE (mismo menú)
+    elif cargo in ("Secretaria", "Presidente"):
+        options = {
+            "👥 Registro de grupos": "grupos_registrar",
+            "📜 Registro de reglamentos": "reglamentos_registrar",
+            "🚪 Cerrar sesión": "logout"
+        }
+        route = make_menu(options, default_label="👥 Registro de grupos")
 
-            if route == "otros_dashboard":
-                st.title("📊 Dashboard")
-            
-            elif route == "grupos_registrar":
-                st.title("👥 Registrar Nuevo Grupo")
-                mostrar_grupos()
-                
-            elif route == "reglamentos_registrar":
-                st.title("📜 Registrar Reglamento")
-                mostrar_reglamentos()
-            
-            elif route == "logout":
-                st.session_state.clear()
-                st.session_state["sesion_iniciada"] = False
-                st.session_state["pagina_actual"] = "sesion_cerrada"
-                st.rerun()
+        if route == "grupos_registrar":
+            st.title("👥 Registrar Nuevo Grupo")
+            mostrar_grupos()
+        elif route == "reglamentos_registrar":
+            st.title("📜 Registrar Reglamento")
+            mostrar_reglamentos()
+        elif route == "logout":
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+    # Si no coincide ningún rol
+    else:
+        st.error("Tu usuario no tiene un rol asignado válido. Contacta con la administración.")
 
 # Sin sesión
 else:
@@ -168,4 +166,5 @@ else:
 
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
+
 
