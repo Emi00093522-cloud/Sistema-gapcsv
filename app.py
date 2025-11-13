@@ -117,12 +117,7 @@ if st.session_state["sesion_iniciada"]:
             st.title("👥 Registrar Nuevo Grupo")
             mostrar_grupos()
             # Si quien está aquí es SECRETARIA o PRESIDENTE, mostramos un acceso directo al reglamento del grupo
-            if cargo in ("SECRETARIA", "PRESIDENTE"):
-                st.write("---")
-                st.markdown("### 📜 Reglamento del grupo")
-                if st.button("📝 Registrar/Editar reglamentos de este grupo"):
-                    mostrar_reglamentos()
-                    st.stop()
+           
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
