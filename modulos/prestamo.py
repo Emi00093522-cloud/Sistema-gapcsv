@@ -136,8 +136,3 @@ def mostrar_prestamo():
             cursor.close()
         if 'con' in locals():
             con.close()
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'con' in locals():
-            con.close()
