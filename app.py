@@ -4,8 +4,9 @@ from modulos.login import login
 from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
 from modulos.grupos import mostrar_grupos
-from modulos.reglamentos import mostrar_reglamentos  # <-- import agregado
+from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
+from modulos.prestamo import mostrar_prestamo  # <-- import agregado
 
 # ⚙️ Configuración: SIEMPRE al inicio
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -60,12 +61,13 @@ if st.session_state["sesion_iniciada"]:
 
     st.sidebar.write(f"👤 **{usuario}** ({cargo})")
 
-    # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
+    # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 4 OPCIONES ---
     if cargo in ("SECRETARIA", "PRESIDENTE"):
         options = {
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
             "👥 Registro de miembro": "miembro_registrar",
+            "💰 Registro de préstamo": "prestamo_registrar",  # <-- NUEVA OPCIÓN AGREGADA
             "🚪 Cerrar sesión": "logout"
         }
         route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
@@ -77,8 +79,11 @@ if st.session_state["sesion_iniciada"]:
             st.title("📜 Registrar Reglamento")
             mostrar_reglamentos()
         elif route == "miembro_registrar": 
-                st.title("👥 Registro de miembros") 
-                mostrar_miembro()
+            st.title("👥 Registro de miembros") 
+            mostrar_miembro()
+        elif route == "prestamo_registrar":  # <-- NUEVA RUTA AGREGADA
+            st.title("💰 Registrar Préstamo")
+            mostrar_prestamo()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -199,5 +204,3 @@ else:
 
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
-
-
