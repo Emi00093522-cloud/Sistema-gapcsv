@@ -16,9 +16,7 @@ def mostrar_reglamentos():
 
     # 0) Permiso UI: solo SECRETARIA / PRESIDENTE pueden editar
     cargo = (st.session_state.get("cargo_usuario", "") or "").strip().upper()
-    if cargo not in ("SECRETARIA", "PRESIDENTE"):
-        st.warning("🔒 Solo usuarios con cargo 'SECRETARIA' o 'PRESIDENTE' pueden gestionar reglamentos.")
-        return
+    
 
     # 1) Conexión a la BD
     try:
