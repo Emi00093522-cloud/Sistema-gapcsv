@@ -8,77 +8,15 @@ def mostrar_reglamentos():
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Cargar grupos existentes - BUSCAR LA TABLA CORRECTA
-        try:
-            # Primero verificar qué tablas existen
-            cursor.execute("SHOW TABLES")
-            tablas = cursor.fetchall()
-            st.write("🔍 Tablas disponibles en la base de datos:")
-            for tabla in tablas:
-                st.write(f"- {list(tabla.values())[0]}")
+        # Cargar grupos existentes
+        cursor.execute("SELECT ID_Grupo, nombre FROM Grupo ORDER BY nombre")
+        grupos = cursor.fetchall()
             
-            # Buscar la tabla de grupos (puede tener diferentes nombres)
-            nombres_posibles = ['grupos', 'Grupos', 'grupo', 'Grupo', 'reglamentos', 'Reglamentos']
-            tabla_grupos_encontrada = None
-            
-            for nombre in nombres_posibles:
-                cursor.execute(f"SHOW TABLES LIKE '{nombre}'")
-                if cursor.fetchone():
-                    tabla_grupos_encontrada = nombre
-                    st.success(f"✅ Tabla encontrada: {nombre}")
-                    break
-            
-            if not tabla_grupos_encontrada:
-                st.error("❌ No se encontró ninguna tabla de grupos o reglamentos.")
-                st.info("""
-                **Para usar este módulo necesitas:**
-                1. Crear la tabla de grupos en tu base de datos
-                2. O contactar al administrador de la base de datos
-                """)
-                return
-            
-            # Cargar los grupos/reglamentos existentes
-            cursor.execute(f"SELECT * FROM {tabla_grupos_encontrada} LIMIT 5")
-            muestra_datos = cursor.fetchall()
-            st.write("📋 Muestra de datos de la tabla:")
-            st.write(muestra_datos)
-            
-            # Intentar determinar la estructura de la tabla
-            cursor.execute(f"DESCRIBE {tabla_grupos_encontrada}")
-            columnas = cursor.fetchall()
-            st.write("🔍 Estructura de la tabla:")
-            for columna in columnas:
-                st.write(f"- {columna['Field']} ({columna['Type']})")
-            
-            # Buscar columnas ID y nombre
-            id_columna = None
-            nombre_columna = None
-            
-            for columna in columnas:
-                field_lower = columna['Field'].lower()
-                if field_lower in ['id_grupo', 'id', 'grupo_id', 'id_reglamento']:
-                    id_columna = columna['Field']
-                elif field_lower in ['nombre_grupo', 'nombre', 'name', 'grupo_nombre', 'nombre_regla', 'regla']:
-                    nombre_columna = columna['Field']
-            
-            if not id_columna or not nombre_columna:
-                st.error("❌ No se pudieron identificar las columnas ID y nombre en la tabla.")
-                return
-                
-            # Cargar los datos usando las columnas identificadas
-            cursor.execute(f"SELECT {id_columna} as ID, {nombre_columna} as nombre FROM {tabla_grupos_encontrada} ORDER BY {nombre_columna}")
-            grupos = cursor.fetchall()
-            
-            if not grupos:
-                st.error("❌ No se encontraron grupos/reglamentos en la tabla.")
-                return
-                
-            grupo_opciones = {f"{g['nombre']} (ID: {g['ID']})": g['ID'] for g in grupos}
-            st.success(f"✅ Se cargaron {len(grupos)} grupos/reglamentos correctamente.")
-            
-        except Exception as e:
-            st.error(f"❌ Error al cargar grupos: {e}")
+        if not grupos:
+            st.error("❌ No se encontraron grupos en la base de datos.")
             return
+            
+        grupo_opciones = {f"{g['nombre']}": g['ID_Grupo'] for g in grupos}
 
         # Inicializar session_state para las filas
         if 'filas_reglamento' not in st.session_state:
@@ -110,38 +48,42 @@ def mostrar_reglamentos():
             
             with col1:
                 nombre_regla = st.text_input(
-                    f"Nombre regla {fila['numero']}",
+                    "Nombre regla",
                     value=fila['nombre_regla'],
                     key=f"nombre_{i}",
-                    placeholder="Ej: Puntualidad en reuniones"
+                    placeholder="Ej: Puntualidad en reuniones",
+                    label_visibility="collapsed"
                 )
             
             with col2:
                 descripcion = st.text_area(
-                    f"Descripción {fila['numero']}",
+                    "Descripción",
                     value=fila['descripcion'],
                     key=f"desc_{i}",
-                    placeholder="Describe la regla y a qué se refiere...",
-                    height=60
+                    placeholder="Describe la regla...",
+                    height=60,
+                    label_visibility="collapsed"
                 )
             
             with col3:
                 monto_multa = st.number_input(
-                    f"Monto Multa (USD) {fila['numero']}",
+                    "Monto Multa (USD)",
                     min_value=0.00,
                     value=float(fila['monto_multa']),
                     step=0.50,
                     format="%.2f",
-                    key=f"monto_{i}"
+                    key=f"monto_{i}",
+                    label_visibility="collapsed"
                 )
             
             with col4:
                 estado = st.selectbox(
-                    f"Estado {fila['numero']}",
+                    "Estado",
                     options=[1, 2],
                     format_func=lambda x: "✅ Activo" if x == 1 else "❌ Inactivo",
                     index=0 if fila['estado'] == 1 else 1,
-                    key=f"estado_{i}"
+                    key=f"estado_{i}",
+                    label_visibility="collapsed"
                 )
             
             with col5:
@@ -221,29 +163,6 @@ def mostrar_reglamentos():
                     st.error("❌ Debes ingresar al menos una regla con nombre.")
                     return
                 
-                # Verificar si existe la tabla para guardar reglamentos
-                try:
-                    cursor.execute("SHOW TABLES LIKE 'reglamentos'")
-                    if not cursor.fetchone():
-                        # Crear la tabla si no existe
-                        st.info("🔄 Creando tabla 'reglamentos'...")
-                        cursor.execute("""
-                            CREATE TABLE reglamentos (
-                                ID_Reglamento INT AUTO_INCREMENT PRIMARY KEY,
-                                ID_Grupo INT NOT NULL,
-                                nombre_regla VARCHAR(255) NOT NULL,
-                                descripcion TEXT,
-                                monto_multa DECIMAL(10,2),
-                                tipo_sanción VARCHAR(50),
-                                ID_Estado INT DEFAULT 1,
-                                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                            )
-                        """)
-                        st.success("✅ Tabla 'reglamentos' creada automáticamente")
-                except Exception as e:
-                    st.error(f"❌ Error al verificar/crear tabla: {e}")
-                    return
-                
                 # Insertar cada regla en la base de datos
                 reglas_guardadas = 0
                 errores = []
@@ -253,7 +172,7 @@ def mostrar_reglamentos():
                     if fila['nombre_regla'].strip():
                         try:
                             cursor.execute(
-                                """INSERT INTO reglamentos 
+                                """INSERT INTO Reglamento 
                                    (ID_Grupo, nombre_regla, descripcion, monto_multa, tipo_sanción, ID_Estado) 
                                    VALUES (%s, %s, %s, %s, %s, %s)""",
                                 (
@@ -261,7 +180,7 @@ def mostrar_reglamentos():
                                     fila['nombre_regla'].strip(),
                                     fila['descripcion'].strip() if fila['descripcion'] else None,
                                     fila['monto_multa'],
-                                    "Multa económica",  # tipo_sanción por defecto
+                                    "Multa económica",
                                     fila['estado']
                                 )
                             )
