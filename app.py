@@ -79,8 +79,8 @@ if st.session_state["sesion_iniciada"]:
 
     # Intentamos obtener el id y el nombre del cargo tal como vienen del login
     cargo_id_raw = (
-        st.session_state.get("id_cargo")
-        or st.session_state.get("cargo_id")
+        st.session_state.get("ID_Cargo")
+        or st.session_state.get("ID_Cargo")
         or st.session_state.get("cargo_usuario")  # por si usaste este nombre
     )
 
@@ -92,16 +92,16 @@ if st.session_state["sesion_iniciada"]:
     )
 
     # Normalizamos id
-    cargo_id = None
+   ID_Cargo = None
     if cargo_id_raw is not None:
         try:
-            cargo_id = int(cargo_id_raw)
+            ID_Cargo = int(cargo_id_raw)
         except (ValueError, TypeError):
-            cargo_id = None
+            ID_Cargo = None
 
     # 1️⃣ Primero: si hay id, lo mapeamos
     rol = None
-    if cargo_id is not None and cargo_id in ROLES_POR_ID:
+    if ID_Cargo is not None and ID_Cargo in ROLES_POR_ID:
         rol = ROLES_POR_ID[cargo_id]
 
     # 2️⃣ Si no se pudo por id, intentamos por nombre de cargo
