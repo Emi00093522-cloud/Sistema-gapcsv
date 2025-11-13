@@ -129,6 +129,7 @@ if st.session_state["sesion_iniciada"]:
             # Otros tipos
             options = {
                  "👥 Registro de grupos": "grupos_registrar",
+                "📜 Registro de reglamentos": "reglamentos_registrar",
                 "🚪 Cerrar sesión": "logout"
             }
             route = make_menu(options, default_label="📊 Dashboard")
