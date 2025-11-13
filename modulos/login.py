@@ -15,19 +15,23 @@ def verificar_usuario(usuario, contrasena):
         # Encriptar la contraseña para compararla con la guardada
         contrasena_hash = hashlib.sha256(contrasena.encode()).hexdigest()
 
-        # ✅ Ajustado al nombre real de tu columna: Tipo_usuario
+        # 🔥 CONSULTA FINAL — Ahora incluye el cargo
         query = """
             SELECT 
                 u.ID_Usuario,
                 u.Usuario,
-                t.Tipo_usuario AS tipo_usuario
+                t.Tipo_usuario AS tipo_usuario,
+                c.tipo_de_cargo AS cargo
             FROM Usuario u
             INNER JOIN Tipo_de_usuario t ON u.ID_Tipo_usuario = t.ID_Tipo_usuario
+            INNER JOIN Cargo c ON u.ID_Cargo = c.ID_Cargo
             WHERE u.Usuario = %s AND u.Contraseña = %s
         """
+
         cursor.execute(query, (usuario, contrasena_hash))
         result = cursor.fetchone()
         return result
+
     except Exception as e:
         st.error(f"❌ Error al verificar usuario: {e}")
         return None
@@ -46,11 +50,18 @@ def login():
         datos_usuario = verificar_usuario(usuario, contrasena)
 
         if datos_usuario:
+
+            # 🔥 GUARDAMOS TODO EN SESIÓN
             st.session_state["sesion_iniciada"] = True
             st.session_state["usuario"] = datos_usuario["Usuario"]
             st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
+            st.session_state["cargo_de_usuario"] = datos_usuario["cargo"]   # 👈 AQUI ESTÁ LA CLAVE
 
-            st.success(f"Bienvenido, {datos_usuario['Usuario']} 👋 (Tipo: {datos_usuario['tipo_usuario']})")
+            st.success(
+                f"Bienvenido, {datos_usuario['Usuario']} 👋 "
+                f"(Cargo: {datos_usuario['cargo']})"
+            )
+
             st.rerun()
         else:
             st.error("❌ Usuario o contraseña incorrectos.")
