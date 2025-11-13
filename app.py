@@ -56,14 +56,9 @@ def make_menu(options_dict, default_label=None, key="menu_principal"):
 if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
     tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
-    cargo_raw = (
-        st.session_state.get("cargo_usuario")
-        or st.session_state.get("tipo_de_cargo")
-        or st.session_state.get("cargo")
-        or "Desconocido"
-    )
+    cargo = st.session_state.get("cargo_de_usuario","Cargo")
 
-    st.sidebar.write(f"👤 **{usuario}** ({cargo_raw})")
+    st.sidebar.write(f"👤 **{usuario}** ({cargo})")
 
     # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
     if cargo in ("SECRETARIA", "PRESIDENTE"):
