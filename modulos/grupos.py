@@ -74,15 +74,15 @@ def mostrar_grupos():
             with col2:
                 if tipo_periodicidad == "Días":
                     valor_periodicidad = st.selectbox("Días",
-                                                    options=list(range(1, 31)))
+                                                    options=list(range(1, 32)))
                     periodicidad_reuniones = f"{valor_periodicidad} días"
                 elif tipo_periodicidad == "Semanas":
                     valor_periodicidad = st.selectbox("Semanas",
-                                                    options=list(range(1, 4))
+                                                    options=list(range(1, 5)))
                     periodicidad_reuniones = f"{valor_periodicidad} semanas"
                 else:  # Meses
                     valor_periodicidad = st.selectbox("Meses",
-                                                    options=list(range(1, 12)))
+                                                    options=list(range(1, 13)))
                     periodicidad_reuniones = f"{valor_periodicidad} meses"
             
             # Campo 7: tasa_interes (decimal(5,2), obligatorio)
