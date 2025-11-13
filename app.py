@@ -59,17 +59,23 @@ if st.session_state["sesion_iniciada"]:
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo or 'desconocido'})")
 
-    # --- Acceso rápido para SECRETARIA / PRESIDENTE ---
-    # Solo se muestra el menú de Reglamentos si el cargo coincide
+    # -----------------------------------
+    # PANEL LATERAL EXCLUSIVO para SECRETARIA / PRESIDENTE
+    # -----------------------------------
     if cargo in ("SECRETARIA", "PRESIDENTE"):
-        st.sidebar.markdown("### 📜 Reglamentos")
-        opcion_reglamentos = st.sidebar.selectbox(
-            "Acciones de reglamentos:",
-            ["—", "Registro de Reglamento", "Ver Reglamentos"],
-            key="menu_reglamentos"
+        st.sidebar.markdown("### ⚖️ Acciones (Secretaria / Presidente)")
+        accion = st.sidebar.selectbox(
+            "Seleccione acción:",
+            ["—", "📝 Registrar grupo", "📜 Registrar reglamento"],
+            key="menu_secret_pres"
         )
-        if opcion_reglamentos == "Registro de Reglamento" or opcion_reglamentos == "Ver Reglamentos":
-            # Mostrar el módulo de reglamentos y detener el resto de la UI para enfocarlo
+
+        if accion == "📝 Registrar grupo":
+            # Mostrar módulo grupos y detener el resto del render para enfocarlo
+            mostrar_grupos()
+            st.stop()
+
+        if accion == "📜 Registrar reglamento":
             mostrar_reglamentos()
             st.stop()
 
@@ -100,7 +106,7 @@ if st.session_state["sesion_iniciada"]:
             "📈 Dashboard promotora": "prom_dashboard",
             "👩‍💼 Registro de promotora": "prom_registrar",
             "🏛️ Registro de distrito": "dist_registrar",
-            "👥 Registro de grupos": "grupos_registrar",  # NUEVA OPCIÓN
+            "👥 Registro de grupos": "grupos_registrar",
             "🚪 Cerrar sesión": "logout"
         }
         route = make_menu(options, default_label="📈 Dashboard promotora")
@@ -113,11 +119,9 @@ if st.session_state["sesion_iniciada"]:
         elif route == "dist_registrar":
             st.title("🏛️ Registrar Nuevo Distrito")
             mostrar_distrito()
-        elif route == "grupos_registrar":  # NUEVA OPCIÓN
+        elif route == "grupos_registrar":
             st.title("👥 Registrar Nuevo Grupo")
             mostrar_grupos()
-            # Si quien está aquí es SECRETARIA o PRESIDENTE, mostramos un acceso directo al reglamento del grupo
-           
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -125,23 +129,23 @@ if st.session_state["sesion_iniciada"]:
             st.rerun()
 
     else:
-        # Otros tipos (usuarios genéricos)
+        # Otros tipos (usuarios genéricos) — NO muestran Registrar grupo ni Registrar reglamento
         options = {
-            "👥 Registrar grupo": "grupos_registrar",
-            "📜 Registrar reglamento": "reglamentos_registrar",
+            "📊 Dashboard": "otros_dashboard",
+            "👩‍💼 Registro de promotora": "prom_registrar",
+            "🏛️ Registro de distrito": "dist_registrar",
             "🚪 Cerrar sesión": "logout"
         }
+        route = make_menu(options, default_label="📊 Dashboard")
 
-        route = make_menu(options, default_label="👥 Registrar grupo")
-
-        if route == "grupos_registrar":
-            st.title("👥 Registrar Grupo")
-            mostrar_grupos()
-
-        elif route == "reglamentos_registrar":
-            st.title("📜 Registrar Reglamento")
-            mostrar_reglamentos()
-
+        if route == "otros_dashboard":
+            st.title("📊 Dashboard")
+        elif route == "prom_registrar":
+            st.title("👩‍💼 Registrar Promotora")
+            mostrar_promotora()
+        elif route == "dist_registrar":
+            st.title("🏛️ Registrar Distrito")
+            mostrar_distrito()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
