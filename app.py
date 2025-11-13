@@ -4,6 +4,7 @@ from modulos.login import login
 from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
 from modulos.grupos import mostrar_grupos
+from modulos.reglamentos import mostrar_reglamentos  # <-- import agregado
 
 # ⚙️ Configuración: SIEMPRE al inicio
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -57,6 +58,22 @@ if st.session_state["sesion_iniciada"]:
     cargo = (st.session_state.get("cargo_usuario", "") or "").strip().upper()
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo or 'desconocido'})")
+
+    # --- Menú específico para SECRETARIA / PRESIDENTE ---
+    # mostramos un menú desplegable adicional en la izquierda SOLO para esos cargos
+    if cargo in ("SECRETARIA", "PRESIDENTE"):
+        st.sidebar.markdown("### 📜 Reglamentos (Acciones rápidas)")
+        opcion_regl = st.sidebar.selectbox("Acción reglamentos:",
+                                           ["Seleccionar...", "Registro de Reglamento", "Ver Reglamentos"],
+                                           key="menu_reglamentos_rapido")
+        if opcion_regl == "Registro de Reglamento":
+            st.title("📜 Registro de Reglamento")
+            mostrar_reglamentos()
+            st.stop()  # detenemos el flujo para que solo muestre la vista de reglamentos
+        elif opcion_regl == "Ver Reglamentos":
+            st.title("📜 Ver Reglamentos")
+            mostrar_reglamentos()
+            st.stop()
 
     # 🔐 Rutas por perfil (evita depender de mayúsculas/acentos)
     if tipo == "administradora":
@@ -173,3 +190,4 @@ else:
 
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
+
