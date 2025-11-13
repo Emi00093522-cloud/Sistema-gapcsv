@@ -59,19 +59,17 @@ if st.session_state["sesion_iniciada"]:
 
     st.sidebar.write(f"👤 **{usuario}** ({tipo or 'desconocido'})")
 
-    # --- Menú específico para SECRETARIA / PRESIDENTE ---
-    # mostramos un menú desplegable adicional en la izquierda SOLO para esos cargos
+    # --- Acceso rápido para SECRETARIA / PRESIDENTE ---
+    # Solo se muestra el menú de Reglamentos si el cargo coincide
     if cargo in ("SECRETARIA", "PRESIDENTE"):
-        st.sidebar.markdown("### 📜 Reglamentos (Acciones rápidas)")
-        opcion_regl = st.sidebar.selectbox("Acción reglamentos:",
-                                           ["Seleccionar...", "Registro de Reglamento", "Ver Reglamentos"],
-                                           key="menu_reglamentos_rapido")
-        if opcion_regl == "Registro de Reglamento":
-            st.title("📜 Registro de Reglamento")
-            mostrar_reglamentos()
-            st.stop()  # detenemos el flujo para que solo muestre la vista de reglamentos
-        elif opcion_regl == "Ver Reglamentos":
-            st.title("📜 Ver Reglamentos")
+        st.sidebar.markdown("### 📜 Reglamentos")
+        opcion_reglamentos = st.sidebar.selectbox(
+            "Acciones de reglamentos:",
+            ["—", "Registro de Reglamento", "Ver Reglamentos"],
+            key="menu_reglamentos"
+        )
+        if opcion_reglamentos == "Registro de Reglamento" or opcion_reglamentos == "Ver Reglamentos":
+            # Mostrar el módulo de reglamentos y detener el resto de la UI para enfocarlo
             mostrar_reglamentos()
             st.stop()
 
@@ -118,6 +116,13 @@ if st.session_state["sesion_iniciada"]:
         elif route == "grupos_registrar":  # NUEVA OPCIÓN
             st.title("👥 Registrar Nuevo Grupo")
             mostrar_grupos()
+            # Si quien está aquí es SECRETARIA o PRESIDENTE, mostramos un acceso directo al reglamento del grupo
+            if cargo in ("SECRETARIA", "PRESIDENTE"):
+                st.write("---")
+                st.markdown("### 📜 Reglamento del grupo")
+                if st.button("📝 Registrar/Editar reglamentos de este grupo"):
+                    mostrar_reglamentos()
+                    st.stop()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -146,6 +151,13 @@ if st.session_state["sesion_iniciada"]:
         elif route == "grupos_registrar":  # NUEVA OPCIÓN
             st.title("👥 Registrar Grupo")
             mostrar_grupos()
+            # y si el usuario tiene cargo SECRETARIA o PRESIDENTE, dejamos el botón para reglamentos
+            if cargo in ("SECRETARIA", "PRESIDENTE"):
+                st.write("---")
+                st.markdown("### 📜 Reglamento del grupo")
+                if st.button("📝 Registrar/Editar reglamentos de este grupo"):
+                    mostrar_reglamentos()
+                    st.stop()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -190,4 +202,3 @@ else:
 
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
-
