@@ -60,29 +60,8 @@ if st.session_state["sesion_iniciada"]:
     st.sidebar.write(f"👤 **{usuario}** ({cargo or 'desconocido'})")
 
     # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
-    if cargo in ("SECRETARIA", "PRESIDENTE"):
-        options = {
-            "👥 Registro de grupos": "grupos_registrar",
-            "📜 Registro de reglamentos": "reglamentos_registrar",
-            "🚪 Cerrar sesión": "logout"
-        }
-        route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
-
-        if route == "grupos_registrar":
-            st.title("👥 Registrar Grupo")
-            mostrar_grupos()
-        elif route == "reglamentos_registrar":
-            st.title("📜 Registrar Reglamento")
-            mostrar_reglamentos()
-        elif route == "logout":
-            st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
-
-    else:
         # Usuario no SECRETARIA/PRESIDENTE: menú normal por tipo
-        if tipo == "administradora":
+     if tipo == "administradora":
             options = {
                 "📊 Consolidado por distrito": "admin_consolidado",
                 "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
@@ -125,7 +104,7 @@ if st.session_state["sesion_iniciada"]:
                 st.session_state["pagina_actual"] = "sesion_cerrada"
                 st.rerun()
 
-        else:
+     elif (cargo == "Presidente") or (cargo == "Secretaria"):
             # Otros tipos
             options = {
                  "👥 Registro de grupos": "grupos_registrar",
