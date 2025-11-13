@@ -3,6 +3,7 @@ from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
 from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
+from modulos.grupos import mostrar_grupos
 
 # ⚙️ Configuración: SIEMPRE al inicio
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -30,12 +31,14 @@ st.markdown("""
 def dashboard_promotora(usuario):
     st.title("👩‍💼 Dashboard de Promotora")
     st.success(f"¡Bienvenida, {usuario}!")
-    st.info("Desde aquí puedes gestionar promotoras y distritos.")
-    col1, col2 = st.columns(2)
+    st.info("Desde aquí puedes gestionar promotoras, distritos y grupos.")
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Tu Cargo", "PROMOTORA")
     with col2:
-        st.metric("Acciones Disponibles", "2")
+        st.metric("Acciones Disponibles", "3")
+    with col3:
+        st.metric("Módulos", "Promotora, Distrito, Grupos")
 
 # 🔵 Utilidad: mapea etiquetas (lo que ve el usuario) a claves internas
 def make_menu(options_dict, default_label=None):
@@ -77,11 +80,12 @@ if st.session_state["sesion_iniciada"]:
             st.rerun()
 
     elif (tipo == "promotora") or (cargo == "PROMOTORA"):
-        # 👇 Puedes nombrar el label como “Registro de promotora” o “Registrar Promotora” sin romper
+        # 👇 Menú completo para PROMOTORAS con Grupos
         options = {
             "📈 Dashboard promotora": "prom_dashboard",
-            "📝 Registro de promotora": "prom_registrar",   # <- el label que quieras
+            "👩‍💼 Registro de promotora": "prom_registrar",
             "🏛️ Registro de distrito": "dist_registrar",
+            "👥 Registro de grupos": "grupos_registrar",  # NUEVA OPCIÓN
             "🚪 Cerrar sesión": "logout"
         }
         route = make_menu(options, default_label="📈 Dashboard promotora")
@@ -94,6 +98,9 @@ if st.session_state["sesion_iniciada"]:
         elif route == "dist_registrar":
             st.title("🏛️ Registrar Nuevo Distrito")
             mostrar_distrito()
+        elif route == "grupos_registrar":  # NUEVA OPCIÓN
+            st.title("👥 Registrar Nuevo Grupo")
+            mostrar_grupos()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -104,8 +111,9 @@ if st.session_state["sesion_iniciada"]:
         # Otros tipos
         options = {
             "📊 Dashboard": "otros_dashboard",
-            "📝 Registro de promotora": "prom_registrar",
-            "🏛️ Registro de distrito" : "dist_registrar",
+            "👩‍💼 Registro de promotora": "prom_registrar",
+            "🏛️ Registro de distrito": "dist_registrar",
+            "👥 Registro de grupos": "grupos_registrar",  # NUEVA OPCIÓN
             "🚪 Cerrar sesión": "logout"
         }
         route = make_menu(options, default_label="📊 Dashboard")
@@ -118,6 +126,9 @@ if st.session_state["sesion_iniciada"]:
         elif route == "dist_registrar":
             st.title("🏛️ Registrar Distrito")
             mostrar_distrito()
+        elif route == "grupos_registrar":  # NUEVA OPCIÓN
+            st.title("👥 Registrar Grupo")
+            mostrar_grupos()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
