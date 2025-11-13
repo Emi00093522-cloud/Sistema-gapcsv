@@ -29,7 +29,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-
 def dashboard_promotora(usuario):
     st.title("👩‍💼 Dashboard de Promotora")
     st.success(f"¡Bienvenida, {usuario}!")
@@ -42,7 +41,6 @@ def dashboard_promotora(usuario):
     with col3:
         st.metric("Módulos", "Promotora, Distrito, Grupos")
 
-
 # Utilidad: mapea etiquetas (lo que ve el usuario) a claves internas
 def make_menu(options_dict, default_label=None, key="menu_principal"):
     labels = list(options_dict.keys())
@@ -53,130 +51,107 @@ def make_menu(options_dict, default_label=None, key="menu_principal"):
     chosen = st.sidebar.selectbox("Ir a:", labels, index=index, key=key)
     return options_dict[chosen]
 
-
-def cerrar_sesion():
-    st.session_state.clear()
-    st.session_state["sesion_iniciada"] = False
-    st.session_state["pagina_actual"] = "sesion_cerrada"
-    st.rerun()
-
-
-# 🔁 Mapeo entre id de la tabla cargo y el rol lógico del sistema
-# ⚠️ AJUSTA estos valores a los que realmente tengas en tu tabla "cargo"
-ROLES_POR_ID = {
-    1: "ADMINISTRADORA",
-    2: "PROMOTORA",
-    3: "SECRETARIA",
-    4: "PRESIDENTE",
-}
-
-
-# ============================
-#      LÓGICA PRINCIPAL
-# ============================
+# Si hay sesión iniciada
 if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
+    tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
+    cargo = (st.session_state.get("cargo_usuario", "") or "").strip().upper()
 
-    # Intentamos obtener el id y el nombre del cargo tal como vienen del login
-    cargo_id_raw = (
-        st.session_state.get("ID_Cargo")
-        or st.session_state.get("ID_Cargo")
-        or st.session_state.get("cargo_usuario")  # por si usaste este nombre
-    )
+    st.sidebar.write(f"👤 **{usuario}** ({cargo or 'desconocido'})")
 
-    tipo_de_cargo_raw = (
-        st.session_state.get("tipo_de_cargo")
-        or st.session_state.get("cargo_nombre")
-        or st.session_state.get("tipo_usuario")
-        or ""
-    )
-
-    # Normalizamos id
-    ID_Cargo = None
-    if cargo_id_raw is not None:
-        try:
-            ID_Cargo = int(cargo_id_raw)
-        except (ValueError, TypeError):
-            ID_Cargo = None
-
-    # 1️⃣ Primero: si hay id, lo mapeamos
-    rol = None
-    if ID_Cargo is not None and ID_Cargo in ROLES_POR_ID:
-        rol = ROLES_POR_ID[cargo_id]
-
-    # 2️⃣ Si no se pudo por id, intentamos por nombre de cargo
-    if not rol and tipo_de_cargo_raw:
-        rol = tipo_de_cargo_raw.strip().upper()
-
-    st.sidebar.write(f"👤 **{usuario}** (rol: {rol or 'DESCONOCIDO'})")
-
-    # 👑 1) ADMINISTRADORA
-    if rol == "ADMINISTRADORA":
-        options = {
-            "📊 Consolidado por distrito": "admin_consolidado",
-            "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
-            "🚪 Cerrar sesión": "logout"
-        }
-        route = make_menu(options, default_label="📊 Consolidado por distrito")
-
-        if route == "admin_consolidado":
-            st.title("📊 Consolidado general por distrito 💲")
-            # TODO: aquí iría la función que muestra el consolidado
-            # mostrar_ahorros()
-        elif route == "admin_registrar_usuario":
-            registrar_usuario()
-        elif route == "logout":
-            cerrar_sesion()
-
-    # 👩‍💼 2) PROMOTORA
-    elif rol == "PROMOTORA":
-        options = {
-            "📈 Dashboard promotora": "prom_dashboard",
-            "👩‍💼 Registro de promotora": "prom_registrar",
-            "🏛️ Registro de distrito": "dist_registrar",
-            "🚪 Cerrar sesión": "logout"
-        }
-        route = make_menu(options, default_label="📈 Dashboard promotora")
-
-        if route == "prom_dashboard":
-            dashboard_promotora(usuario)
-        elif route == "prom_registrar":
-            st.title("👩‍💼 Registrar Nueva Promotora")
-            mostrar_promotora()
-        elif route == "dist_registrar":
-            st.title("🏛️ Registrar Nuevo Distrito")
-            mostrar_distrito()
-        elif route == "logout":
-            cerrar_sesion()
-
-    # 🧑‍🤝‍🧑 3) SECRETARIA o PRESIDENTE
-    elif rol in ("SECRETARIA", "PRESIDENTE"):
+    # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
+    if cargo in ("SECRETARIA", "PRESIDENTE"):
         options = {
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
             "🚪 Cerrar sesión": "logout"
         }
-        route = make_menu(options, default_label="👥 Registro de grupos")
+        route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
 
         if route == "grupos_registrar":
-            st.title("👥 Registrar Nuevo Grupo")
+            st.title("👥 Registrar Grupo")
             mostrar_grupos()
         elif route == "reglamentos_registrar":
             st.title("📜 Registrar Reglamento")
             mostrar_reglamentos()
         elif route == "logout":
-            cerrar_sesion()
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
 
-    # Rol no reconocido
     else:
-        st.error(
-            f"Tu usuario no tiene un rol asignado válido.\n\n"
-            f"Valor recibido: id_cargo={cargo_id_raw}, tipo_de_cargo='{tipo_de_cargo_raw}'."
-        )
+        # Usuario no SECRETARIA/PRESIDENTE: menú normal por tipo
+        if tipo == "administradora":
+            options = {
+                "📊 Consolidado por distrito": "admin_consolidado",
+                "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
+                "🚪 Cerrar sesión": "logout"
+            }
+            route = make_menu(options, default_label="📊 Consolidado por distrito")
 
-# ============================
-#       SIN SESIÓN
-# ============================
+            if route == "admin_consolidado":
+                st.title("📊 Consolidado general por distrito 💲")
+                # mostrar_ahorros()
+            elif route == "admin_registrar_usuario":
+                registrar_usuario()
+            elif route == "logout":
+                st.session_state.clear()
+                st.session_state["sesion_iniciada"] = False
+                st.session_state["pagina_actual"] = "sesion_cerrada"
+                st.rerun()
+
+        elif (tipo == "promotora") or (cargo == "PROMOTORA"):
+            options = {
+                "📈 Dashboard promotora": "prom_dashboard",
+                "👩‍💼 Registro de promotora": "prom_registrar",
+                "🏛️ Registro de distrito": "dist_registrar",
+                "🚪 Cerrar sesión": "logout"
+            }
+            route = make_menu(options, default_label="📈 Dashboard promotora")
+
+            if route == "prom_dashboard":
+                dashboard_promotora(usuario)
+            elif route == "prom_registrar":
+                st.title("👩‍💼 Registrar Nueva Promotora")
+                mostrar_promotora()
+            elif route == "dist_registrar":
+                st.title("🏛️ Registrar Nuevo Distrito")
+                mostrar_distrito()
+           
+            elif route == "logout":
+                st.session_state.clear()
+                st.session_state["sesion_iniciada"] = False
+                st.session_state["pagina_actual"] = "sesion_cerrada"
+                st.rerun()
+
+        else:
+            # Otros tipos
+            options = {
+                 "👥 Registro de grupos": "grupos_registrar",
+                "📜 Registro de reglamentos": "reglamentos_registrar",
+                "🚪 Cerrar sesión": "logout"
+            }
+            route = make_menu(options, default_label="📊 Dashboard")
+
+            if route == "otros_dashboard":
+                st.title("📊 Dashboard")
+            
+            elif route == "grupos_registrar":
+                st.title("👥 Registrar Nuevo Grupo")
+                mostrar_grupos()
+                
+            elif route == "reglamentos_registrar":
+                st.title("📜 Registrar Reglamento")
+                mostrar_reglamentos()
+            
+            elif route == "logout":
+                st.session_state.clear()
+                st.session_state["sesion_iniciada"] = False
+                st.session_state["pagina_actual"] = "sesion_cerrada"
+                st.rerun()
+
+# Sin sesión
 else:
     if st.session_state["pagina_actual"] == "sesion_cerrada":
         st.markdown("<div class='sesion-cerrada'>", unsafe_allow_html=True)
