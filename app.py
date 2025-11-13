@@ -65,6 +65,7 @@ if st.session_state["sesion_iniciada"]:
         options = {
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
+            "👥 Registro de miembro": "miembro_registrar",
             "🚪 Cerrar sesión": "logout"
         }
         route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
@@ -75,6 +76,9 @@ if st.session_state["sesion_iniciada"]:
         elif route == "reglamentos_registrar":
             st.title("📜 Registrar Reglamento")
             mostrar_reglamentos()
+        elif route == "miembro_registrar": 
+                st.title("👥 Registro de miembros") 
+                mostrar_miembro()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
