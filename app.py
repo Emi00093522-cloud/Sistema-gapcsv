@@ -146,7 +146,7 @@ if st.session_state["sesion_iniciada"]:
                 st.title("📜 Registrar Reglamento")
                 mostrar_reglamentos()
 
-            elif route == "miembro_registrar", 
+            elif route == "miembro_registrar": 
                 st.title("👥 Registro de miembro") 
                 mostrar_miembros()
             
