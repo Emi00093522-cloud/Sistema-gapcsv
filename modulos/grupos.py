@@ -1,6 +1,6 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
-from datetime import datetime
+from datetime import datetime, date
 
 def mostrar_grupos():
     st.header("👥 Registrar Grupo")
@@ -41,22 +41,25 @@ def mostrar_grupos():
                                  placeholder="Ingrese el nombre del grupo",
                                  max_chars=100)
             
-            # Campo 3: ID_Distrito (opcional) - Menú desplegable con distritos
+            # Campo 3: ID_Distrito (OBLIGATORIO) - Menú desplegable con distritos
             if distritos:
-                distrito_options = {f"Sin distrito": None}
-                distrito_options.update({f"{distrito[1]} (ID: {distrito[0]})": distrito[0] for distrito in distritos})
-                distrito_seleccionado = st.selectbox("Distrito (opcional)", 
-                                                   options=list(distrito_options.keys()),
-                                                   index=0)
+                distrito_options = {f"{distrito[1]} (ID: {distrito[0]})": distrito[0] for distrito in distritos}
+                distrito_seleccionado = st.selectbox("Distrito *", 
+                                                   options=list(distrito_options.keys()))
                 ID_Distrito = distrito_options[distrito_seleccionado]
             else:
+                st.error("❌ No hay distritos disponibles en la base de datos. Debes crear distritos primero.")
                 ID_Distrito = None
-                st.info("No hay distritos disponibles")
             
-            # Campo 4: fecha_inicio (date, obligatorio)
+            # Campo 4: fecha_inicio (date, obligatorio) - Permite ir al pasado hasta 1990
+            fecha_minima = date(1990, 1, 1)
+            fecha_maxima = date(2100, 12, 31)
+            
             fecha_inicio = st.date_input("Fecha de inicio *",
                                        value=datetime.now().date(),
-                                       min_value=datetime.now().date())
+                                       min_value=fecha_minima,
+                                       max_value=fecha_maxima,
+                                       help="Puedes seleccionar fechas desde 1990 hasta 2100")
             
             # Campo 5: duracion_ciclo (int, obligatorio) - 6 o 12 meses
             duracion_ciclo = st.selectbox("Duración del ciclo *",
@@ -74,24 +77,28 @@ def mostrar_grupos():
             with col2:
                 if tipo_periodicidad == "Días":
                     valor_periodicidad = st.selectbox("Días",
-                                                    options=list(range(1, 32)))
+                                                    options=list(range(1, 32)),
+                                                    key="dias_periodicidad")
                     periodicidad_reuniones = f"{valor_periodicidad} días"
                 elif tipo_periodicidad == "Semanas":
                     valor_periodicidad = st.selectbox("Semanas",
-                                                    options=list(range(1, 5)))
+                                                    options=list(range(1, 5)),
+                                                    key="semanas_periodicidad")
                     periodicidad_reuniones = f"{valor_periodicidad} semanas"
                 else:  # Meses
                     valor_periodicidad = st.selectbox("Meses",
-                                                    options=list(range(1, 13)))
+                                                    options=list(range(1, 13)),
+                                                    key="meses_periodicidad")
                     periodicidad_reuniones = f"{valor_periodicidad} meses"
             
-            # Campo 7: tasa_interes (decimal(5,2), obligatorio)
+            # Campo 7: tasa_interes (decimal(5,2), obligatorio) - Hasta 6 decimales
             tasa_interes = st.number_input("Tasa de interés (%) *",
                                          min_value=0.0,
                                          max_value=100.0,
                                          value=5.0,
-                                         step=0.5,
-                                         format="%.2f")
+                                         step=0.000001,
+                                         format="%.6f",
+                                         help="Puedes ingresar hasta 6 decimales (ej: 5.123456)")
             
             # Campo 8: ID_Promotora (int, obligatorio) - Menú desplegable con promotoras
             if promotoras:
@@ -100,7 +107,7 @@ def mostrar_grupos():
                                                     options=list(promotora_options.keys()))
                 ID_Promotora = promotora_options[promotora_seleccionada]
             else:
-                st.error("No hay promotoras disponibles en la base de datos")
+                st.error("❌ No hay promotoras disponibles en la base de datos")
                 ID_Promotora = None
             
             # Campo 9: ID_Estado (int, opcional) - 1=Activo, 2=Inactivo
@@ -112,10 +119,25 @@ def mostrar_grupos():
             enviar = st.form_submit_button("✅ Guardar Grupo")
 
             if enviar:
+                errores = []
+                
+                # Validaciones
                 if nombre.strip() == "":
-                    st.warning("⚠ Debes ingresar el nombre del grupo.")
-                elif ID_Promotora is None:
-                    st.warning("⚠ Debes seleccionar una promotora.")
+                    errores.append("⚠ Debes ingresar el nombre del grupo.")
+                
+                if ID_Distrito is None:
+                    errores.append("⚠ Debes seleccionar un distrito.")
+                
+                if ID_Promotora is None:
+                    errores.append("⚠ Debes seleccionar una promotora.")
+                
+                if fecha_inicio is None:
+                    errores.append("⚠ Debes seleccionar una fecha de inicio válida.")
+                
+                # Mostrar errores si los hay
+                if errores:
+                    for error in errores:
+                        st.warning(error)
                 else:
                     try:
                         # Convertir valores opcionales a NULL si están vacíos
