@@ -14,8 +14,8 @@ def mostrar_prestamo():
         cursor.execute("SELECT ID_Miembro, nombre FROM Miembro WHERE ID_Estado = 1")
         miembros = cursor.fetchall()
         
-        # Cargar estados de préstamo
-        cursor.execute("SELECT ID_Estado_prestamo, estado FROM Estado_prestamo")
+        # Cargar estados de préstamo - CON LA COLUMNA CORRECTA
+        cursor.execute("SELECT ID_Estado_prestamo, estado_prestamo FROM Estado_prestamo")
         estados_prestamo = cursor.fetchall()
 
         # Formulario para registrar el préstamo
@@ -50,7 +50,7 @@ def mostrar_prestamo():
             
             # Campo 6: ID_Estado_prestamo (obligatorio)
             if estados_prestamo:
-                estado_options = {f"{estado['estado']}": estado['ID_Estado_prestamo'] for estado in estados_prestamo}
+                estado_options = {f"{estado['estado_prestamo']}": estado['ID_Estado_prestamo'] for estado in estados_prestamo}
                 estado_seleccionado = st.selectbox("Estado del préstamo *", options=list(estado_options.keys()))
                 ID_Estado_prestamo = estado_options[estado_seleccionado]
             else:
@@ -131,6 +131,11 @@ def mostrar_prestamo():
     except Exception as e:
         st.error(f"❌ Error general: {e}")
 
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'con' in locals():
+            con.close()
     finally:
         if 'cursor' in locals():
             cursor.close()
