@@ -60,7 +60,7 @@ if st.session_state["sesion_iniciada"]:
     st.sidebar.write(f"👤 **{usuario}** ({cargo or 'DESCONOCIDO'})")
 
     # 👑 1) ADMINISTRADORA
-    if tipo == "administradora":
+    if tipo == "administrador":
         options = {
             "📊 Consolidado por distrito": "admin_consolidado",
             "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
@@ -104,7 +104,7 @@ if st.session_state["sesion_iniciada"]:
             st.rerun()
 
     # 🧑‍🤝‍🧑 3) SECRETARIA o PRESIDENTE (mismo menú)
-    elif cargo in ("Secretaria", "Presidente"):
+    elif cargo in ("secretaria", "presidente"):
         options = {
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
