@@ -106,7 +106,6 @@ if st.session_state["sesion_iniciada"]:
                 "📈 Dashboard promotora": "prom_dashboard",
                 "👩‍💼 Registro de promotora": "prom_registrar",
                 "🏛️ Registro de distrito": "dist_registrar",
-                "👥 Registro de grupos": "grupos_registrar",
                 "🚪 Cerrar sesión": "logout"
             }
             route = make_menu(options, default_label="📈 Dashboard promotora")
@@ -119,9 +118,7 @@ if st.session_state["sesion_iniciada"]:
             elif route == "dist_registrar":
                 st.title("🏛️ Registrar Nuevo Distrito")
                 mostrar_distrito()
-            elif route == "grupos_registrar":
-                st.title("👥 Registrar Nuevo Grupo")
-                mostrar_grupos()
+           
             elif route == "logout":
                 st.session_state.clear()
                 st.session_state["sesion_iniciada"] = False
@@ -131,21 +128,17 @@ if st.session_state["sesion_iniciada"]:
         else:
             # Otros tipos
             options = {
-                "📊 Dashboard": "otros_dashboard",
-                "👩‍💼 Registro de promotora": "prom_registrar",
-                "🏛️ Registro de distrito": "dist_registrar",
+                 "👥 Registro de grupos": "grupos_registrar",
                 "🚪 Cerrar sesión": "logout"
             }
             route = make_menu(options, default_label="📊 Dashboard")
 
             if route == "otros_dashboard":
                 st.title("📊 Dashboard")
-            elif route == "prom_registrar":
-                st.title("👩‍💼 Registrar Promotora")
-                mostrar_promotora()
-            elif route == "dist_registrar":
-                st.title("🏛️ Registrar Distrito")
-                mostrar_distrito()
+            
+            elif route == "grupos_registrar":
+                st.title("👥 Registrar Nuevo Grupo")
+                mostrar_grupos()
             elif route == "logout":
                 st.session_state.clear()
                 st.session_state["sesion_iniciada"] = False
