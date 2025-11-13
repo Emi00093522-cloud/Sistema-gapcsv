@@ -140,9 +140,11 @@ if st.session_state["sesion_iniciada"]:
             elif route == "grupos_registrar":
                 st.title("👥 Registrar Nuevo Grupo")
                 mostrar_grupos()
+                
             elif route == "reglamentos_registrar":
             st.title("📜 Registrar Reglamento")
             mostrar_reglamentos()
+            
             elif route == "logout":
                 st.session_state.clear()
                 st.session_state["sesion_iniciada"] = False
