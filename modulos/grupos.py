@@ -2,7 +2,7 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-def mostrar_grupo():
+def mostrar_grupos():
     st.header("👥 Registrar Grupo")
 
     # Estado para controlar el mensaje de éxito
