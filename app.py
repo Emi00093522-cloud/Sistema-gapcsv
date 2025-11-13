@@ -56,7 +56,7 @@ def make_menu(options_dict, default_label=None, key="menu_principal"):
 if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
     tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
-    cargo = (st.session_state.get("tipo_de_cargo","Desconocido")).strip().lower()
+    cargo = (st.session_state.get("tipo","Desconocido")).strip().lower()
 
     st.sidebar.write(f"👤 **{usuario}** ({cargo})")
 
