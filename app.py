@@ -61,7 +61,7 @@ if st.session_state["sesion_iniciada"]:
 
     # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
         # Usuario no SECRETARIA/PRESIDENTE: menú normal por tipo
-     if tipo == "administradora":
+    if tipo == "administradora":
             options = {
                 "📊 Consolidado por distrito": "admin_consolidado",
                 "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
