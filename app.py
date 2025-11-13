@@ -58,7 +58,7 @@ if st.session_state["sesion_iniciada"]:
     tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
     cargo = st.session_state.get("cargo_de_usuario","Cargo")
 
-    st.sidebar.write(f"👤 **{usuario}** ({cargo})")
+    st.sidebar.write(f"👤 **{usuario}** {cargo}")
 
     # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
     if cargo in ("SECRETARIA", "PRESIDENTE"):
