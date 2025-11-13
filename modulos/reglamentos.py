@@ -1,261 +1,239 @@
-# modulos/reglamentos.py
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 
-def mostrar_reglamentos():
-    """
-    UI para registrar/editar reglamentos por grupo.
-    - Carga grupos desde la tabla Grupos.
-    - Permite crear/editar reglas por renglón (nombre, descripción).
-    - Para cada renglón: Multa (Sí/No) y Monto (USD) con decimales.
-    - Si Multa == No, el monto se muestra como guion y se guarda NULL en la BD.
-    - Botones: GUARDAR CAMBIOS, Registrar otro reglamento, Editar, Mensajes de confirmación.
-    """
+def mostrar_reglamento():
+    st.header("📜 Registrar Reglamento")
 
-    st.header("📜 Reglamentos por Grupo")
-
-    # 0) Permiso UI: solo SECRETARIA / PRESIDENTE pueden editar
-    cargo = (st.session_state.get("cargo_usuario", "") or "").strip().upper()
-    
-
-    # 1) Conexión a la BD
     try:
         con = obtener_conexion()
-        if not con:
-            st.error("❌ No fue posible conectar a la base de datos.")
-            return
         cursor = con.cursor(dictionary=True)
-    except Exception as e:
-        st.error(f"❌ Error al conectar a la BD: {e}")
-        return
 
-    try:
-        # 2) Cargar grupos
+        # Cargar grupos existentes
         try:
-            cursor.execute("SELECT ID_Grupo, nombre_grupo FROM Grupos ORDER BY ID_Grupo")
-            grupos = cursor.fetchall() or []
-        except Exception:
-            grupos = []
-
-        if not grupos:
-            st.info("No se encontraron grupos. Crea primero los grupos en el módulo correspondiente.")
+            cursor.execute("SELECT ID_Grupo, nombre_grupo FROM Grupos ORDER BY nombre_grupo")
+            grupos = cursor.fetchall()
+            
+            if not grupos:
+                st.error("❌ No se encontraron grupos en la base de datos. Primero crea grupos en el módulo correspondiente.")
+                return
+                
+            grupo_opciones = {f"{g['nombre_grupo']} (ID: {g['ID_Grupo']})": g['ID_Grupo'] for g in grupos}
+            
+        except Exception as e:
+            st.error(f"❌ Error al cargar grupos: {e}")
             return
 
-        opciones_grupos = [f"{g['ID_Grupo']} - {g.get('nombre_grupo','Grupo')}" for g in grupos]
-        mapa_grupos = {opciones_grupos[i]: grupos[i]['ID_Grupo'] for i in range(len(grupos))}
+        # Inicializar session_state para las filas
+        if 'filas_reglamento' not in st.session_state:
+            st.session_state.filas_reglamento = [{
+                'numero': 1,
+                'nombre_regla': '',
+                'descripcion': '',
+                'monto_multa': 0.00,
+                'estado': 1
+            }]
 
-        sel_label = st.selectbox("REGLAMENTO de grupo: selecciona un grupo", opciones_grupos, key="sel_grupo_regl")
-        id_grupo = int(mapa_grupos[sel_label])
-        st.write("---")
+        # Seleccionar grupo
+        grupo_seleccionado = st.selectbox(
+            "Selecciona el grupo para el reglamento:",
+            options=list(grupo_opciones.keys())
+        )
+        id_grupo = grupo_opciones[grupo_seleccionado]
 
-        # 3) Cargar reglamentos existentes del grupo
-        cursor.execute("""
-            SELECT ID_Reglamento, nombre_regla, descripcion, monto_multa, `tipo_sanción`, ID_Estado
-            FROM Reglamentos
-            WHERE ID_Grupo = %s
-            ORDER BY ID_Reglamento
-        """, (id_grupo,))
-        regs = cursor.fetchall() or []
+        st.subheader("📋 Reglas del Reglamento")
+        st.info("Puedes agregar hasta 50 reglas. Completa al menos el nombre de la regla para cada fila.")
 
-        # Mantener nuevos temporalmente en session_state para poder agregar varios antes de guardar
-        if "reglamentos_nuevos_temp" not in st.session_state:
-            st.session_state["reglamentos_nuevos_temp"] = []
+        # Mostrar todas las filas existentes
+        filas_a_eliminar = []
+        
+        for i, fila in enumerate(st.session_state.filas_reglamento):
+            st.markdown(f"**Regla {fila['numero']}**")
+            
+            col1, col2, col3, col4, col5 = st.columns([3, 3, 2, 2, 1])
+            
+            with col1:
+                nombre_regla = st.text_input(
+                    f"Nombre regla {fila['numero']}",
+                    value=fila['nombre_regla'],
+                    key=f"nombre_{i}",
+                    placeholder="Ej: Puntualidad en reuniones"
+                )
+            
+            with col2:
+                descripcion = st.text_area(
+                    f"Descripción {fila['numero']}",
+                    value=fila['descripcion'],
+                    key=f"desc_{i}",
+                    placeholder="Describe la regla y a qué se refiere...",
+                    height=60
+                )
+            
+            with col3:
+                monto_multa = st.number_input(
+                    f"Monto Multa (USD) {fila['numero']}",
+                    min_value=0.00,
+                    value=float(fila['monto_multa']),
+                    step=0.50,
+                    format="%.2f",
+                    key=f"monto_{i}"
+                )
+            
+            with col4:
+                estado = st.selectbox(
+                    f"Estado {fila['numero']}",
+                    options=[1, 2],
+                    format_func=lambda x: "✅ Activo" if x == 1 else "❌ Inactivo",
+                    index=0 if fila['estado'] == 1 else 1,
+                    key=f"estado_{i}"
+                )
+            
+            with col5:
+                st.write("")  # Espacio vertical
+                st.write("")  # Espacio vertical
+                if len(st.session_state.filas_reglamento) > 1:
+                    if st.button("🗑️", key=f"eliminar_{i}"):
+                        filas_a_eliminar.append(i)
+            
+            # Actualizar datos en session_state
+            st.session_state.filas_reglamento[i] = {
+                'numero': fila['numero'],
+                'nombre_regla': nombre_regla,
+                'descripcion': descripcion,
+                'monto_multa': monto_multa,
+                'estado': estado
+            }
+            
+            st.markdown("---")
 
-        st.subheader("Editar / Crear reglas")
-        st.write("Modifica los renglones y presiona **GUARDAR CAMBIOS**. Usa **Registrar otro reglamento** para agregar renglones vacíos.")
+        # Eliminar filas marcadas para eliminar (de atrás hacia adelante)
+        for indice in sorted(filas_a_eliminar, reverse=True):
+            if 0 <= indice < len(st.session_state.filas_reglamento):
+                st.session_state.filas_reglamento.pop(indice)
+        
+        # Renumerar filas después de eliminar
+        if filas_a_eliminar:
+            for i, fila in enumerate(st.session_state.filas_reglamento):
+                fila['numero'] = i + 1
+            st.rerun()
 
-        # Construir una lista de renglones editables (existentes + temporales)
-        rows = []
-
-        # Renglones existentes
-        for r in regs:
-            rows.append({
-                "ID_Reglamento": r['ID_Reglamento'],
-                "nombre_regla": r.get('nombre_regla') or "",
-                "descripcion": r.get('descripcion') or "",
-                "tiene_multa": "Sí" if (r.get('tipo_sanción') or "").lower() == "sí" else "No",
-                "monto_multa": float(r['monto_multa']) if r.get('monto_multa') is not None else None,
-                "ID_Estado": r.get('ID_Estado') or 1
-            })
-
-        # Renglones nuevos temporales (agregados por el usuario)
-        for t in st.session_state["reglamentos_nuevos_temp"]:
-            rows.append({
-                "ID_Reglamento": None,
-                "nombre_regla": t.get("nombre_regla",""),
-                "descripcion": t.get("descripcion",""),
-                "tiene_multa": t.get("tiene_multa","No"),
-                "monto_multa": t.get("monto_multa", None),
-                "ID_Estado": 1
-            })
-
-        # Formulario que contiene todos los renglones
-        with st.form("form_reglamentos_grid"):
-            editable_rows = []
-            for idx, row in enumerate(rows):
-                # Encabezado del renglón
-                header = f"Reglón {idx+1}" + (f" — ID {row['ID_Reglamento']}" if row["ID_Reglamento"] else " — Nuevo")
-                st.markdown(f"**{header}**")
-                c1, c2, c3, c4 = st.columns([4,3,1.2,1.2])
-
-                # Nombre regla
-                key_nombre = f"nombre_{idx}_{row['ID_Reglamento'] or 'new'}"
-                nombre = c1.text_input("Regla", value=row["nombre_regla"], key=key_nombre)
-
-                # Descripción
-                key_desc = f"desc_{idx}_{row['ID_Reglamento'] or 'new'}"
-                descripcion = c2.text_input("Descripción (opcional)", value=row["descripcion"], key=key_desc)
-
-                # Multa Sí/No
-                key_multa = f"multa_{idx}_{row['ID_Reglamento'] or 'new'}"
-                multa = c3.selectbox("Multa", options=["No","Sí"], index=0 if row["tiene_multa"]!="Sí" else 1, key=key_multa)
-
-                # Monto - se habilita solo si multa == Sí
-                key_monto = f"monto_{idx}_{row['ID_Reglamento'] or 'new'}"
-                if multa == "Sí":
-                    monto = c4.number_input("Monto (USD)", min_value=0.0, step=0.01, format="%.2f",
-                                            value=float(row["monto_multa"]) if row["monto_multa"] is not None else 0.00,
-                                            key=key_monto)
+        # Botones de control
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+        
+        with col_btn1:
+            if st.button("➕ Agregar fila", use_container_width=True):
+                if len(st.session_state.filas_reglamento) < 50:
+                    nuevo_numero = len(st.session_state.filas_reglamento) + 1
+                    st.session_state.filas_reglamento.append({
+                        'numero': nuevo_numero,
+                        'nombre_regla': '',
+                        'descripcion': '',
+                        'monto_multa': 0.00,
+                        'estado': 1
+                    })
+                    st.rerun()
                 else:
-                    c4.write("—")  # guion automático
-                    monto = None
+                    st.warning("⚠️ Has alcanzado el límite máximo de 50 reglas.")
+        
+        with col_btn2:
+            if st.button("🔄 Limpiar todo", use_container_width=True):
+                st.session_state.filas_reglamento = [{
+                    'numero': 1,
+                    'nombre_regla': '',
+                    'descripcion': '',
+                    'monto_multa': 0.00,
+                    'estado': 1
+                }]
+                st.rerun()
 
-                editable_rows.append({
-                    "ID_Reglamento": row["ID_Reglamento"],
-                    "ID_Grupo": id_grupo,
-                    "nombre_regla": nombre.strip(),
-                    "descripcion": descripcion.strip() if descripcion else None,
-                    "tiene_multa": multa,
-                    "monto_multa": monto,
-                    "ID_Estado": row.get("ID_Estado",1)
-                })
-                st.markdown("---")
-
-            # Botones abajo del formulario
-            btn_guardar = st.form_submit_button("✅ GUARDAR CAMBIOS")
-            btn_agregar = st.form_submit_button("➕ Registrar otro reglamento")
-            btn_cancel = st.form_submit_button("✖ Cancelar")
-
-            # Acciones botones
-            if btn_agregar:
-                # añadir renglón temporal en session_state
-                st.session_state["reglamentos_nuevos_temp"].append({
-                    "nombre_regla": "",
-                    "descripcion": "",
-                    "tiene_multa": "No",
-                    "monto_multa": None
-                })
-                st.experimental_rerun()
-
-            if btn_cancel:
-                st.session_state["reglamentos_nuevos_temp"] = []
-                st.info("Acción cancelada. No se realizaron cambios.")
-                st.experimental_rerun()
-
-            if btn_guardar:
+        # Formulario para guardar
+        with st.form("form_reglamento"):
+            st.subheader("💾 Guardar Reglamento")
+            
+            confirmar_otro = st.checkbox(
+                "📝 Registrar otro reglamento después de guardar",
+                help="Si está marcado, podrás registrar otro reglamento inmediatamente después de guardar este."
+            )
+            
+            guardar = st.form_submit_button("✅ Guardar Reglamento", use_container_width=True)
+            
+            if guardar:
+                # Validar que haya al menos una regla con nombre
+                reglas_validas = [f for f in st.session_state.filas_reglamento if f['nombre_regla'].strip()]
+                
+                if not reglas_validas:
+                    st.error("❌ Debes ingresar al menos una regla con nombre.")
+                    return
+                
+                # Insertar cada regla en la base de datos
+                reglas_guardadas = 0
                 errores = []
-                exitos = 0
-                for erow in editable_rows:
-                    # ignorar si no tiene nombre
-                    if not erow["nombre_regla"]:
-                        continue
-
-                    # validar monto si tiene multa
-                    if erow["tiene_multa"] == "Sí":
-                        if erow["monto_multa"] is None:
-                            errores.append(f"Regla '{erow['nombre_regla']}' requiere un monto válido.")
-                            continue
+                
+                for fila in st.session_state.filas_reglamento:
+                    # Solo guardar reglas que tengan nombre
+                    if fila['nombre_regla'].strip():
                         try:
-                            monto_val = round(float(erow["monto_multa"]), 2)
-                        except Exception:
-                            errores.append(f"Monto inválido en regla '{erow['nombre_regla']}'.")
-                            continue
-                    else:
-                        monto_val = None
-
-                    try:
-                        if erow["ID_Reglamento"]:
-                            # UPDATE
-                            sql_up = """
-                                UPDATE Reglamentos
-                                SET nombre_regla=%s, descripcion=%s, monto_multa=%s, `tipo_sanción`=%s, ID_Estado=%s
-                                WHERE ID_Reglamento=%s
-                            """
-                            params = (
-                                erow["nombre_regla"],
-                                erow["descripcion"],
-                                monto_val,
-                                "Sí" if erow["tiene_multa"]=="Sí" else "No",
-                                int(erow.get("ID_Estado",1)),
-                                int(erow["ID_Reglamento"])
+                            cursor.execute(
+                                """INSERT INTO Reglamentos 
+                                   (ID_Grupo, nombre_regla, descripcion, monto_multa, tipo_sanción, ID_Estado) 
+                                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                                (
+                                    id_grupo,
+                                    fila['nombre_regla'].strip(),
+                                    fila['descripcion'].strip() if fila['descripcion'] else None,
+                                    fila['monto_multa'],
+                                    "Multa económica",  # tipo_sanción por defecto
+                                    fila['estado']
+                                )
                             )
-                            cursor.execute(sql_up, params)
-                        else:
-                            # INSERT
-                            sql_ins = """
-                                INSERT INTO Reglamentos
-                                (ID_Grupo, nombre_regla, descripcion, monto_multa, `tipo_sanción`, ID_Estado)
-                                VALUES (%s,%s,%s,%s,%s,%s)
-                            """
-                            params = (
-                                int(erow["ID_Grupo"]),
-                                erow["nombre_regla"],
-                                erow["descripcion"],
-                                monto_val,
-                                "Sí" if erow["tiene_multa"]=="Sí" else "No",
-                                int(erow.get("ID_Estado",1))
-                            )
-                            cursor.execute(sql_ins, params)
-                        exitos += 1
-                    except Exception as e:
-                        errores.append(f"Error guardando '{erow['nombre_regla']}': {e}")
-
-                # commit / rollback
+                            reglas_guardadas += 1
+                            
+                        except Exception as e:
+                            errores.append(f"Error en regla '{fila['nombre_regla']}': {e}")
+                
                 if errores:
                     con.rollback()
-                    st.error("❌ Ocurrieron errores al guardar:")
-                    for e in errores:
-                        st.write("- " + e)
+                    st.error("❌ Errores al guardar:")
+                    for error in errores:
+                        st.write(f"- {error}")
                 else:
                     con.commit()
-                    if exitos > 0:
-                        st.success("✅ Cambios guardados exitosamente.")
+                    st.success(f"✅ Reglamento guardado exitosamente! Se registraron {reglas_guardadas} regla(s).")
+                    
+                    if confirmar_otro:
+                        # Limpiar y preparar para nuevo reglamento
+                        st.session_state.filas_reglamento = [{
+                            'numero': 1,
+                            'nombre_regla': '',
+                            'descripcion': '',
+                            'monto_multa': 0.00,
+                            'estado': 1
+                        }]
+                        st.rerun()
                     else:
-                        st.info("No se detectaron renglones válidos para guardar.")
-                    # limpiar temporales
-                    st.session_state["reglamentos_nuevos_temp"] = []
-                    st.experimental_rerun()
+                        # Mostrar mensaje final
+                        st.balloons()
+                        st.info("🎉 Reglamento registrado correctamente. Para seguir navegando usa el menú de la izquierda.")
 
-        # sección inferior: botones extras y guía
-        col_a, col_b, col_c = st.columns([1,1,2])
-        with col_a:
-            if st.button("✏️ Editar un reglamento existente"):
-                st.info("Selecciona un reglamento en la lista arriba y edítalo, luego presiona GUARDAR CAMBIOS.")
-        with col_b:
-            if st.button("➕ Registrar otro reglamento (vacío)"):
-                st.session_state["reglamentos_nuevos_temp"].append({
-                    "nombre_regla": "",
-                    "descripcion": "",
-                    "tiene_multa": "No",
-                    "monto_multa": None
-                })
-                st.experimental_rerun()
-        with col_c:
-            st.info("Para seguir navegando usa el menú de la izquierda. ✅")
+        # Mostrar resumen
+        st.subheader("📊 Resumen del Reglamento")
+        st.write(f"**Grupo seleccionado:** {grupo_seleccionado}")
+        st.write(f"**Total de reglas configuradas:** {len(st.session_state.filas_reglamento)}")
+        st.write(f"**Reglas con nombre completado:** {len([f for f in st.session_state.filas_reglamento if f['nombre_regla'].strip()])}")
+        
+        # Mostrar vista previa de las reglas
+        if any(f['nombre_regla'].strip() for f in st.session_state.filas_reglamento):
+            st.write("**Vista previa de reglas:**")
+            for fila in st.session_state.filas_reglamento:
+                if fila['nombre_regla'].strip():
+                    estado_texto = "✅ Activo" if fila['estado'] == 1 else "❌ Inactivo"
+                    monto_texto = f"${fila['monto_multa']:.2f} USD" if fila['monto_multa'] > 0 else "Sin multa"
+                    st.write(f"- **{fila['nombre_regla']}** | {estado_texto} | {monto_texto}")
 
-        # Mostrar resumen rápido de reglamentos del grupo
-        st.write("---")
-        st.subheader("Resumen actual de reglas")
-        if not regs:
-            st.info("No hay reglamentos guardados para este grupo aún.")
-        else:
-            for r in regs:
-                monto_text = f"${float(r['monto_multa']):.2f}" if r.get('monto_multa') is not None else "—"
-                tipo = r.get('tipo_sanción') or "No"
-                st.markdown(f"- **{r['ID_Reglamento']}** • {r['nombre_regla']} — Multa: **{tipo}** — Monto: **{monto_text}**")
+    except Exception as e:
+        st.error(f"❌ Error general: {e}")
 
     finally:
-        try: cursor.close()
-        except: pass
-        try: con.close()
-        except: pass
+        if 'cursor' in locals():
+            cursor.close()
+        if 'con' in locals():
+            con.close()
