@@ -92,7 +92,7 @@ if st.session_state["sesion_iniciada"]:
     )
 
     # Normalizamos id
-ID_Cargo = None
+    ID_Cargo = None
     if cargo_id_raw is not None:
         try:
             ID_Cargo = int(cargo_id_raw)
