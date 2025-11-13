@@ -18,7 +18,7 @@ if "pagina_actual" not in st.session_state:
 # --- NAVEGACIÓN LATERAL ---
 st.sidebar.title("📋 Menú principal")
 
-# 💅 Estilos (igual que los tuyos)
+# 💅 Estilos
 st.markdown("""
     <style>
         .titulo { text-align:center; color:#6C3483; font-size:2.2em; font-weight:bold; }
@@ -41,87 +41,39 @@ def dashboard_promotora(usuario):
     with col3:
         st.metric("Módulos", "Promotora, Distrito, Grupos")
 
-# 🔵 Utilidad: mapea etiquetas (lo que ve el usuario) a claves internas
-def make_menu(options_dict, default_label=None):
+# Utilidad: mapea etiquetas (lo que ve el usuario) a claves internas
+def make_menu(options_dict, default_label=None, key="menu_principal"):
     labels = list(options_dict.keys())
     if default_label and default_label in labels:
         index = labels.index(default_label)
     else:
         index = 0
-    chosen = st.sidebar.selectbox("Ir a:", labels, index=index, key="menu_principal")
-    return options_dict[chosen]  # devuelve la clave interna
+    chosen = st.sidebar.selectbox("Ir a:", labels, index=index, key=key)
+    return options_dict[chosen]
 
-# 🟢 Si hay sesión iniciada
+# Si hay sesión iniciada
 if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
     tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
     cargo = (st.session_state.get("cargo_usuario", "") or "").strip().upper()
 
-    st.sidebar.write(f"👤 **{usuario}** ({tipo or 'desconocido'})")
+    st.sidebar.write(f"👤 **{usuario}** ({cargo or 'desconocido'})")
 
-    # -----------------------------------
-    # PANEL LATERAL EXCLUSIVO para SECRETARIA / PRESIDENTE
-    # -----------------------------------
+    # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 3 OPCIONES ---
     if cargo in ("SECRETARIA", "PRESIDENTE"):
-        st.sidebar.markdown("### ⚖️ Acciones (Secretaria / Presidente)")
-        accion = st.sidebar.selectbox(
-            "Seleccione acción:",
-            ["—", "📝 Registrar grupo", "📜 Registrar reglamento"],
-            key="menu_secret_pres"
-        )
-
-        if accion == "📝 Registrar grupo":
-            # Mostrar módulo grupos y detener el resto del render para enfocarlo
-            mostrar_grupos()
-            st.stop()
-
-        if accion == "📜 Registrar reglamento":
-            mostrar_reglamentos()
-            st.stop()
-
-    # 🔐 Rutas por perfil (evita depender de mayúsculas/acentos)
-    if tipo == "administradora":
         options = {
-            "📊 Consolidado por distrito": "admin_consolidado",
-            "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
-            "🚪 Cerrar sesión": "logout"
-        }
-        route = make_menu(options, default_label="📊 Consolidado por distrito")
-
-        if route == "admin_consolidado":
-            st.title("📊 Consolidado general por distrito 💲")
-            # mostrar_ahorros()
-        elif route == "admin_registrar_usuario":
-            registrar_usuario()
-        elif route == "logout":
-            # limpia y vuelve a inicio
-            st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
-
-    elif (tipo == "promotora") or (cargo == "PROMOTORA"):
-        # 👇 Menú completo para PROMOTORAS con Grupos
-        options = {
-            "📈 Dashboard promotora": "prom_dashboard",
-            "👩‍💼 Registro de promotora": "prom_registrar",
-            "🏛️ Registro de distrito": "dist_registrar",
             "👥 Registro de grupos": "grupos_registrar",
+            "📜 Registro de reglamentos": "reglamentos_registrar",
             "🚪 Cerrar sesión": "logout"
         }
-        route = make_menu(options, default_label="📈 Dashboard promotora")
+        route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
 
-        if route == "prom_dashboard":
-            dashboard_promotora(usuario)
-        elif route == "prom_registrar":
-            st.title("👩‍💼 Registrar Nueva Promotora")
-            mostrar_promotora()
-        elif route == "dist_registrar":
-            st.title("🏛️ Registrar Nuevo Distrito")
-            mostrar_distrito()
-        elif route == "grupos_registrar":
-            st.title("👥 Registrar Nuevo Grupo")
+        if route == "grupos_registrar":
+            st.title("👥 Registrar Grupo")
             mostrar_grupos()
+        elif route == "reglamentos_registrar":
+            st.title("📜 Registrar Reglamento")
+            mostrar_reglamentos()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -129,30 +81,78 @@ if st.session_state["sesion_iniciada"]:
             st.rerun()
 
     else:
-        # Otros tipos (usuarios genéricos) — NO muestran Registrar grupo ni Registrar reglamento
-        options = {
-            "📊 Dashboard": "otros_dashboard",
-            "👩‍💼 Registro de promotora": "prom_registrar",
-            "🏛️ Registro de distrito": "dist_registrar",
-            "🚪 Cerrar sesión": "logout"
-        }
-        route = make_menu(options, default_label="📊 Dashboard")
+        # Usuario no SECRETARIA/PRESIDENTE: menú normal por tipo
+        if tipo == "administradora":
+            options = {
+                "📊 Consolidado por distrito": "admin_consolidado",
+                "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
+                "🚪 Cerrar sesión": "logout"
+            }
+            route = make_menu(options, default_label="📊 Consolidado por distrito")
 
-        if route == "otros_dashboard":
-            st.title("📊 Dashboard")
-        elif route == "prom_registrar":
-            st.title("👩‍💼 Registrar Promotora")
-            mostrar_promotora()
-        elif route == "dist_registrar":
-            st.title("🏛️ Registrar Distrito")
-            mostrar_distrito()
-        elif route == "logout":
-            st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
+            if route == "admin_consolidado":
+                st.title("📊 Consolidado general por distrito 💲")
+                # mostrar_ahorros()
+            elif route == "admin_registrar_usuario":
+                registrar_usuario()
+            elif route == "logout":
+                st.session_state.clear()
+                st.session_state["sesion_iniciada"] = False
+                st.session_state["pagina_actual"] = "sesion_cerrada"
+                st.rerun()
 
-# 🔴 Sin sesión
+        elif (tipo == "promotora") or (cargo == "PROMOTORA"):
+            options = {
+                "📈 Dashboard promotora": "prom_dashboard",
+                "👩‍💼 Registro de promotora": "prom_registrar",
+                "🏛️ Registro de distrito": "dist_registrar",
+                "👥 Registro de grupos": "grupos_registrar",
+                "🚪 Cerrar sesión": "logout"
+            }
+            route = make_menu(options, default_label="📈 Dashboard promotora")
+
+            if route == "prom_dashboard":
+                dashboard_promotora(usuario)
+            elif route == "prom_registrar":
+                st.title("👩‍💼 Registrar Nueva Promotora")
+                mostrar_promotora()
+            elif route == "dist_registrar":
+                st.title("🏛️ Registrar Nuevo Distrito")
+                mostrar_distrito()
+            elif route == "grupos_registrar":
+                st.title("👥 Registrar Nuevo Grupo")
+                mostrar_grupos()
+            elif route == "logout":
+                st.session_state.clear()
+                st.session_state["sesion_iniciada"] = False
+                st.session_state["pagina_actual"] = "sesion_cerrada"
+                st.rerun()
+
+        else:
+            # Otros tipos
+            options = {
+                "📊 Dashboard": "otros_dashboard",
+                "👩‍💼 Registro de promotora": "prom_registrar",
+                "🏛️ Registro de distrito": "dist_registrar",
+                "🚪 Cerrar sesión": "logout"
+            }
+            route = make_menu(options, default_label="📊 Dashboard")
+
+            if route == "otros_dashboard":
+                st.title("📊 Dashboard")
+            elif route == "prom_registrar":
+                st.title("👩‍💼 Registrar Promotora")
+                mostrar_promotora()
+            elif route == "dist_registrar":
+                st.title("🏛️ Registrar Distrito")
+                mostrar_distrito()
+            elif route == "logout":
+                st.session_state.clear()
+                st.session_state["sesion_iniciada"] = False
+                st.session_state["pagina_actual"] = "sesion_cerrada"
+                st.rerun()
+
+# Sin sesión
 else:
     if st.session_state["pagina_actual"] == "sesion_cerrada":
         st.markdown("<div class='sesion-cerrada'>", unsafe_allow_html=True)
@@ -170,7 +170,7 @@ else:
         <div class='descripcion'>
             <p class='emoji'>Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
             <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local 🤝.</p>
-            <p>Si ya tienes una cuenta, inicia sesión.<br>
+            <p>Si tienes cuenta, inicia sesión.<br>
             Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
         </div>
         """, unsafe_allow_html=True)
@@ -190,3 +190,4 @@ else:
 
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
+
