@@ -130,34 +130,23 @@ if st.session_state["sesion_iniciada"]:
             st.rerun()
 
     else:
-        # Otros tipos
+        # Otros tipos (usuarios genéricos)
         options = {
-            "📊 Dashboard": "otros_dashboard",
-            "👩‍💼 Registro de promotora": "prom_registrar",
-            "🏛️ Registro de distrito": "dist_registrar",
-            "👥 Registro de grupos": "grupos_registrar",  # NUEVA OPCIÓN
+            "👥 Registrar grupo": "grupos_registrar",
+            "📜 Registrar reglamento": "reglamentos_registrar",
             "🚪 Cerrar sesión": "logout"
         }
-        route = make_menu(options, default_label="📊 Dashboard")
 
-        if route == "otros_dashboard":
-            st.title("📊 Dashboard")
-        elif route == "prom_registrar":
-            st.title("👩‍💼 Registrar Promotora")
-            mostrar_promotora()
-        elif route == "dist_registrar":
-            st.title("🏛️ Registrar Distrito")
-            mostrar_distrito()
-        elif route == "grupos_registrar":  # NUEVA OPCIÓN
+        route = make_menu(options, default_label="👥 Registrar grupo")
+
+        if route == "grupos_registrar":
             st.title("👥 Registrar Grupo")
             mostrar_grupos()
-            # y si el usuario tiene cargo SECRETARIA o PRESIDENTE, dejamos el botón para reglamentos
-            if cargo in ("SECRETARIA", "PRESIDENTE"):
-                st.write("---")
-                st.markdown("### 📜 Reglamento del grupo")
-                if st.button("📝 Registrar/Editar reglamentos de este grupo"):
-                    mostrar_reglamentos()
-                    st.stop()
+
+        elif route == "reglamentos_registrar":
+            st.title("📜 Registrar Reglamento")
+            mostrar_reglamentos()
+
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
