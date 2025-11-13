@@ -4,6 +4,7 @@ from modulos.login import login
 from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
 from modulos.grupos import mostrar_grupos
+from modulos.miembros import mostrar_miembros
 from modulos.reglamentos import mostrar_reglamentos  # <-- import agregado
 
 # ⚙️ Configuración: SIEMPRE al inicio
