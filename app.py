@@ -104,7 +104,7 @@ if st.session_state["sesion_iniciada"]:
             st.rerun()
 
     # 🧑‍🤝‍🧑 3) SECRETARIA o PRESIDENTE (mismo menú)
-    elif cargo in ("secretaria", "presidente"):
+    elif (cargo == "presidente") or (cargo == "secretaria")::
         options = {
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
