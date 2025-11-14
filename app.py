@@ -7,6 +7,7 @@ from modulos.grupos import mostrar_grupos
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo  # <-- import agregado
+from modulos.reuniones import mostrar_reuniones  # <-- import de reuniones agregado
 
 # ⚙️ Configuración: SIEMPRE al inicio
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -70,6 +71,18 @@ if st.session_state["sesion_iniciada"]:
             "💰 Registro de préstamo": "prestamo_registrar",  # <-- NUEVA OPCIÓN AGREGADA
             "🚪 Cerrar sesión": "logout"
         }
+
+        # Insertar la opción de Reuniones solo si el cargo es exactamente SECRETARIA
+        if cargo == "SECRETARIA":
+            options = {
+                "👥 Registro de grupos": "grupos_registrar",
+                "📜 Registro de reglamentos": "reglamentos_registrar",
+                "👥 Registro de miembro": "miembro_registrar",
+                "💰 Registro de préstamo": "prestamo_registrar",
+                "📅 Registro de reuniones": "reuniones_registrar",  # visible SOLO a SECRETARIA
+                "🚪 Cerrar sesión": "logout"
+            }
+
         route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
 
         if route == "grupos_registrar":
@@ -84,6 +97,9 @@ if st.session_state["sesion_iniciada"]:
         elif route == "prestamo_registrar":  # <-- NUEVA RUTA AGREGADA
             st.title("💰 Registrar Préstamo")
             mostrar_prestamo()
+        elif route == "reuniones_registrar":  # <-- MANEJO DE LA NUEVA RUTA (solo secretaria)
+            st.title("📅 Registro de Reuniones")
+            mostrar_reuniones()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
