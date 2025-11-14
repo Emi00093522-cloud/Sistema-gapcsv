@@ -8,17 +8,20 @@ def mostrar_asistencia():
         con = obtener_conexion()
         cursor = con.cursor()
 
-        # 1. Cargar todas las reuniones
-        cursor.execute("SELECT ID_Reunion, lugar, fecha, ID_Grupo FROM Reunion")
+        # 1. Cargar reuniones correctas (sin Tema)
+        cursor.execute("""
+            SELECT ID_Reunion, lugar, fecha, ID_Grupo
+            FROM Reunion
+        """)
         reuniones = cursor.fetchall()
 
         if not reuniones:
             st.warning("⚠ No hay reuniones registradas.")
             return
 
-        # Mostrar bonito en el selectbox
+        # Diccionario bonito para el selectbox
         reuniones_dict = {
-            r[0]: f"{r[1]} - {r[2]}"   # lugar - fecha
+            r[0]: f"{r[2]} | {r[1]}"   # fecha | lugar
             for r in reuniones
         }
 
@@ -28,20 +31,18 @@ def mostrar_asistencia():
             format_func=lambda x: reuniones_dict[x]
         )
 
-        # Buscar el ID_Grupo de esa reunión
-        id_grupo = None
+        # Buscar el grupo al que pertenece la reunión
         for r in reuniones:
             if r[0] == id_reunion:
                 id_grupo = r[3]
                 break
 
-        # 2. Cargar miembros del grupo seleccionado
+        # 2. Cargar miembros del grupo
         cursor.execute("""
-            SELECT ID_Miembro, Nombre 
+            SELECT ID_Miembro, Nombre
             FROM Miembro
             WHERE ID_Grupo = %s
         """, (id_grupo,))
-        
         miembros = cursor.fetchall()
 
         if not miembros:
@@ -58,6 +59,7 @@ def mostrar_asistencia():
 
         st.subheader("👥 Lista de asistencia")
 
+        # Formulario
         checkboxes = {}
         with st.form("form_asistencia"):
             for id_miembro, nombre in miembros:
@@ -69,34 +71,32 @@ def mostrar_asistencia():
 
             guardar = st.form_submit_button("💾 Guardar asistencia")
 
+        # 4. Guardar asistencia
         if guardar:
-            # Guardar asistencia
             for id_miembro, asistio in checkboxes.items():
                 cursor.execute("""
-                    REPLACE INTO MiembroxReunion 
-                    (ID_MiembroxReunion, ID_Miembro, ID_Reunion, Asistio)
-                    VALUES (
-                        (SELECT ID_MiembroxReunion FROM MiembroxReunion 
-                         WHERE ID_Miembro = %s AND ID_Reunion = %s),
-                        %s, %s, %s
-                    )
-                """, (id_miembro, id_reunion, id_miembro, id_reunion, 1 if asistio else 0))
+                    INSERT INTO MiembroxReunion (ID_Miembro, ID_Reunion, Asistio)
+                    VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE Asistio = VALUES(Asistio)
+                """, (id_miembro, id_reunion, 1 if asistio else 0))
 
             con.commit()
 
             # Contar presentes
             cursor.execute("""
-                SELECT COUNT(*) 
+                SELECT COUNT(*)
                 FROM MiembroxReunion
                 WHERE ID_Reunion = %s AND Asistio = 1
             """, (id_reunion,))
             total_presentes = cursor.fetchone()[0]
 
-            st.success(f"✅ Asistencia guardada. Presentes: {total_presentes}")
+            st.success(f"✅ Asistencia guardada correctamente. Presentes: {total_presentes}")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
     finally:
-        if "cursor" in locals(): cursor.close()
-        if "con" in locals(): con.close()
+        if "cursor" in locals():
+            cursor.close()
+        if "con" in locals():
+            con.close()
