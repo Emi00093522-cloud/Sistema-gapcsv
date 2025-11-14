@@ -7,7 +7,7 @@ from modulos.grupos import mostrar_grupos
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo  # <-- import agregado
-from modulos.reuniones import mostrar_reuniones  # <-- IMPORT AÑADIDO (solo esta línea es nueva)
+from modulos.reuniones import mostrar_reuniones  # <-- IMPORT AÑADIDO PARA REUNIONES
 
 # ⚙️ Configuración: SIEMPRE al inicio
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -64,7 +64,6 @@ if st.session_state["sesion_iniciada"]:
 
     # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 4 OPCIONES ---
     if cargo in ("SECRETARIA", "PRESIDENTE"):
-        # Base del menú reducido
         options = {
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
@@ -73,16 +72,14 @@ if st.session_state["sesion_iniciada"]:
             "🚪 Cerrar sesión": "logout"
         }
 
-        # Añadir la opción de Reuniones solo si el cargo es SECRETARIA (y no para PRESIDENTE)
+        # Si el cargo es exactamente SECRETARIA, añadimos la opción de Reuniones (solo para secretaria)
         if cargo == "SECRETARIA":
-            # Insertamos la opción antes de Cerrar sesión (manteniendo orden lógico)
-            # Para mantener sencillo, re-creamos el dict con la opción incluida
             options = {
                 "👥 Registro de grupos": "grupos_registrar",
                 "📜 Registro de reglamentos": "reglamentos_registrar",
                 "👥 Registro de miembro": "miembro_registrar",
                 "💰 Registro de préstamo": "prestamo_registrar",
-                "📅 Registro de reuniones": "reuniones_registrar",  # <-- opción visible SOLO a SECRETARIA
+                "📅 Registro de reuniones": "reuniones_registrar",  # visible SOLO a SECRETARIA
                 "🚪 Cerrar sesión": "logout"
             }
 
@@ -100,7 +97,7 @@ if st.session_state["sesion_iniciada"]:
         elif route == "prestamo_registrar":  # <-- NUEVA RUTA AGREGADA
             st.title("💰 Registrar Préstamo")
             mostrar_prestamo()
-        elif route == "reuniones_registrar":  # <-- MANEJO DE LA NUEVA RUTA
+        elif route == "reuniones_registrar":  # <-- MANEJO DE LA NUEVA RUTA (solo secretaria)
             st.title("📅 Registro de Reuniones")
             mostrar_reuniones()
         elif route == "logout":
