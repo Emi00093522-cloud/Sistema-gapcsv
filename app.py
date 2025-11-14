@@ -7,6 +7,7 @@ from modulos.grupos import mostrar_grupos
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo  # <-- import agregado
+from modulos.reuniones import mostrar_reuniones  # <-- IMPORT AÑADIDO (solo esta línea es nueva)
 
 # ⚙️ Configuración: SIEMPRE al inicio
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -63,6 +64,7 @@ if st.session_state["sesion_iniciada"]:
 
     # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 4 OPCIONES ---
     if cargo in ("SECRETARIA", "PRESIDENTE"):
+        # Base del menú reducido
         options = {
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
@@ -70,6 +72,20 @@ if st.session_state["sesion_iniciada"]:
             "💰 Registro de préstamo": "prestamo_registrar",  # <-- NUEVA OPCIÓN AGREGADA
             "🚪 Cerrar sesión": "logout"
         }
+
+        # Añadir la opción de Reuniones solo si el cargo es SECRETARIA (y no para PRESIDENTE)
+        if cargo == "SECRETARIA":
+            # Insertamos la opción antes de Cerrar sesión (manteniendo orden lógico)
+            # Para mantener sencillo, re-creamos el dict con la opción incluida
+            options = {
+                "👥 Registro de grupos": "grupos_registrar",
+                "📜 Registro de reglamentos": "reglamentos_registrar",
+                "👥 Registro de miembro": "miembro_registrar",
+                "💰 Registro de préstamo": "prestamo_registrar",
+                "📅 Registro de reuniones": "reuniones_registrar",  # <-- opción visible SOLO a SECRETARIA
+                "🚪 Cerrar sesión": "logout"
+            }
+
         route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
 
         if route == "grupos_registrar":
@@ -78,12 +94,15 @@ if st.session_state["sesion_iniciada"]:
         elif route == "reglamentos_registrar":
             st.title("📜 Registrar Reglamento")
             mostrar_reglamentos()
-        elif route == "miembro_registrar": 
-            st.title("👥 Registro de miembros") 
+        elif route == "miembro_registrar":
+            st.title("👥 Registro de miembros")
             mostrar_miembro()
         elif route == "prestamo_registrar":  # <-- NUEVA RUTA AGREGADA
             st.title("💰 Registrar Préstamo")
             mostrar_prestamo()
+        elif route == "reuniones_registrar":  # <-- MANEJO DE LA NUEVA RUTA
+            st.title("📅 Registro de Reuniones")
+            mostrar_reuniones()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -128,7 +147,7 @@ if st.session_state["sesion_iniciada"]:
             elif route == "dist_registrar":
                 st.title("🏛️ Registrar Nuevo Distrito")
                 mostrar_distrito()
-           
+
             elif route == "logout":
                 st.session_state.clear()
                 st.session_state["sesion_iniciada"] = False
@@ -147,19 +166,19 @@ if st.session_state["sesion_iniciada"]:
 
             if route == "otros_dashboard":
                 st.title("📊 Dashboard")
-            
+
             elif route == "grupos_registrar":
                 st.title("👥 Registrar Nuevo Grupo")
                 mostrar_grupos()
-                
+
             elif route == "reglamentos_registrar":
                 st.title("📜 Registrar Reglamento")
                 mostrar_reglamentos()
 
-            elif route == "miembro_registrar": 
-                st.title("👥 Registro de miembros") 
+            elif route == "miembro_registrar":
+                st.title("👥 Registro de miembros")
                 mostrar_miembro()
-            
+
             elif route == "logout":
                 st.session_state.clear()
                 st.session_state["sesion_iniciada"] = False
