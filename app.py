@@ -8,7 +8,6 @@ from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo  # <-- import agregado
 from modulos.reuniones import mostrar_reuniones  # <-- import de reuniones agregado
-from modulos.asistencia import mostrar_asistencia  # <-- NUEVO IMPORT
 
 # ⚙️ Configuración: SIEMPRE al inicio
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -61,7 +60,7 @@ if st.session_state["sesion_iniciada"]:
     tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
     cargo = st.session_state.get("cargo_de_usuario", "Cargo").strip().upper()
 
-    st.sidebar.write(f"👤 **{usuario}** ({cargo})")
+    st.sidebar.write(f"👤 *{usuario}* ({cargo})")
 
     # --- Si es SECRETARIA o PRESIDENTE: MENÚ REDUCIDO SOLO CON 4 OPCIONES ---
     if cargo in ("SECRETARIA", "PRESIDENTE"):
@@ -69,19 +68,18 @@ if st.session_state["sesion_iniciada"]:
             "👥 Registro de grupos": "grupos_registrar",
             "📜 Registro de reglamentos": "reglamentos_registrar",
             "👥 Registro de miembro": "miembro_registrar",
-            "💰 Registro de préstamo": "prestamo_registrar",
+            "💰 Registro de préstamo": "prestamo_registrar",  # <-- NUEVA OPCIÓN AGREGADA
             "🚪 Cerrar sesión": "logout"
         }
 
-        # Insertar la opción de Reuniones y Asistencia solo si es SECRETARIA
+        # Insertar la opción de Reuniones solo si el cargo es exactamente SECRETARIA
         if cargo == "SECRETARIA":
             options = {
                 "👥 Registro de grupos": "grupos_registrar",
                 "📜 Registro de reglamentos": "reglamentos_registrar",
                 "👥 Registro de miembro": "miembro_registrar",
                 "💰 Registro de préstamo": "prestamo_registrar",
-                "📅 Registro de reuniones": "reuniones_registrar",
-                "📋 Registrar asistencia": "asistencia_registrar",  # <-- NUEVO MENÚ
+                "📅 Registro de reuniones": "reuniones_registrar",  # visible SOLO a SECRETARIA
                 "🚪 Cerrar sesión": "logout"
             }
 
@@ -96,15 +94,12 @@ if st.session_state["sesion_iniciada"]:
         elif route == "miembro_registrar": 
             st.title("👥 Registro de miembros") 
             mostrar_miembro()
-        elif route == "prestamo_registrar":
+        elif route == "prestamo_registrar":  # <-- NUEVA RUTA AGREGADA
             st.title("💰 Registrar Préstamo")
             mostrar_prestamo()
-        elif route == "reuniones_registrar":
+        elif route == "reuniones_registrar":  # <-- MANEJO DE LA NUEVA RUTA (solo secretaria)
             st.title("📅 Registro de Reuniones")
             mostrar_reuniones()
-        elif route == "asistencia_registrar":  # <-- NUEVA RUTA
-            st.title("📋 Registrar asistencia")
-            mostrar_asistencia()
         elif route == "logout":
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
@@ -123,6 +118,7 @@ if st.session_state["sesion_iniciada"]:
 
             if route == "admin_consolidado":
                 st.title("📊 Consolidado general por distrito 💲")
+                # mostrar_ahorros()
             elif route == "admin_registrar_usuario":
                 registrar_usuario()
             elif route == "logout":
