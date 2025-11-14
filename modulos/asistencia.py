@@ -9,7 +9,7 @@ def mostrar_asistencia():
         cursor = con.cursor()
 
         # 1. Cargar todas las reuniones
-        cursor.execute("SELECT ID_Reunion, Tema, Fecha, ID_Grupo FROM Reunion")
+        cursor.execute("SELECT ID_Reunion, lugar, fecha, ID_Grupo FROM Reunion")
         reuniones = cursor.fetchall()
 
         if not reuniones:
@@ -18,7 +18,7 @@ def mostrar_asistencia():
 
         # Mostrar bonito en el selectbox
         reuniones_dict = {
-            r[0]: f"{r[1]} - {r[2]}"
+            r[0]: f"{r[1]} - {r[2]}"   # lugar - fecha
             for r in reuniones
         }
 
