@@ -1,34 +1,47 @@
+
 # modulos/reuniones.py
 import streamlit as st
 from datetime import datetime, time
 from modulos.config.conexion import obtener_conexion
 
+def _get_cargo_detectado():
+    # Comprueba varias claves posibles en session_state donde tu app podría guardar el cargo
+    posibles = ["cargo_de_usuario", "cargo_usuario", "cargo", "tipo_usuario"]
+    for k in posibles:
+        if k in st.session_state and st.session_state[k]:
+            return str(st.session_state[k]).strip()
+    return ""
+
+def _tiene_rol(cargo_str, rol_buscar):
+    """Devuelve True si la cadena cargo_str contiene rol_buscar (case-insensitive)."""
+    if not cargo_str:
+        return False
+    return rol_buscar.lower() in cargo_str.lower()
+
 def mostrar_reuniones():
     """
     Módulo para registrar y gestionar reuniones por grupo.
-    Acceso: SOLO usuarios con cargo 'SECRETARIA' (case-insensitive).
-    Tabla esperada (según tu imagen): Reunion(ID_Reunion, ID_Grupo, fecha, ID_Estado_reunion, lugar, total_presentes, Hora)
+    - Tabla Reunion esperada: ID_Reunion (PK), ID_Grupo, fecha (DATE), Hora (TIME),
+      ID_Estado_reunion (int), lugar (varchar), total_presentes (text)
+    - Solo usuarios con cargo que contenga 'SECRETARIA' pueden crear/editar/eliminar.
     """
 
     st.header("📅 Registro de Reuniones por Grupo")
 
-    # --- Permiso: solo SECRETARIA puede editar/crear ---
-    cargo = (st.session_state.get("cargo_usuario", "") or "").strip().upper()
-    if cargo != "SECRETARIA":
-        st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede ver y editar las reuniones.")
-        return
+    # detectar cargo del usuario (flexible)
+    cargo_detectado = _get_cargo_detectado()
+    es_secretaria = _tiene_rol(cargo_detectado, "secretaria")
 
-    # --- Conexión a BD ---
+    # Conexión
     try:
         con = obtener_conexion()
         if not con:
             st.error("❌ No se pudo conectar a la base de datos.")
             return
-        # Intentamos obtener cursor con dictionary=True; si falla usamos cursor normal.
         try:
             cursor = con.cursor(dictionary=True)
             dict_cursor = True
-        except TypeError:
+        except Exception:
             cursor = con.cursor()
             dict_cursor = False
     except Exception as e:
@@ -36,11 +49,10 @@ def mostrar_reuniones():
         return
 
     try:
-        # --- Cargar grupos ---
+        # Cargar grupos
         try:
-            cursor.execute("SELECT ID_Grupo, nombre FROM Grupo ORDER BY ID_Grupo")
+            cursor.execute("SELECT ID_Grupo, nombre FROM Grupo ORDER BY nombre")
             grupos = cursor.fetchall() or []
-            # normalizar a lista de dicts si cursor no da dicts
             if not dict_cursor:
                 grupos = [{"ID_Grupo": g[0], "nombre": g[1]} for g in grupos]
         except Exception:
@@ -53,29 +65,60 @@ def mostrar_reuniones():
         mapa_grupos = { f"{g['ID_Grupo']} - {g.get('nombre','Grupo')}": g['ID_Grupo'] for g in grupos }
         grupo_label = st.selectbox("Selecciona grupo", options=list(mapa_grupos.keys()))
         id_grupo = int(mapa_grupos[grupo_label])
-        st.write("---")
 
-        # --- Cargar reuniones del grupo ---
+        st.write("")  # separación leve
+
+        # Cargar reuniones del grupo seleccionado
         cursor.execute("""
-            SELECT ID_Reunion, ID_Grupo, fecha, ID_Estado_reunion, lugar, total_presentes, Hora
+            SELECT ID_Reunion, ID_Grupo, fecha, Hora, ID_Estado_reunion, lugar, total_presentes
             FROM Reunion
             WHERE ID_Grupo = %s
             ORDER BY fecha DESC, Hora DESC
         """, (id_grupo,))
         reuniones = cursor.fetchall() or []
         if not dict_cursor:
-            # convertir a dicts
             reuniones = [
-                {"ID_Reunion": r[0], "ID_Grupo": r[1], "fecha": r[2], "ID_Estado_reunion": r[3],
-                 "lugar": r[4], "total_presentes": r[5], "Hora": r[6]} for r in reuniones
+                {"ID_Reunion": r[0], "ID_Grupo": r[1], "fecha": r[2], "Hora": r[3],
+                 "ID_Estado_reunion": r[4], "lugar": r[5], "total_presentes": r[6]} for r in reuniones
             ]
 
-        # --- Selección reunión existente o nueva ---
+        # Mostrar resumen de reuniones
+        st.subheader("Reuniones registradas")
+        if not reuniones:
+            st.info("No hay reuniones registradas para este grupo.")
+        else:
+            import pandas as pd
+            filas = []
+            for r in reuniones:
+                filas.append({
+                    "ID": r.get("ID_Reunion"),
+                    "Fecha": r.get("fecha").strftime("%Y-%m-%d") if r.get("fecha") else "",
+                    "Hora": r.get("Hora").strftime("%H:%M:%S") if hasattr(r.get("Hora"), "strftime") else (str(r.get("Hora")) if r.get("Hora") else ""),
+                    "Lugar": r.get("lugar") or "",
+                    "Estado": r.get("ID_Estado_reunion") or "",
+                    "Total_presentes": r.get("total_presentes") or ""
+                })
+            df = pd.DataFrame(filas)
+            st.dataframe(df.sort_values(by=["Fecha", "Hora"], ascending=[False, False]), use_container_width=True)
+
+        st.write("---")
+
+        # Si no es secretaria: mostrar solo lecturas y aviso
+        if not es_secretaria:
+            if cargo_detectado:
+                st.info(f"🔒 Vista de solo lectura. Cargo detectado: **{cargo_detectado}**. Solo la SECRETARIA puede crear/editar/eliminar reuniones.")
+            else:
+                st.info("🔒 Vista de solo lectura. Solo la SECRETARIA puede crear/editar/eliminar reuniones.")
+            return  # salimos: no permitimos el formulario de edición
+
+        # --- Formulario para crear/editar/eliminar (solo secretaria) ---
+        st.subheader("Crear / Editar reunión (acceso: SECRETARIA)")
+
         opciones = ["➕ Nueva reunión"]
         mapa_reuniones = {opciones[0]: None}
         for r in reuniones:
             fecha_txt = r["fecha"].strftime("%Y-%m-%d") if r.get("fecha") else "sin_fecha"
-            hora_txt = r["Hora"].strftime("%H:%M") if isinstance(r.get("Hora"), (time,)) else (str(r.get("Hora")) if r.get("Hora") else "")
+            hora_txt = r["Hora"].strftime("%H:%M") if hasattr(r.get("Hora"), "strftime") else (str(r.get("Hora")) if r.get("Hora") else "")
             label = f"{r['ID_Reunion']} • {fecha_txt} {hora_txt} — { (r.get('lugar') or '')[:30] }"
             opciones.append(label)
             mapa_reuniones[label] = r["ID_Reunion"]
@@ -98,9 +141,6 @@ def mostrar_reuniones():
             asistentes_def = fila.get("total_presentes") or ""
             estado_def = fila.get("ID_Estado_reunion") or 1
 
-        st.info("Rellena los campos y presiona **Guardar**. Puedes eliminar la reunión seleccionada si lo deseas.")
-
-        # --- Formulario ---
         with st.form("form_reunion"):
             col1, col2 = st.columns(2)
             with col1:
@@ -116,14 +156,14 @@ def mostrar_reuniones():
                                   format_func=lambda k: estados[k],
                                   index=list(estados.keys()).index(estado_def) if estado_def in estados else 0)
 
-            guardar = st.form_submit_button("✅ Guardar")
-            eliminar = st.form_submit_button("🗑️ Eliminar reunión") if id_reunion else False
-            nuevo = st.form_submit_button("➕ Nuevo (limpiar)")
+            btn_guardar = st.form_submit_button("✅ Guardar")
+            btn_eliminar = st.form_submit_button("🗑️ Eliminar reunión") if id_reunion else False
+            btn_nuevo = st.form_submit_button("➕ Nuevo (limpiar)")
 
-            if nuevo:
+            if btn_nuevo:
                 st.experimental_rerun()
 
-            if eliminar:
+            if btn_eliminar:
                 if not id_reunion:
                     st.warning("No hay reunión seleccionada para eliminar.")
                 else:
@@ -136,12 +176,12 @@ def mostrar_reuniones():
                         con.rollback()
                         st.error(f"❌ Error al eliminar la reunión: {e}")
 
-            if guardar:
-                # validaciones básicas
+            if btn_guardar:
+                # validaciones
                 if fecha is None:
-                    st.warning("⚠️ Selecciona una fecha.")
+                    st.warning("⚠️ Debes seleccionar una fecha.")
                 elif hora is None:
-                    st.warning("⚠️ Selecciona una hora.")
+                    st.warning("⚠️ Debes seleccionar una hora.")
                 else:
                     try:
                         hora_str = hora.strftime("%H:%M:%S") if hasattr(hora, "strftime") else str(hora)
@@ -176,25 +216,8 @@ def mostrar_reuniones():
                         con.rollback()
                         st.error(f"❌ Error al guardar la reunión: {e}")
 
-        st.write("---")
-        # --- Resumen de reuniones ---
-        st.subheader("Reuniones registradas (resumen)")
-        if not reuniones:
-            st.info("No hay reuniones registradas para este grupo.")
-        else:
-            import pandas as pd
-            rows = []
-            for r in reuniones:
-                rows.append({
-                    "ID_Reunion": r["ID_Reunion"],
-                    "Fecha": r["fecha"].strftime("%Y-%m-%d") if r.get("fecha") else "",
-                    "Hora": r["Hora"].strftime("%H:%M:%S") if hasattr(r.get("Hora"), "strftime") else (str(r.get("Hora")) if r.get("Hora") else ""),
-                    "Lugar": r.get("lugar") or "",
-                    "Estado": estados.get(r.get("ID_Estado_reunion"), r.get("ID_Estado_reunion")),
-                    "Total_presentes": r.get("total_presentes") or ""
-                })
-            df = pd.DataFrame(rows)
-            st.dataframe(df.sort_values(by=["Fecha","Hora"], ascending=[False, False]))
+    except Exception as e:
+        st.error(f"❌ Error inesperado: {e}")
 
     finally:
         try:
