@@ -21,7 +21,10 @@ def _tiene_rol_secretaria():
 
 def mostrar_reuniones():
 
+    # Solo dejamos el título grande (en negrita)
     st.header("📅 Registro de Reuniones")
+
+    # Mantenemos este subtítulo (está bien)
     st.subheader("📌 Registro de Reuniones por Distrito y Grupo")
 
     if not _tiene_rol_secretaria():
@@ -149,14 +152,12 @@ def mostrar_reuniones():
         lugar = st.text_input("Lugar", lugar_def)
         total_presentes = st.text_area("Presentes", pres_def)
 
-        # ESTADOS CON TEXTO REAL
         estados = {
             "Programada": 1,
             "Realizada": 2,
             "Cancelada": 3
         }
 
-        # Convertir valor numérico → texto
         estado_texto_actual = [k for k, v in estados.items() if v == estado_def][0]
 
         estado_texto = st.selectbox(
@@ -165,7 +166,7 @@ def mostrar_reuniones():
             index=list(estados.keys()).index(estado_texto_actual)
         )
 
-        estado = estados[estado_texto]  # devuelve 1,2,3
+        estado = estados[estado_texto]
 
         guardar = st.form_submit_button("💾 Guardar")
         eliminar = st.form_submit_button("🗑️ Eliminar") if id_reunion else False
@@ -178,14 +179,12 @@ def mostrar_reuniones():
         try:
             hora_str = hora.strftime("%H:%M:%S")
             if id_reunion:
-                # UPDATE
                 cursor.execute("""
                     UPDATE Reunion
                     SET fecha=%s, Hora=%s, lugar=%s, total_presentes=%s, ID_Estado_reunion=%s
                     WHERE ID_Reunion=%s
                 """, (fecha, hora_str, lugar, total_presentes, int(estado), id_reunion))
             else:
-                # INSERT
                 cursor.execute("""
                     INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, total_presentes, ID_Estado_reunion)
                     VALUES (%s, %s, %s, %s, %s, %s)
