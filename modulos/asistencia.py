@@ -8,7 +8,7 @@ def mostrar_asistencia():
         con = obtener_conexion()
         cursor = con.cursor()
 
-        # 1. Cargar reuniones correctas (sin Tema)
+        # 1. Cargar reuniones (lugar + fecha)
         cursor.execute("""
             SELECT ID_Reunion, lugar, fecha, ID_Grupo
             FROM Reunion
@@ -19,7 +19,7 @@ def mostrar_asistencia():
             st.warning("⚠ No hay reuniones registradas.")
             return
 
-        # Diccionario bonito para el selectbox
+        # Diccionario para mostrar fecha | lugar
         reuniones_dict = {
             r[0]: f"{r[2]} | {r[1]}"   # fecha | lugar
             for r in reuniones
@@ -31,7 +31,8 @@ def mostrar_asistencia():
             format_func=lambda x: reuniones_dict[x]
         )
 
-        # Buscar el grupo al que pertenece la reunión
+        # Obtener ID_Grupo de la reunión seleccionada
+        id_grupo = None
         for r in reuniones:
             if r[0] == id_reunion:
                 id_grupo = r[3]
@@ -39,9 +40,10 @@ def mostrar_asistencia():
 
         # 2. Cargar miembros del grupo
         cursor.execute("""
-            SELECT ID_Miembro, Nombre
+            SELECT ID_Miembro, nombre
             FROM Miembro
             WHERE ID_Grupo = %s
+            ORDER BY nombre
         """, (id_grupo,))
         miembros = cursor.fetchall()
 
@@ -49,17 +51,17 @@ def mostrar_asistencia():
             st.warning("⚠ No hay miembros en este grupo.")
             return
 
-        # 3. Cargar asistencia previa
+        # 3. Cargar asistencia previa (usa el nombre real de la tabla y columna)
         cursor.execute("""
-            SELECT ID_Miembro, Asistio
-            FROM MiembroxReunion
+            SELECT ID_Miembro, asistio
+            FROM Miembroxreunion
             WHERE ID_Reunion = %s
         """, (id_reunion,))
-        asistencia_previa = dict(cursor.fetchall())
+        asistencia_previa = dict(cursor.fetchall())  # {(id_miembro, asistio), ...} -> dict
 
         st.subheader("👥 Lista de asistencia")
 
-        # Formulario
+        # Formulario con checkboxes
         checkboxes = {}
         with st.form("form_asistencia"):
             for id_miembro, nombre in miembros:
@@ -71,26 +73,56 @@ def mostrar_asistencia():
 
             guardar = st.form_submit_button("💾 Guardar asistencia")
 
-        # 4. Guardar asistencia
+        # Guardar: insertar o actualizar según exista el registro
         if guardar:
-            for id_miembro, asistio in checkboxes.items():
+            try:
+                for id_miembro, checked in checkboxes.items():
+                    valor = 1 if checked else 0
+
+                    # ¿Existe ya un registro para este miembro + reunión?
+                    cursor.execute("""
+                        SELECT ID_MiembroxReunion
+                        FROM Miembroxreunion
+                        WHERE ID_Miembro = %s AND ID_Reunion = %s
+                        LIMIT 1
+                    """, (id_miembro, id_reunion))
+                    fila = cursor.fetchone()
+
+                    if fila:
+                        # UPDATE
+                        cursor.execute("""
+                            UPDATE Miembroxreunion
+                            SET asistio = %s, fecha_registro = CURRENT_TIMESTAMP
+                            WHERE ID_Miembro = %s AND ID_Reunion = %s
+                        """, (valor, id_miembro, id_reunion))
+                    else:
+                        # INSERT
+                        cursor.execute("""
+                            INSERT INTO Miembroxreunion (ID_Miembro, ID_Reunion, asistio, fecha_registro)
+                            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                        """, (id_miembro, id_reunion, valor))
+
+                con.commit()
+
+                # Contar presentes y actualizar Reunion.total_presentes
                 cursor.execute("""
-                    INSERT INTO MiembroxReunion (ID_Miembro, ID_Reunion, Asistio)
-                    VALUES (%s, %s, %s)
-                    ON DUPLICATE KEY UPDATE Asistio = VALUES(Asistio)
-                """, (id_miembro, id_reunion, 1 if asistio else 0))
+                    SELECT COUNT(*) FROM Miembroxreunion
+                    WHERE ID_Reunion = %s AND asistio = 1
+                """, (id_reunion,))
+                total_presentes = cursor.fetchone()[0] or 0
 
-            con.commit()
+                cursor.execute("""
+                    UPDATE Reunion
+                    SET total_presentes = %s
+                    WHERE ID_Reunion = %s
+                """, (total_presentes, id_reunion))
+                con.commit()
 
-            # Contar presentes
-            cursor.execute("""
-                SELECT COUNT(*)
-                FROM MiembroxReunion
-                WHERE ID_Reunion = %s AND Asistio = 1
-            """, (id_reunion,))
-            total_presentes = cursor.fetchone()[0]
+                st.success(f"✅ Asistencia guardada. Presentes: {total_presentes}")
 
-            st.success(f"✅ Asistencia guardada correctamente. Presentes: {total_presentes}")
+            except Exception as e:
+                con.rollback()
+                st.error(f"❌ Error al guardar asistencia: {e}")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
