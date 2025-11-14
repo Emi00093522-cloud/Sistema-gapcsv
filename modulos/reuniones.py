@@ -8,15 +8,10 @@ from modulos.config.conexion import obtener_conexion
 # ==========================================================
 
 def _get_cargo_detectado():
-    """
-    Obtiene el cargo del usuario desde session_state.
-    Tu app lo guarda en: cargo_de_usuario
-    """
     return st.session_state.get("cargo_de_usuario", "").strip().upper()
 
 
 def _tiene_rol_secretaria():
-    """True si el usuario logueado es SECRETARIA."""
     return _get_cargo_detectado() == "SECRETARIA"
 
 
@@ -25,24 +20,14 @@ def _tiene_rol_secretaria():
 # ==========================================================
 
 def mostrar_reuniones():
-    """
-    Módulo para registrar reuniones por Distrito y Grupo.
-    Solo SECRETARIA puede crear, editar y eliminar.
-    """
 
     st.header("📅 Registro de Reuniones")
     st.subheader("📌 Registro de Reuniones por Distrito y Grupo")
 
-    # ------------------------------------------------------
-    # VALIDACIÓN DE ROL
-    # ------------------------------------------------------
     if not _tiene_rol_secretaria():
         st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede ver y editar las reuniones.")
         return
 
-    # ------------------------------------------------------
-    # CONEXIÓN A BD
-    # ------------------------------------------------------
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
@@ -74,7 +59,7 @@ def mostrar_reuniones():
     # 2. SELECCIONAR GRUPO SEGÚN DISTRITO
     # ======================================================
     cursor.execute(
-        "SELECT ID_Grupo, nombre FROM Grupo WHERE ID_Distrito = %s ORDER BY nombre", 
+        "SELECT ID_Grupo, nombre FROM Grupo WHERE ID_Distrito = %s ORDER BY nombre",
         (id_distrito,)
     )
     grupos = cursor.fetchall()
@@ -138,7 +123,7 @@ def mostrar_reuniones():
     seleccion = st.selectbox("Seleccione una reunión", opciones)
     id_reunion = mapa_reuniones[seleccion]
 
-    # Datos por defecto
+    # Valores por defecto
     if id_reunion is None:
         fecha_def = datetime.now().date()
         hora_def = datetime.now().time().replace(second=0, microsecond=0)
@@ -164,9 +149,23 @@ def mostrar_reuniones():
         lugar = st.text_input("Lugar", lugar_def)
         total_presentes = st.text_area("Presentes", pres_def)
 
-        estados = {1: "Programada", 2: "Realizada", 3: "Cancelada"}
-        estado = st.selectbox("Estado", estados.keys(),
-                              index=list(estados.keys()).index(estado_def))
+        # ESTADOS CON TEXTO REAL
+        estados = {
+            "Programada": 1,
+            "Realizada": 2,
+            "Cancelada": 3
+        }
+
+        # Convertir valor numérico → texto
+        estado_texto_actual = [k for k, v in estados.items() if v == estado_def][0]
+
+        estado_texto = st.selectbox(
+            "Estado de la reunión",
+            list(estados.keys()),
+            index=list(estados.keys()).index(estado_texto_actual)
+        )
+
+        estado = estados[estado_texto]  # devuelve 1,2,3
 
         guardar = st.form_submit_button("💾 Guardar")
         eliminar = st.form_submit_button("🗑️ Eliminar") if id_reunion else False
@@ -213,7 +212,5 @@ def mostrar_reuniones():
             con.rollback()
             st.error(f"❌ Error al eliminar: {e}")
 
-
-    # Cierre conexión
     cursor.close()
     con.close()
