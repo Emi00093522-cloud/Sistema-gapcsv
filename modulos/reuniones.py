@@ -22,8 +22,7 @@ def _tiene_rol_secretaria():
 def mostrar_reuniones():
 
     st.header("📅 Registro de Reuniones")
-    # ❌ Línea eliminada para evitar duplicado
-    # st.subheader("📌 Registro de Reuniones por Distrito y Grupo")
+    st.subheader("📌 Registro de Reuniones por Distrito y Grupo")
 
     if not _tiene_rol_secretaria():
         st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede ver y editar las reuniones.")
@@ -166,7 +165,7 @@ def mostrar_reuniones():
             index=list(estados.keys()).index(estado_texto_actual)
         )
 
-        estado = estados[estado_texto]
+        estado = estados[estado_texto]  # devuelve 1,2,3
 
         guardar = st.form_submit_button("💾 Guardar")
         eliminar = st.form_submit_button("🗑️ Eliminar") if id_reunion else False
@@ -179,12 +178,14 @@ def mostrar_reuniones():
         try:
             hora_str = hora.strftime("%H:%M:%S")
             if id_reunion:
+                # UPDATE
                 cursor.execute("""
                     UPDATE Reunion
                     SET fecha=%s, Hora=%s, lugar=%s, total_presentes=%s, ID_Estado_reunion=%s
                     WHERE ID_Reunion=%s
                 """, (fecha, hora_str, lugar, total_presentes, int(estado), id_reunion))
             else:
+                # INSERT
                 cursor.execute("""
                     INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, total_presentes, ID_Estado_reunion)
                     VALUES (%s, %s, %s, %s, %s, %s)
