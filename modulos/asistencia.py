@@ -1,7 +1,5 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
-import pandas as pd
-import io
 
 def mostrar_asistencia():
     st.header("📝 Control de asistencia por reunión")
@@ -53,13 +51,13 @@ def mostrar_asistencia():
             st.warning("⚠ No hay miembros en este grupo.")
             return
 
-        # 3. Cargar asistencia previa
+        # 3. Cargar asistencia previa (usa el nombre real de la tabla y columna)
         cursor.execute("""
             SELECT ID_Miembro, asistio
             FROM Miembroxreunion
             WHERE ID_Reunion = %s
         """, (id_reunion,))
-        asistencia_previa = dict(cursor.fetchall())
+        asistencia_previa = dict(cursor.fetchall())  # {(id_miembro, asistio), ...} -> dict
 
         st.subheader("👥 Lista de asistencia")
 
@@ -75,13 +73,13 @@ def mostrar_asistencia():
 
             guardar = st.form_submit_button("💾 Guardar asistencia")
 
-        # Guardar cambios
+        # Guardar: insertar o actualizar según exista el registro
         if guardar:
             try:
                 for id_miembro, checked in checkboxes.items():
                     valor = 1 if checked else 0
 
-                    # Verificar si existe registro
+                    # ¿Existe ya un registro para este miembro + reunión?
                     cursor.execute("""
                         SELECT ID_MiembroxReunion
                         FROM Miembroxreunion
@@ -91,12 +89,14 @@ def mostrar_asistencia():
                     fila = cursor.fetchone()
 
                     if fila:
+                        # UPDATE
                         cursor.execute("""
                             UPDATE Miembroxreunion
                             SET asistio = %s, fecha_registro = CURRENT_TIMESTAMP
                             WHERE ID_Miembro = %s AND ID_Reunion = %s
                         """, (valor, id_miembro, id_reunion))
                     else:
+                        # INSERT
                         cursor.execute("""
                             INSERT INTO Miembroxreunion (ID_Miembro, ID_Reunion, asistio, fecha_registro)
                             VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
@@ -104,7 +104,7 @@ def mostrar_asistencia():
 
                 con.commit()
 
-                # Contar presentes
+                # Contar presentes y actualizar Reunion.total_presentes
                 cursor.execute("""
                     SELECT COUNT(*) FROM Miembroxreunion
                     WHERE ID_Reunion = %s AND asistio = 1
@@ -124,49 +124,11 @@ def mostrar_asistencia():
                 con.rollback()
                 st.error(f"❌ Error al guardar asistencia: {e}")
 
-        # -----------  MOSTRAR LISTA DE PRESENTES + DESCARGAR EXCEL  ----------
-
-        st.subheader("🟢 Miembros presentes")
-
-        cursor.execute("""
-            SELECT M.nombre
-            FROM Miembroxreunion MR
-            INNER JOIN Miembro M ON MR.ID_Miembro = M.ID_Miembro
-            WHERE MR.ID_Reunion = %s AND MR.asistio = 1
-            ORDER BY M.nombre
-        """, (id_reunion,))
-        presentes = cursor.fetchall()
-
-        if presentes:
-            nombres_presentes = [p[0] for p in presentes]
-
-            for nombre in nombres_presentes:
-                st.write(f"- {nombre}")
-
-            # Crear DataFrame
-            df_export = pd.DataFrame({
-                "Nombre": nombres_presentes
-            })
-
-            # Convertir a Excel en memoria
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
-                df_export.to_excel(writer, index=False, sheet_name="Asistencia")
-
-            # Botón de descarga
-            st.download_button(
-                label="📥 Descargar lista en Excel",
-                data=excel_buffer.getvalue(),
-                file_name=f"Asistencia_Reunion_{id_reunion}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-        else:
-            st.info("Nadie asistió a esta reunión.")
-
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
     finally:
-        if "cursor" in locals(): cursor.close()
-        if "con" in locals(): con.close()
+        if "cursor" in locals():
+            cursor.close()
+        if "con" in locals():
+            con.close()
