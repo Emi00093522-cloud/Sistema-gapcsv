@@ -1,5 +1,5 @@
 import streamlit as st
-from config.conexion import obtener_conexion
+from conexion import obtener_conexion
 
 def mostrar_asistencia():
     st.title("📝 Registro de Asistencia")
