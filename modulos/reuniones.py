@@ -126,7 +126,7 @@ def mostrar_reuniones():
     # ======================================================
     # 4. FORMULARIO: CREAR O EDITAR
     # ======================================================
-    st.subheader("✏️ Crear o Editar Reunión (solo SECRETARIA)")
+    st.subheader("✏️ Crear o Editar Reunión")
 
     opciones = ["➕ Nueva reunión"]
     mapa_reuniones = {"➕ Nueva reunión": None}
