@@ -1,319 +1,175 @@
 import streamlit as st
-from datetime import datetime
-from modulos.config.conexion import obtener_conexion
-import pandas as pd
+import datetime
+from conexion import obtener_conexion
 
-# ==========================================================
-#   FUNCIONES INTERNAS
-# ==========================================================
 
-def _get_cargo_detectado():
-    return st.session_state.get("cargo_de_usuario", "").strip().upper()
+# ============================================
+#   REGISTRAR ASISTENCIA POR MIEMBROS
+# ============================================
 
-def _tiene_rol_secretaria():
-    return _get_cargo_detectado() == "SECRETARIA"
+def registrar_asistencia(id_reunion, id_grupo):
+    st.subheader("Registro de asistencia por miembros")
 
-# ==========================================================
-#   MÓDULO PRINCIPAL
-# ==========================================================
+    conn = obtener_conexion()
+    cursor = conn.cursor(dictionary=True)
 
-def mostrar_reuniones():
+    # Obtener miembros del grupo
+    cursor.execute("""
+        SELECT id_miembro, nombre, apellido
+        FROM miembros
+        WHERE id_grupo = %s
+    """, (id_grupo,))
+    miembros = cursor.fetchall()
 
-    # Títulos
-    st.header("📅 Registro de Reuniones")
-    st.subheader("📌 Registro de Reuniones por Distrito y Grupo")
-
-    if not _tiene_rol_secretaria():
-        st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede ver y editar las reuniones.")
+    if not miembros:
+        st.info("Este grupo no tiene miembros registrados.")
         return
 
-    # Conexión
-    try:
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-    except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
-        return
+    # FORMULARIO
+    with st.form(key="form_asistencia"):
+        asistencia_data = []
 
-    # ======================================================
-    # 1. SELECCIONAR DISTRITO
-    # ======================================================
-    try:
-        cursor.execute("SELECT ID_Distrito, nombre FROM Distrito ORDER BY nombre")
-        distritos = cursor.fetchall()
-    except Exception:
-        distritos = []
+        st.write("### Lista de miembros:")
 
-    if not distritos:
-        st.error("⚠️ No existen Distritos registrados.")
-        cursor.close()
-        con.close()
-        return
+        for miembro in miembros:
 
-    mapa_distritos = {f"{d['ID_Distrito']} - {d['nombre']}": d['ID_Distrito'] for d in distritos}
-    distrito_label = st.selectbox("Seleccione Distrito", options=list(mapa_distritos.keys()))
-    id_distrito = mapa_distritos[distrito_label]
+            col1, col2, col3 = st.columns([3, 2, 3])
 
-    st.write("")
+            with col1:
+                st.write(f"{miembro['nombre']} {miembro['apellido']}")
 
-    # ======================================================
-    # 2. SELECCIONAR GRUPO SEGÚN DISTRITO
-    # ======================================================
-    cursor.execute(
-        "SELECT ID_Grupo, nombre FROM Grupo WHERE ID_Distrito = %s ORDER BY nombre",
-        (id_distrito,)
-    )
+            with col2:
+                asistio = st.checkbox(
+                    "Asistió",
+                    key=f"asistencia_{miembro['id_miembro']}",
+                    value=False
+                )
+
+            with col3:
+                if asistio:
+                    hora_llegada = st.time_input(
+                        "Hora de llegada",
+                        value=datetime.time(18, 0),
+                        key=f"hora_{miembro['id_miembro']}"
+                    )
+                else:
+                    hora_llegada = None
+
+            asistencia_data.append({
+                'id_miembro': miembro['id_miembro'],
+                'asistencia': 1 if asistio else 0,
+                'hora': hora_llegada
+            })
+
+        submit = st.form_submit_button("Guardar asistencia")
+
+    # GUARDAR EN BD
+    if submit:
+        for registro in asistencia_data:
+            cursor.execute("""
+                INSERT INTO MiembroXReunion (id_reunion, id_miembro, asistencia, hora_llegada)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                id_reunion,
+                registro['id_miembro'],
+                registro['asistencia'],
+                registro['hora']
+            ))
+
+        conn.commit()
+        st.success("Asistencia guardada correctamente.")
+
+
+# ============================================
+#     CREAR REUNIÓN
+# ============================================
+
+def crear_reunion():
+    st.subheader("Crear una nueva reunión")
+
+    conn = obtener_conexion()
+    cursor = conn.cursor(dictionary=True)
+
+    # Obtener grupos
+    cursor.execute("SELECT id_grupo, nombre FROM grupos")
     grupos = cursor.fetchall()
 
-    if not grupos:
-        st.warning("⚠️ Este distrito no tiene grupos registrados.")
-        cursor.close()
-        con.close()
-        return
+    with st.form(key="form_crear_reunion"):
+        fecha = st.date_input("Fecha de la reunión", datetime.date.today())
+        hora = st.time_input("Hora", datetime.time(18, 0))
+        tema = st.text_input("Tema de la reunión")
+        id_grupo = st.selectbox(
+            "Seleccione un grupo",
+            [g["id_grupo"] for g in grupos],
+            format_func=lambda x: next(g["nombre"] for g in grupos if g["id_grupo"] == x)
+        )
 
-    mapa_grupos = {f"{g['ID_Grupo']} - {g['nombre']}": g['ID_Grupo'] for g in grupos}
-    grupo_label = st.selectbox("Seleccione Grupo", list(mapa_grupos.keys()))
-    id_grupo = mapa_grupos[grupo_label]
+        submit = st.form_submit_button("Guardar")
 
-    st.write("---")
+    if submit:
+        cursor.execute("""
+            INSERT INTO reuniones (fecha, hora, tema, id_grupo)
+            VALUES (%s, %s, %s, %s)
+        """, (fecha, hora, tema, id_grupo))
+        conn.commit()
+        st.success("Reunión creada exitosamente.")
 
-    # ======================================================
-    # 3. CARGAR REUNIONES DEL GRUPO
-    # ======================================================
+
+# ============================================
+#     LISTAR + EDITAR REUNIONES
+# ============================================
+
+def listar_reuniones():
+    conn = obtener_conexion()
+    cursor = conn.cursor(dictionary=True)
+
     cursor.execute("""
-        SELECT ID_Reunion, fecha, Hora, lugar, total_presentes, ID_Estado_reunion
-        FROM Reunion
-        WHERE ID_Grupo = %s
-        ORDER BY fecha DESC, Hora DESC
-    """, (id_grupo,))
+        SELECT r.id_reunion, r.fecha, r.hora, r.tema, g.nombre AS grupo
+        FROM reuniones r
+        INNER JOIN grupos g ON g.id_grupo = r.id_grupo
+        ORDER BY r.fecha DESC
+    """)
     reuniones = cursor.fetchall()
 
-    st.subheader("📄 Reuniones registradas")
+    st.subheader("Reuniones registradas")
 
     if not reuniones:
-        st.info("No hay reuniones registradas para este grupo.")
-    else:
-        filas = []
-        for r in reuniones:
-            # Manejo seguro de fecha y hora (pueden venir como string o datetime)
-            fecha_val = r.get("fecha")
-            if hasattr(fecha_val, "strftime"):
-                fecha_str = fecha_val.strftime("%Y-%m-%d")
-            else:
-                fecha_str = str(fecha_val) if fecha_val is not None else ""
+        st.info("No hay reuniones registradas.")
+        return
 
-            hora_val = r.get("Hora")
-            hora_str = ""
-            if hora_val:
-                # si es time/datetime usa strftime, si es string conviértelo tal cual
-                if hasattr(hora_val, "strftime"):
-                    hora_str = hora_val.strftime("%H:%M")
-                else:
-                    hora_str = str(hora_val)
+    seleccion = st.selectbox(
+        "Seleccione una reunión",
+        reuniones,
+        format_func=lambda r: f"{r['fecha']} - {r['tema']} ({r['grupo']})"
+    )
 
-            filas.append({
-                "ID": r["ID_Reunion"],
-                "Fecha": fecha_str,
-                "Hora": hora_str,
-                "Lugar": r.get("lugar") or "",
-                "Estado": r.get("ID_Estado_reunion"),
-                "Presentes": r.get("total_presentes") or 0
-            })
-        st.dataframe(pd.DataFrame(filas), use_container_width=True)
+    if seleccion:
+        st.write("### Detalles de la reunión")
+        st.write(f"**Fecha:** {seleccion['fecha']}")
+        st.write(f"**Hora:** {seleccion['hora']}")
+        st.write(f"**Tema:** {seleccion['tema']}")
+        st.write(f"**Grupo:** {seleccion['grupo']}")
 
-    st.write("---")
+        if st.button("Registrar asistencia"):
+            registrar_asistencia(
+                id_reunion=seleccion['id_reunion'],
+                id_grupo=next(
+                    r["id_grupo"] for r in reuniones if r["id_reunion"] == seleccion["id_reunion"]
+                )
+            )
 
-    # ======================================================
-    # 4. FORMULARIO: CREAR O EDITAR
-    # ======================================================
-    st.subheader("✏️ Crear o Editar Reunión (solo SECRETARIA)")
 
-    opciones = ["➕ Nueva reunión"]
-    mapa_reuniones = {"➕ Nueva reunión": None}
+# ============================================
+#      FUNCIÓN PRINCIPAL DEL MÓDULO
+# ============================================
 
-    for r in reuniones:
-        # muestra fecha y hora de forma legible en la lista
-        fecha_val = r.get("fecha")
-        if hasattr(fecha_val, "strftime"):
-            fecha_str = fecha_val.strftime("%Y-%m-%d")
-        else:
-            fecha_str = str(fecha_val) if fecha_val is not None else ""
+def mostrar_reuniones():
+    st.title("Gestión de Reuniones")
 
-        hora_val = r.get("Hora")
-        hora_str = ""
-        if hora_val:
-            if hasattr(hora_val, "strftime"):
-                hora_str = hora_val.strftime("%H:%M")
-            else:
-                hora_str = str(hora_val)
+    menu = ["Crear reunión", "Listado de reuniones"]
+    opcion = st.radio("Seleccione una opción", menu)
 
-        etiqueta = f"{r['ID_Reunion']} — {fecha_str} {hora_str}"
-        opciones.append(etiqueta)
-        mapa_reuniones[etiqueta] = r["ID_Reunion"]
-
-    seleccion = st.selectbox("Seleccione una reunión", opciones)
-    id_reunion = mapa_reuniones[seleccion]
-
-    # Valores por defecto para el form de creación/edición
-    if id_reunion is None:
-        fecha_def = datetime.now().date()
-        hora_def = datetime.now().time().replace(second=0, microsecond=0)
-        lugar_def = ""
-        pres_def = ""
-        estado_def = 1
-    else:
-        fila = next((x for x in reuniones if x["ID_Reunion"] == id_reunion), {})
-        fecha_def = fila.get("fecha") or datetime.now().date()
-        hora_def = fila.get("Hora") or datetime.now().time().replace(second=0, microsecond=0)
-        lugar_def = fila.get("lugar", "")
-        pres_def = fila.get("total_presentes", "")
-        estado_def = fila.get("ID_Estado_reunion", 1)
-
-    with st.form("form_reuniones"):
-        col1, col2 = st.columns(2)
-        with col1:
-            fecha = st.date_input("Fecha", fecha_def)
-        with col2:
-            hora = st.time_input("Hora", hora_def)
-
-        lugar = st.text_input("Lugar", lugar_def)
-        total_presentes = st.text_area("Presentes", pres_def)
-
-        estados = {"Programada": 1, "Realizada": 2, "Cancelada": 3}
-        estado_texto_actual = [k for k, v in estados.items() if v == estado_def][0]
-
-        estado_texto = st.selectbox(
-            "Estado de la reunión",
-            list(estados.keys()),
-            index=list(estados.keys()).index(estado_texto_actual)
-        )
-        estado = estados[estado_texto]
-
-        guardar = st.form_submit_button("💾 Guardar")
-        eliminar = st.form_submit_button("🗑️ Eliminar") if id_reunion else False
-        nuevo = st.form_submit_button("➕ Nuevo")
-
-    # ------------------------------------------------------
-    # GUARDAR / INSERT / UPDATE
-    # ------------------------------------------------------
-    if guardar:
-        try:
-            # hora a string hh:mm:ss
-            if hasattr(hora, "strftime"):
-                hora_str_full = hora.strftime("%H:%M:%S")
-            else:
-                hora_str_full = str(hora)
-
-            if id_reunion:
-                cursor.execute("""
-                    UPDATE Reunion
-                    SET fecha=%s, Hora=%s, lugar=%s, total_presentes=%s, ID_Estado_reunion=%s
-                    WHERE ID_Reunion=%s
-                """, (fecha, hora_str_full, lugar, total_presentes, int(estado), id_reunion))
-            else:
-                cursor.execute("""
-                    INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, total_presentes, ID_Estado_reunion)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (id_grupo, fecha, hora_str_full, lugar, total_presentes, int(estado)))
-
-            con.commit()
-            st.success("✅ Reunión guardada correctamente.")
-            st.rerun()
-
-        except Exception as e:
-            con.rollback()
-            st.error(f"❌ Error al guardar: {e}")
-
-    # ------------------------------------------------------
-    # ELIMINAR
-    # ------------------------------------------------------
-    if eliminar and id_reunion:
-        try:
-            cursor.execute("DELETE FROM Reunion WHERE ID_Reunion=%s", (id_reunion,))
-            con.commit()
-            st.success("🗑️ Reunión eliminada.")
-            st.rerun()
-        except Exception as e:
-            con.rollback()
-            st.error(f"❌ Error al eliminar: {e}")
-
-    # ------------------------------------------------------
-    # 5. REGISTRO DE ASISTENCIA (solo si hay una reunión seleccionada)
-    # ------------------------------------------------------
-    if id_reunion:
-        st.write("---")
-        st.subheader("🧍‍♂️🧍‍♀️ Registro de Asistencia")
-
-        # 5.1 obtener miembros del grupo
-        cursor.execute("""
-            SELECT ID_Miembro, nombre, apellido
-            FROM Miembro
-            WHERE ID_Grupo = %s
-            ORDER BY nombre, apellido
-        """, (id_grupo,))
-        miembros = cursor.fetchall()
-
-        if not miembros:
-            st.info("No hay miembros registrados en este grupo.")
-        else:
-            # 5.2 obtener asistencia previa para la reunión
-            cursor.execute("""
-                SELECT ID_Miembro, asistencia
-                FROM MiembroXReunion
-                WHERE ID_Reunion = %s
-            """, (id_reunion,))
-            asistencia_previa_rows = cursor.fetchall()
-            asistencia_previa = {r["ID_Miembro"]: r["asistencia"] for r in asistencia_previa_rows}
-
-            st.write("Marque asistencia y luego presione '💾 Guardar asistencia'")
-
-            # Generar checkboxes con keys estables para que no se pierdan con reruns
-            asistentes_dict = {}
-            cols = st.columns([3,1])  # layout: lista y luego un pequeño espacio
-            # Mostramos un checkbox por miembro
-            for m in miembros:
-                mid = m["ID_Miembro"]
-                label = f"{m.get('nombre','')} {m.get('apellido','')}".strip()
-                key = f"asist_{id_reunion}_{mid}"
-                default_val = bool(asistencia_previa.get(mid, 0))
-                asistentes_dict[mid] = st.checkbox(label, value=default_val, key=key)
-
-            # Botón para guardar asistencia
-            if st.button("💾 Guardar asistencia"):
-                try:
-                    # Insert / update por cada miembro
-                    for mid, checked in asistentes_dict.items():
-                        asistencia_val = 1 if checked else 0
-                        cursor.execute("""
-                            INSERT INTO MiembroXReunion (ID_Miembro, ID_Reunion, asistencia, Fecha_registro)
-                            VALUES (%s, %s, %s, NOW())
-                            ON DUPLICATE KEY UPDATE
-                                asistencia = VALUES(asistencia),
-                                Fecha_registro = VALUES(Fecha_registro)
-                        """, (mid, id_reunion, asistencia_val))
-
-                    # Calcular nuevo total_presentes
-                    cursor.execute("""
-                        SELECT COUNT(*) AS total
-                        FROM MiembroXReunion
-                        WHERE ID_Reunion = %s AND asistencia = 1
-                    """, (id_reunion,))
-                    total_row = cursor.fetchone()
-                    total = int(total_row["total"]) if total_row and "total" in total_row else 0
-
-                    # Actualizar Reunion.total_presentes
-                    cursor.execute("""
-                        UPDATE Reunion SET total_presentes = %s WHERE ID_Reunion = %s
-                    """, (total, id_reunion))
-
-                    con.commit()
-                    st.success(f"✅ Asistencia guardada. Total presentes: {total}")
-                    st.rerun()
-
-                except Exception as e:
-                    con.rollback()
-                    st.error(f"❌ Error al guardar asistencia: {e}")
-
-    # Cerrar conexión
-    cursor.close()
-    con.close()
+    if opcion == "Crear reunión":
+        crear_reunion()
+    elif opcion == "Listado de reuniones":
+        listar_reuniones()
