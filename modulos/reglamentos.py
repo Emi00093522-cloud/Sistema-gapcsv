@@ -72,48 +72,83 @@ def mostrar_reglamentos():
             else:
                 st.info("**Fecha de formación:** No registrada")
 
-            # 3. Reuniones - CAMPOS EDITABLES
+            # 3. Reuniones - CAMPOS EDITABLES (MODIFICADO)
             st.markdown("#### 3. Reuniones")
-            col_reun1, col_reun2, col_reun3, col_reun4 = st.columns(4)
+            col_reun1, col_reun2, col_reun3 = st.columns(3)
             
             with col_reun1:
-                dia_reunion = st.text_input(
+                # Día de la semana - lista desplegable
+                dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+                dia_reunion = st.selectbox(
                     "Día:",
-                    placeholder="Ej: Lunes",
+                    options=dias_semana,
                     key="dia_reunion"
                 )
             
             with col_reun2:
-                hora_reunion = st.text_input(
-                    "Hora:",
-                    placeholder="Ej: 14:00",
-                    key="hora_reunion"
-                )
+                # Hora con formato y AM/PM
+                col_hora, col_ampm = st.columns([2, 1])
+                with col_hora:
+                    hora_reunion = st.text_input(
+                        "Hora:",
+                        placeholder="00:00",
+                        key="hora_reunion",
+                        max_chars=5
+                    )
+                with col_ampm:
+                    periodo_reunion = st.selectbox(
+                        "Periodo:",
+                        options=["AM", "PM"],
+                        key="periodo_reunion"
+                    )
             
             with col_reun3:
+                # Lugar - solo texto
                 lugar_reunion = st.text_input(
                     "Lugar:",
                     placeholder="Ej: Casa comunal",
                     key="lugar_reunion"
                 )
-            
-            with col_reun4:
-                frecuencia_reunion = st.text_input(
-                    "Frecuencia:",
-                    placeholder="Ej: Semanal",
-                    key="frecuencia_reunion"
-                )
 
-            # 4. Comité de Dirección - CARGAR MIEMBROS DEL GRUPO
+            # Frecuencia de reunión - MODIFICADO
+            st.markdown("**Frecuencia de reunión:**")
+            col_frec1, col_frec2 = st.columns(2)
+            
+            with col_frec1:
+                cantidad_frecuencia = st.selectbox(
+                    "Cantidad:",
+                    options=list(range(1, 32)),  # Del 1 al 31
+                    format_func=lambda x: str(x),
+                    key="cantidad_frecuencia"
+                )
+            
+            with col_frec2:
+                tipo_frecuencia = st.selectbox(
+                    "Frecuencia:",
+                    options=["DÍA", "SEMANAS", "MESES"],
+                    key="tipo_frecuencia"
+                )
+            
+            # Construir la frecuencia completa
+            frecuencia_reunion = f"Cada {cantidad_frecuencia} {tipo_frecuencia.lower()}"
+
+            # 4. Comité de Dirección - CARGAR MIEMBROS DEL GRUPO (CORREGIDO)
             st.markdown("#### 4. Comité de Dirección")
             
-            # Cargar miembros del grupo que son directiva
+            # Cargar miembros del grupo que son directiva - QUERY CORREGIDA
             cursor.execute("""
                 SELECT m.nombre, c.tipo_de_cargo as cargo
                 FROM Miembro m
                 INNER JOIN Cargo c ON m.ID_Cargo = c.ID_Cargo
                 WHERE m.ID_Grupo = %s AND c.tipo_de_cargo IN ('Presidenta', 'Secretaria', 'Tesorera', 'Responsable de llave')
-                ORDER BY c.tipo_de_cargo
+                ORDER BY 
+                    CASE c.tipo_de_cargo
+                        WHEN 'Presidenta' THEN 1
+                        WHEN 'Secretaria' THEN 2
+                        WHEN 'Tesorera' THEN 3
+                        WHEN 'Responsable de llave' THEN 4
+                        ELSE 5
+                    END
             """, (id_grupo,))
             directiva = cursor.fetchall()
             
@@ -329,6 +364,18 @@ def mostrar_reglamentos():
                     st.error("❌ Los campos de reuniones (día, hora, lugar) son obligatorios.")
                     return
 
+                # Validar formato de hora
+                try:
+                    # Combinar hora con AM/PM
+                    hora_completa = f"{hora_reunion} {periodo_reunion}"
+                    # Verificar formato básico
+                    if not hora_reunion or ':' not in hora_reunion:
+                        st.error("❌ Formato de hora inválido. Use formato HH:MM")
+                        return
+                except:
+                    st.error("❌ Error en el formato de hora. Use formato HH:MM")
+                    return
+
                 try:
                     # Preparar reglas adicionales como texto
                     otras_reglas_texto = "\n".join([
@@ -347,7 +394,7 @@ def mostrar_reglamentos():
                          meta_social, otras_reglas)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
-                        id_grupo, dia_reunion, hora_reunion, lugar_reunion, frecuencia_reunion,
+                        id_grupo, dia_reunion, hora_completa, lugar_reunion, frecuencia_reunion,
                         monto_multa_asistencia, justificacion_ausencia, ahorro_minimo,
                         interes_por_diez, monto_maximo_prestamo, plazo_maximo_prestamo,
                         un_prestamo_vez, fecha_inicio_ciclo, duracion_ciclo,
