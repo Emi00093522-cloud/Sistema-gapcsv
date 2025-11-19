@@ -132,47 +132,52 @@ def mostrar_reglamentos():
             # Construir la frecuencia completa
             frecuencia_reunion = f"Cada {cantidad_frecuencia} {tipo_frecuencia.lower()}"
 
-            # 4. Comité de Dirección - CARGAR MIEMBROS DEL GRUPO (CORREGIDO)
+            # 4. Comité de Dirección - MOSTRAR TODOS LOS MIEMBROS CON ROL (CORREGIDO)
             st.markdown("#### 4. Comité de Dirección")
             
-            # Primero verificar si existe la tabla Rol y tiene datos
             try:
-                cursor.execute("SHOW TABLES LIKE 'Rol'")
-                tabla_rol_existe = cursor.fetchone()
+                # Mostrar TODOS los miembros que tengan un rol asignado (sin filtrar por nombres específicos)
+                cursor.execute("""
+                    SELECT m.nombre, m.apellido, r.nombre_rol as cargo
+                    FROM Miembro m
+                    INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
+                    WHERE m.ID_Grupo = %s
+                    ORDER BY r.nombre_rol
+                """, (id_grupo,))
+                directiva = cursor.fetchall()
                 
-                if tabla_rol_existe:
-                    # Cargar miembros del grupo que son directiva - QUERY CORREGIDA
-                    cursor.execute("""
-                        SELECT m.nombre, m.apellido, r.nombre_rol as cargo
-                        FROM Miembro m
-                        INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
-                        WHERE m.ID_Grupo = %s AND r.nombre_rol IN ('Presidenta', 'Secretaria', 'Tesorera', 'Responsable de llave')
-                        ORDER BY 
-                            CASE r.nombre_rol
-                                WHEN 'Presidenta' THEN 1
-                                WHEN 'Secretaria' THEN 2
-                                WHEN 'Tesorera' THEN 3
-                                WHEN 'Responsable de llave' THEN 4
-                                ELSE 5
-                            END
-                    """, (id_grupo,))
-                    directiva = cursor.fetchall()
-                    
-                    if directiva:
-                        st.markdown("""
-                        | Cargo | Nombre de la Socia |
-                        |-------|-------------------|
-                        """)
-                        for miembro in directiva:
-                            nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
-                            st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
-                    else:
-                        st.info("ℹ️ No se han registrado miembros de la directiva para este grupo.")
+                if directiva:
+                    st.markdown("""
+                    | Cargo | Nombre de la Socia |
+                    |-------|-------------------|
+                    """)
+                    for miembro in directiva:
+                        nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
+                        st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
                 else:
-                    st.info("ℹ️ La tabla de roles no está configurada en el sistema.")
+                    st.info("ℹ️ No se han registrado miembros con roles asignados para este grupo.")
                     
             except Exception as e:
-                st.info("ℹ️ No se pudo cargar la información del comité de dirección.")
+                st.error(f"❌ Error al cargar el comité de dirección: {e}")
+                # Versión de respaldo por si hay error en el JOIN
+                try:
+                    cursor.execute("""
+                        SELECT nombre, apellido, ID_Rol
+                        FROM Miembro 
+                        WHERE ID_Grupo = %s AND ID_Rol IS NOT NULL
+                    """, (id_grupo,))
+                    miembros_con_rol = cursor.fetchall()
+                    
+                    if miembros_con_rol:
+                        st.markdown("""
+                        | Rol ID | Nombre de la Socia |
+                        |--------|-------------------|
+                        """)
+                        for miembro in miembros_con_rol:
+                            nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
+                            st.markdown(f"| {miembro['ID_Rol']} | {nombre_completo} |")
+                except:
+                    st.info("ℹ️ No se pudo cargar la información del comité de dirección.")
 
             # 5. Nombre del grupo de ahorro - SOLO LECTURA
             st.markdown("#### 5. Nombre del grupo de ahorro")
