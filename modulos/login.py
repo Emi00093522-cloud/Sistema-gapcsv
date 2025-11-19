@@ -44,11 +44,14 @@ def restablecer_contrasena():
     
     with st.form("form_restablecer"):
         usuario = st.text_input("Ingresa tu nombre de usuario")
+        dui = st.text_input("Ingresa tu DUI*", 
+                           placeholder="00000000-0",
+                           help="Formato: 8 dígitos, guión, 1 dígito")
         nueva_contrasena = st.text_input("Nueva contraseña", type="password")
         confirmar_contrasena = st.text_input("Confirmar nueva contraseña", type="password")
         
         if st.form_submit_button("Restablecer Contraseña"):
-            if not usuario or not nueva_contrasena or not confirmar_contrasena:
+            if not usuario or not dui or not nueva_contrasena or not confirmar_contrasena:
                 st.error("❌ Todos los campos son obligatorios.")
                 return
                 
@@ -56,23 +59,30 @@ def restablecer_contrasena():
                 st.error("❌ Las contraseñas no coinciden.")
                 return
                 
-            # Verificar que el usuario existe
+            # 🔥 VALIDAR FORMATO DEL DUI
+            if not validar_formato_dui(dui):
+                st.error("❌ Formato de DUI inválido. Use: 00000000-0")
+                return
+                
+            # Verificar que el usuario existe y el DUI coincide
             con = obtener_conexion()
             if not con:
                 st.error("⚠️ No se pudo conectar a la base de datos.")
                 return
                 
             try:
-                # 🔥 SOLUCIÓN: Usar cursor separado para cada consulta
+                # 🔥 VERIFICAR SI EL USUARIO Y DUI COINCIDEN
                 cursor_verificar = con.cursor(dictionary=True)
                 
-                # Verificar si el usuario existe
-                cursor_verificar.execute("SELECT ID_Usuario FROM Usuario WHERE Usuario = %s", (usuario,))
-                usuario_existe = cursor_verificar.fetchone()
-                cursor_verificar.close()  # 🔥 Cerrar el cursor después de usarlo
+                cursor_verificar.execute(
+                    "SELECT ID_Usuario, Usuario FROM Usuario WHERE Usuario = %s AND DUI = %s", 
+                    (usuario, dui)
+                )
+                usuario_valido = cursor_verificar.fetchone()
+                cursor_verificar.close()
                 
-                if not usuario_existe:
-                    st.error("❌ El usuario no existe en el sistema.")
+                if not usuario_valido:
+                    st.error("❌ El usuario y DUI no coinciden o no existen en el sistema.")
                     con.close()
                     return
                 
@@ -81,19 +91,31 @@ def restablecer_contrasena():
                 nueva_contrasena_hash = hashlib.sha256(nueva_contrasena.encode()).hexdigest()
                 
                 cursor_actualizar.execute(
-                    "UPDATE Usuario SET Contraseña = %s WHERE Usuario = %s",
-                    (nueva_contrasena_hash, usuario)
+                    "UPDATE Usuario SET Contraseña = %s WHERE Usuario = %s AND DUI = %s",
+                    (nueva_contrasena_hash, usuario, dui)
                 )
                 con.commit()
-                cursor_actualizar.close()  # 🔥 Cerrar el cursor de actualización
                 
-                st.success("✅ Contraseña restablecida exitosamente. Ya puedes iniciar sesión.")
-                st.session_state["mostrar_restablecer"] = False
+                # 🔥 VERIFICAR SI SE ACTUALIZÓ CORRECTAMENTE
+                if cursor_actualizar.rowcount > 0:
+                    st.success("✅ Contraseña restablecida exitosamente. Ya puedes iniciar sesión.")
+                    st.session_state["mostrar_restablecer"] = False
+                else:
+                    st.error("❌ No se pudo actualizar la contraseña. Verifica tus datos.")
+                
+                cursor_actualizar.close()
                 
             except Exception as e:
                 st.error(f"❌ Error al restablecer contraseña: {e}")
             finally:
                 con.close()
+
+def validar_formato_dui(dui):
+    """Valida el formato del DUI salvadoreño"""
+    import re
+    # Formato: 8 dígitos, guión, 1 dígito
+    patron = r'^\d{8}-\d{1}$'
+    return bool(re.match(patron, dui))
 
 def login():
     """Interfaz del login."""
