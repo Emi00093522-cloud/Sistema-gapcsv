@@ -2,7 +2,7 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime, date
 
-def mostrar_grupos():
+def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
     st.header("👥 Registrar Grupo")
 
     # Estado para controlar el mensaje de éxito
@@ -16,157 +16,125 @@ def mostrar_grupos():
             st.session_state.grupo_registrado = False
             st.rerun()
         
-        st.info("💡 **Para seguir navegando, selecciona una opción en el menú de la izquierda**")
+        st.info("💡 **Para seguir navegando, selecciona una opción en el menú**")
         return
 
     try:
         con = obtener_conexion()
         cursor = con.cursor()
 
-        # Obtener datos para los menús desplegables
-        # 1. Obtener distritos registrados
+        # Obtener distritos
         cursor.execute("SELECT ID_Distrito, nombre FROM Distrito")
         distritos = cursor.fetchall()
         
-        # 2. Obtener promotoras registradas
+        # Obtener promotoras
         cursor.execute("SELECT ID_Promotora, nombre FROM Promotora")
         promotoras = cursor.fetchall()
 
-        # Formulario para registrar el grupo
+        # Formulario para registrar grupo
         with st.form("form_grupo"):
             st.subheader("Datos del Grupo")
             
-            # Campo 2: nombre (varchar(100), obligatorio)
             nombre = st.text_input("Nombre del grupo *", 
-                                 placeholder="Ingrese el nombre del grupo",
-                                 max_chars=100)
-            
-            # Campo 3: ID_Distrito (OBLIGATORIO) - Menú desplegable con distritos
+                                   placeholder="Ingrese el nombre del grupo",
+                                   max_chars=100)
+
+            # Distritos
             if distritos:
-                distrito_options = {f"{distrito[1]} (ID: {distrito[0]})": distrito[0] for distrito in distritos}
-                distrito_seleccionado = st.selectbox("Distrito *", 
-                                                   options=list(distrito_options.keys()))
-                ID_Distrito = distrito_options[distrito_seleccionado]
+                distrito_options = {f"{d[1]} (ID: {d[0]})": d[0] for d in distritos}
+                distrito_sel = st.selectbox("Distrito *", list(distrito_options.keys()))
+                ID_Distrito = distrito_options[distrito_sel]
             else:
-                st.error("❌ No hay distritos disponibles en la base de datos. Debes crear distritos primero.")
+                st.error("❌ No hay distritos registrados.")
                 ID_Distrito = None
             
-            # Campo 4: fecha_inicio (date, obligatorio) - Permite ir al pasado hasta 1990
-            fecha_minima = date(1990, 1, 1)
-            fecha_maxima = date(2100, 12, 31)
-            
-            fecha_inicio = st.date_input("Fecha de inicio *",
-                                       value=datetime.now().date(),
-                                       min_value=fecha_minima,
-                                       max_value=fecha_maxima,
-                                       help="Puedes seleccionar fechas desde 1990 hasta 2100")
-            
-            # Campo 5: duracion_ciclo (int, obligatorio) - 6 o 12 meses
+            # Fecha
+            fecha_inicio = st.date_input(
+                "Fecha de inicio *",
+                value=datetime.now().date(),
+                min_value=date(1990,1,1),
+                max_value=date(2100,12,31)
+            )
+
+            # Duración ciclo
             duracion_ciclo = st.selectbox("Duración del ciclo *",
-                                        options=[6, 12],
-                                        format_func=lambda x: f"{x} meses")
-            
-            # Campo 6: periodicidad_reuniones (varchar(20), obligatorio)
+                                          options=[6, 12],
+                                          format_func=lambda x: f"{x} meses")
+
+            # Periodicidad
             st.write("**Periodicidad de reuniones ***")
             col1, col2 = st.columns(2)
-            
             with col1:
-                tipo_periodicidad = st.selectbox("Tipo de periodicidad",
-                                               options=["Días", "Semanas", "Meses"])
-            
+                tipo_periodicidad = st.selectbox("Tipo", ["Días", "Semanas", "Meses"])
             with col2:
                 if tipo_periodicidad == "Días":
-                    valor_periodicidad = st.selectbox("Días",
-                                                    options=list(range(1, 32)),
-                                                    key="dias_periodicidad")
-                    periodicidad_reuniones = f"{valor_periodicidad} días"
+                    val = st.selectbox("Días", range(1,32))
+                    periodicidad = f"{val} días"
                 elif tipo_periodicidad == "Semanas":
-                    valor_periodicidad = st.selectbox("Semanas",
-                                                    options=list(range(1, 5)),
-                                                    key="semanas_periodicidad")
-                    periodicidad_reuniones = f"{valor_periodicidad} semanas"
-                else:  # Meses
-                    valor_periodicidad = st.selectbox("Meses",
-                                                    options=list(range(1, 13)),
-                                                    key="meses_periodicidad")
-                    periodicidad_reuniones = f"{valor_periodicidad} meses"
-            
-            # Campo 7: tasa_interes (decimal(5,2), obligatorio) - Hasta 6 decimales
-            tasa_interes = st.number_input("Tasa de interés (%) *",
-                                         min_value=0.0,
-                                         max_value=100.0,
-                                         value=5.0,
-                                         step=0.000001,
-                                         format="%.6f",
-                                         help="Puedes ingresar hasta 6 decimales (ej: 5.123456)")
-            
-            # Campo 8: ID_Promotora (int, obligatorio) - Menú desplegable con promotoras
+                    val = st.selectbox("Semanas", range(1,5))
+                    periodicidad = f"{val} semanas"
+                else:
+                    val = st.selectbox("Meses", range(1,13))
+                    periodicidad = f"{val} meses"
+
+            # Interés
+            tasa_interes = st.number_input(
+                "Tasa de interés (%) *",
+                min_value=0.0, max_value=100.0,
+                value=5.0, step=0.000001,
+                format="%.6f"
+            )
+
+            # Promotora
             if promotoras:
-                promotora_options = {f"{promotora[1]} (ID: {promotora[0]})": promotora[0] for promotora in promotoras}
-                promotora_seleccionada = st.selectbox("Promotora *", 
-                                                    options=list(promotora_options.keys()))
-                ID_Promotora = promotora_options[promotora_seleccionada]
+                promotora_options = {f"{p[1]} (ID: {p[0]})": p[0] for p in promotoras}
+                promotora_sel = st.selectbox("Promotora *", list(promotora_options.keys()))
+                ID_Promotora = promotora_options[promotora_sel]
             else:
-                st.error("❌ No hay promotoras disponibles en la base de datos")
+                st.error("❌ No hay promotoras registradas.")
                 ID_Promotora = None
-            
-            # Campo 9: ID_Estado (int, opcional) - 1=Activo, 2=Inactivo
-            ID_Estado = st.selectbox("Estado",
-                                   options=[1, 2],
-                                   format_func=lambda x: "Activo" if x == 1 else "Inactivo",
-                                   index=0)
-            
+
+            ID_Estado = st.selectbox(
+                "Estado",
+                options=[1,2],
+                format_func=lambda x: "Activo" if x == 1 else "Inactivo"
+            )
+
             enviar = st.form_submit_button("✅ Guardar Grupo")
 
             if enviar:
                 errores = []
-                
-                # Validaciones
+
                 if nombre.strip() == "":
-                    errores.append("⚠ Debes ingresar el nombre del grupo.")
-                
+                    errores.append("⚠ El nombre no puede estar vacío.")
                 if ID_Distrito is None:
-                    errores.append("⚠ Debes seleccionar un distrito.")
-                
+                    errores.append("⚠ Selecciona un distrito.")
                 if ID_Promotora is None:
-                    errores.append("⚠ Debes seleccionar una promotora.")
-                
-                if fecha_inicio is None:
-                    errores.append("⚠ Debes seleccionar una fecha de inicio válida.")
-                
-                # Mostrar errores si los hay
+                    errores.append("⚠ Selecciona una promotora.")
+
                 if errores:
-                    for error in errores:
-                        st.warning(error)
+                    for e in errores:
+                        st.warning(e)
                 else:
                     try:
-                        # Convertir valores opcionales a NULL si están vacíos
-                        ID_Distrito_val = ID_Distrito
-                        ID_Estado_val = ID_Estado
-                        
-                        # INSERT en la tabla Grupo
-                        cursor.execute(
-                            """INSERT INTO Grupo 
+                        cursor.execute("""
+                            INSERT INTO Grupo 
                             (nombre, ID_Distrito, fecha_inicio, duracion_ciclo, 
-                             periodicidad_reuniones, tasa_interes, ID_Promotora, ID_Estado) 
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                            (nombre.strip(), ID_Distrito_val, fecha_inicio, duracion_ciclo,
-                             periodicidad_reuniones, tasa_interes, ID_Promotora, ID_Estado_val)
-                        )
-                        
+                             periodicidad_reuniones, tasa_interes, ID_Promotora, ID_Estado)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                        """, (nombre, ID_Distrito, fecha_inicio, duracion_ciclo,
+                              periodicidad, tasa_interes, ID_Promotora, ID_Estado))
+
                         con.commit()
-                        
-                        # Obtener el ID del grupo recién insertado
+
                         cursor.execute("SELECT LAST_INSERT_ID()")
                         id_grupo = cursor.fetchone()[0]
-                        
-                        # Guardar en session_state para mostrar mensaje de éxito
+
                         st.session_state.grupo_registrado = True
                         st.session_state.id_grupo_creado = id_grupo
-                        st.session_state.nombre_grupo_creado = nombre.strip()
-                        
+                        st.session_state.nombre_grupo_creado = nombre
                         st.rerun()
-                        
+
                     except Exception as e:
                         con.rollback()
                         st.error(f"❌ Error al registrar el grupo: {e}")
@@ -175,7 +143,8 @@ def mostrar_grupos():
         st.error(f"❌ Error de conexión: {e}")
 
     finally:
-        if 'cursor' in locals():
+        try:
             cursor.close()
-        if 'con' in locals():
             con.close()
+        except:
+            pass
