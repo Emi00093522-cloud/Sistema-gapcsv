@@ -43,16 +43,24 @@ def restablecer_contrasena():
     st.subheader("🔐 Restablecer Contraseña")
     
     with st.form("form_restablecer"):
-        usuario = st.text_input("Ingresa tu nombre de usuario")
-        dui = st.text_input("Ingresa tu DUI*", 
+        st.write("**Ingresa tus datos para verificar identidad:**")
+        
+        usuario = st.text_input("Nombre de usuario*")
+        dui = st.text_input("DUI*", 
                            placeholder="00000000-0",
                            help="Formato: 8 dígitos, guión, 1 dígito")
-        nueva_contrasena = st.text_input("Nueva contraseña", type="password")
-        confirmar_contrasena = st.text_input("Confirmar nueva contraseña", type="password")
         
-        if st.form_submit_button("Restablecer Contraseña"):
+        st.markdown("---")
+        st.write("**Ingresa tu nueva contraseña:**")
+        
+        nueva_contrasena = st.text_input("Nueva contraseña*", type="password")
+        confirmar_contrasena = st.text_input("Confirmar nueva contraseña*", type="password")
+        
+        submitted = st.form_submit_button("🔄 Restablecer Contraseña")
+        
+        if submitted:
             if not usuario or not dui or not nueva_contrasena or not confirmar_contrasena:
-                st.error("❌ Todos los campos son obligatorios.")
+                st.error("❌ Todos los campos marcados con * son obligatorios.")
                 return
                 
             if nueva_contrasena != confirmar_contrasena:
