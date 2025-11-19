@@ -133,34 +133,35 @@ def mostrar_reglamentos():
             frecuencia_reunion = f"Cada {cantidad_frecuencia} {tipo_frecuencia.lower()}"
 
             # 4. Comité de Dirección - CARGAR MIEMBROS DEL GRUPO (CORREGIDO)
-            st.markdown("#### 4. Comité de Dirección")
-            
-            # Cargar miembros del grupo que son directiva - QUERY CORREGIDA
-            cursor.execute("""
-                SELECT m.nombre, c.tipo_de_cargo as cargo
-                FROM Miembro m
-                INNER JOIN Cargo c ON m.ID_Cargo = c.ID_Cargo
-                WHERE m.ID_Grupo = %s AND c.tipo_de_cargo IN ('Presidenta', 'Secretaria', 'Tesorera', 'Responsable de llave')
-                ORDER BY 
-                    CASE c.tipo_de_cargo
-                        WHEN 'Presidenta' THEN 1
-                        WHEN 'Secretaria' THEN 2
-                        WHEN 'Tesorera' THEN 3
-                        WHEN 'Responsable de llave' THEN 4
-                        ELSE 5
-                    END
-            """, (id_grupo,))
-            directiva = cursor.fetchall()
-            
-            if directiva:
-                st.markdown("""
-                | Cargo | Nombre de la Socia |
-                |-------|-------------------|
-                """)
-                for miembro in directiva:
-                    st.markdown(f"| {miembro['cargo']} | {miembro['nombre']} |")
-            else:
-                st.info("ℹ️ No se han registrado miembros de la directiva para este grupo.")
+st.markdown("#### 4. Comité de Dirección")
+
+# Cargar miembros del grupo que son directiva - QUERY CORREGIDA
+cursor.execute("""
+    SELECT m.nombre, m.apellido, r.nombre_rol as cargo
+    FROM Miembro m
+    INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
+    WHERE m.ID_Grupo = %s AND r.nombre_rol IN ('Presidenta', 'Secretaria', 'Tesorera', 'Responsable de llave')
+    ORDER BY 
+        CASE r.nombre_rol
+            WHEN 'Presidenta' THEN 1
+            WHEN 'Secretaria' THEN 2
+            WHEN 'Tesorera' THEN 3
+            WHEN 'Responsable de llave' THEN 4
+            ELSE 5
+        END
+""", (id_grupo,))
+directiva = cursor.fetchall()
+
+if directiva:
+    st.markdown("""
+    | Cargo | Nombre de la Socia |
+    |-------|-------------------|
+    """)
+    for miembro in directiva:
+        nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
+        st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
+else:
+    st.info("ℹ️ No se han registrado miembros de la directiva para este grupo.")
 
             # 5. Nombre del grupo de ahorro - SOLO LECTURA
             st.markdown("#### 5. Nombre del grupo de ahorro")
