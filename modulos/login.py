@@ -30,7 +30,13 @@ def verificar_usuario(usuario, contrasena):
 
         cursor.execute(query, (usuario, contrasena_hash))
         result = cursor.fetchone()
-        return result
+        
+        # 🔥 FILTRAR SOLO LOS CARGOS PERMITIDOS
+        if result and result["cargo"] in ["promotora", "administrador", "secretaria"]:
+            return result
+        else:
+            st.error("❌ Usuario no autorizado para acceder al sistema.")
+            return None
 
     except Exception as e:
         st.error(f"❌ Error al verificar usuario: {e}")
@@ -47,15 +53,18 @@ def login():
     contrasena = st.text_input("Contraseña", type="password", key="contrasena_input")
 
     if st.button("Iniciar sesión"):
+        if not usuario or not contrasena:
+            st.error("❌ Por favor, complete todos los campos.")
+            return
+            
         datos_usuario = verificar_usuario(usuario, contrasena)
 
         if datos_usuario:
-
             # 🔥 GUARDAMOS TODO EN SESIÓN
             st.session_state["sesion_iniciada"] = True
             st.session_state["usuario"] = datos_usuario["Usuario"]
             st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
-            st.session_state["cargo_de_usuario"] = datos_usuario["cargo"]   # 👈 AQUI ESTÁ LA CLAVE
+            st.session_state["cargo_de_usuario"] = datos_usuario["cargo"]
 
             st.success(
                 f"Bienvenido, {datos_usuario['Usuario']} 👋 "
