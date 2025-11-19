@@ -26,20 +26,37 @@ def registrar_usuario():
 
     # Crear diccionarios {nombre: id}
     tipo_opciones = {t["Tipo"].capitalize(): t["ID_Tipo_usuario"] for t in tipos}
-    cargo_opciones = {c["Cargo"].capitalize(): c["ID_Cargo"] for c in cargos}
+    
+    # 🔥 FILTRAR SOLO LOS CARGOS PERMITIDOS
+    cargos_permitidos = ["Promotora", "Administrador", "Secretaria"]
+    cargo_opciones_filtrados = {}
+    
+    for cargo in cargos:
+        cargo_nombre = cargo["Cargo"].capitalize()
+        if cargo_nombre in cargos_permitidos:
+            cargo_opciones_filtrados[f"{cargo_nombre} ({'editor' if cargo_nombre in ['Promotora', 'Secretaria'] else 'lector'})"] = cargo["ID_Cargo"]
 
     # --- FORMULARIO ---
     usuario = st.text_input("Nombre de usuario")
     contraseña = st.text_input("Contraseña", type="password")
-    cargo_sel = st.selectbox("Cargo", list(cargo_opciones.keys()))
+    
+    # 🔥 MOSTRAR SOLO CARGOS FILTRADOS
+    if cargo_opciones_filtrados:
+        cargo_sel_display = st.selectbox("Cargo", list(cargo_opciones_filtrados.keys()))
+        # Obtener el nombre real del cargo (sin el paréntesis)
+        cargo_sel = cargo_sel_display.split(" (")[0]
+        id_cargo = cargo_opciones_filtrados[cargo_sel_display]
+    else:
+        st.error("No se encontraron cargos permitidos para registrar")
+        cursor.close()
+        conexion.close()
+        return
 
     # 🔒 Asignar tipo automáticamente según el cargo seleccionado
-    if cargo_sel.lower() in ["administradora"]:
+    if cargo_sel.lower() in ["administrador", "administradora"]:
         tipo_sel = "Lector"
-    elif cargo_sel.lower() in ["presidenta", "presidente", "secretaria", "secretario", "promotora", "promotor"]:
-        tipo_sel = "Editor"
     else:
-        tipo_sel = "Lector"  # Por defecto, lector para cualquier otro cargo
+        tipo_sel = "Editor"  # Para Promotora y Secretaria
 
     # Mostrar tipo de usuario asignado (solo lectura)
     st.text_input("Tipo de usuario asignado", tipo_sel, disabled=True)
@@ -52,10 +69,9 @@ def registrar_usuario():
             if usuario and contraseña:
                 try:
                     id_tipo = tipo_opciones.get(tipo_sel.capitalize())
-                    id_cargo = cargo_opciones.get(cargo_sel.capitalize())
 
-                    if not id_tipo or not id_cargo:
-                        st.error("⚠️ No se encontró el tipo o cargo en la base de datos.")
+                    if not id_tipo:
+                        st.error("⚠️ No se encontró el tipo de usuario en la base de datos.")
                         return
 
                     # Encriptar contraseña
