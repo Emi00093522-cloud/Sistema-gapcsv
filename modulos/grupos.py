@@ -56,14 +56,6 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                 max_value=date(2100,12,31)
             )
 
-            # Duración ciclo
-            duracion_ciclo = st.selectbox("Duración del ciclo *",
-                                          options=[6, 12],
-                                          format_func=lambda x: f"{x} meses")
-
-            # Eliminado: periodicidad
-            # Eliminado: tasa de interés
-
             # Promotora
             if promotoras:
                 promotora_options = {f"{p[1]} (ID: {p[0]})": p[0] for p in promotoras}
@@ -96,13 +88,12 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                         st.warning(e)
                 else:
                     try:
-                        # INSERT SIN periodicidad ni interés
+                        # INSERT sin duracion_ciclo
                         cursor.execute("""
                             INSERT INTO Grupo 
-                            (nombre, ID_Distrito, fecha_inicio, duracion_ciclo, ID_Promotora, ID_Estado)
-                            VALUES (%s,%s,%s,%s,%s,%s)
-                        """, (nombre, ID_Distrito, fecha_inicio, duracion_ciclo,
-                              ID_Promotora, ID_Estado))
+                            (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado)
+                            VALUES (%s,%s,%s,%s,%s)
+                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado))
 
                         con.commit()
 
