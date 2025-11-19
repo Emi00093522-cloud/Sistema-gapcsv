@@ -9,7 +9,7 @@ def mostrar_reglamentos():
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Cargar grupos existentes con información disponible - CORREGIDO
+        # Cargar grupos existentes con información disponible
         cursor.execute("""
             SELECT g.ID_Grupo, g.nombre, g.fecha_inicio, d.nombre as distrito
             FROM Grupo g
@@ -64,7 +64,7 @@ def mostrar_reglamentos():
             st.markdown("#### 1. Nombre de la comunidad")
             st.info(f"**Distrito:** {grupo_info['distrito'] or 'No asignado'}")
 
-            # 2. Fecha en que se formó el grupo - SOLO LECTURA (CORREGIDO)
+            # 2. Fecha en que se formó el grupo - SOLO LECTURA
             st.markdown("#### 2. Fecha en que se formó el grupo de ahorro")
             fecha_formacion = grupo_info['fecha_inicio']
             if fecha_formacion:
@@ -133,35 +133,46 @@ def mostrar_reglamentos():
             frecuencia_reunion = f"Cada {cantidad_frecuencia} {tipo_frecuencia.lower()}"
 
             # 4. Comité de Dirección - CARGAR MIEMBROS DEL GRUPO (CORREGIDO)
-st.markdown("#### 4. Comité de Dirección")
-
-# Cargar miembros del grupo que son directiva - QUERY CORREGIDA
-cursor.execute("""
-    SELECT m.nombre, m.apellido, r.nombre_rol as cargo
-    FROM Miembro m
-    INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
-    WHERE m.ID_Grupo = %s AND r.nombre_rol IN ('Presidenta', 'Secretaria', 'Tesorera', 'Responsable de llave')
-    ORDER BY 
-        CASE r.nombre_rol
-            WHEN 'Presidenta' THEN 1
-            WHEN 'Secretaria' THEN 2
-            WHEN 'Tesorera' THEN 3
-            WHEN 'Responsable de llave' THEN 4
-            ELSE 5
-        END
-""", (id_grupo,))
-directiva = cursor.fetchall()
-
-if directiva:
-    st.markdown("""
-    | Cargo | Nombre de la Socia |
-    |-------|-------------------|
-    """)
-    for miembro in directiva:
-        nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
-        st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
-else:
-    st.info("ℹ️ No se han registrado miembros de la directiva para este grupo.")
+            st.markdown("#### 4. Comité de Dirección")
+            
+            # Primero verificar si existe la tabla Rol y tiene datos
+            try:
+                cursor.execute("SHOW TABLES LIKE 'Rol'")
+                tabla_rol_existe = cursor.fetchone()
+                
+                if tabla_rol_existe:
+                    # Cargar miembros del grupo que son directiva - QUERY CORREGIDA
+                    cursor.execute("""
+                        SELECT m.nombre, m.apellido, r.nombre_rol as cargo
+                        FROM Miembro m
+                        INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
+                        WHERE m.ID_Grupo = %s AND r.nombre_rol IN ('Presidenta', 'Secretaria', 'Tesorera', 'Responsable de llave')
+                        ORDER BY 
+                            CASE r.nombre_rol
+                                WHEN 'Presidenta' THEN 1
+                                WHEN 'Secretaria' THEN 2
+                                WHEN 'Tesorera' THEN 3
+                                WHEN 'Responsable de llave' THEN 4
+                                ELSE 5
+                            END
+                    """, (id_grupo,))
+                    directiva = cursor.fetchall()
+                    
+                    if directiva:
+                        st.markdown("""
+                        | Cargo | Nombre de la Socia |
+                        |-------|-------------------|
+                        """)
+                        for miembro in directiva:
+                            nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
+                            st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
+                    else:
+                        st.info("ℹ️ No se han registrado miembros de la directiva para este grupo.")
+                else:
+                    st.info("ℹ️ La tabla de roles no está configurada en el sistema.")
+                    
+            except Exception as e:
+                st.info("ℹ️ No se pudo cargar la información del comité de dirección.")
 
             # 5. Nombre del grupo de ahorro - SOLO LECTURA
             st.markdown("#### 5. Nombre del grupo de ahorro")
@@ -421,7 +432,7 @@ else:
                 st.info("📝 No hay reglamentos registrados aún. Usa la pestaña 'Registrar Nuevo Reglamento' para crear el primer reglamento.")
                 return
 
-            # Cargar reglamentos existentes con información del grupo - CORREGIDO
+            # Cargar reglamentos existentes con información del grupo
             cursor.execute("""
                 SELECT r.ID_Reglamento, r.ID_Grupo, g.nombre as nombre_grupo, 
                        d.nombre as distrito, g.fecha_inicio
