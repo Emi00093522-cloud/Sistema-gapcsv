@@ -4,7 +4,6 @@ from modulos.login import login
 from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
 from modulos.grupos import mostrar_grupos
-from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo
 from modulos.reuniones import mostrar_reuniones
