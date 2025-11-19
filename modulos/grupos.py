@@ -2,20 +2,20 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime, date
 
-def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
+def mostrar_grupos():
     st.header("👥 Registrar Grupo")
 
-    # Estado para controlar el mensaje de éxito
+    # Estado para mensaje de éxito
     if 'grupo_registrado' not in st.session_state:
         st.session_state.grupo_registrado = False
 
     if st.session_state.grupo_registrado:
         st.success("🎉 ¡Grupo registrado con éxito!")
-        
+
         if st.button("🆕 Registrar otro grupo"):
             st.session_state.grupo_registrado = False
             st.rerun()
-        
+
         st.info("💡 **Para seguir navegando, selecciona una opción en el menú**")
         return
 
@@ -26,20 +26,22 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
         # Obtener distritos
         cursor.execute("SELECT ID_Distrito, nombre FROM Distrito")
         distritos = cursor.fetchall()
-        
+
         # Obtener promotoras
         cursor.execute("SELECT ID_Promotora, nombre FROM Promotora")
         promotoras = cursor.fetchall()
 
-        # Formulario para registrar grupo
         with st.form("form_grupo"):
             st.subheader("Datos del Grupo")
-            
-            nombre = st.text_input("Nombre del grupo *", 
-                                   placeholder="Ingrese el nombre del grupo",
-                                   max_chars=100)
 
-            # Distritos
+            # Nombre del grupo
+            nombre = st.text_input(
+                "Nombre del grupo *",
+                placeholder="Ingrese el nombre del grupo",
+                max_chars=100
+            )
+
+            # DISTRICTO
             if distritos:
                 distrito_options = {f"{d[1]} (ID: {d[0]})": d[0] for d in distritos}
                 distrito_sel = st.selectbox("Distrito *", list(distrito_options.keys()))
@@ -47,45 +49,28 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
             else:
                 st.error("❌ No hay distritos registrados.")
                 ID_Distrito = None
-            
-            # Fecha
+
+            # FECHA DE INICIO
             fecha_inicio = st.date_input(
                 "Fecha de inicio *",
                 value=datetime.now().date(),
-                min_value=date(1990,1,1),
-                max_value=date(2100,12,31)
+                min_value=date(1990, 1, 1),
+                max_value=date(2100, 12, 31)
             )
 
-            # Duración ciclo
-            duracion_ciclo = st.selectbox("Duración del ciclo *",
-                                          options=[6, 12],
-                                          format_func=lambda x: f"{x} meses")
-
-            # Periodicidad
-            st.write("**Periodicidad de reuniones ***")
-            col1, col2 = st.columns(2)
-            with col1:
-                tipo_periodicidad = st.selectbox("Tipo", ["Días", "Semanas", "Meses"])
-            with col2:
-                if tipo_periodicidad == "Días":
-                    val = st.selectbox("Días", range(1,32))
-                    periodicidad = f"{val} días"
-                elif tipo_periodicidad == "Semanas":
-                    val = st.selectbox("Semanas", range(1,5))
-                    periodicidad = f"{val} semanas"
-                else:
-                    val = st.selectbox("Meses", range(1,13))
-                    periodicidad = f"{val} meses"
-
-            # Interés
-            tasa_interes = st.number_input(
-                "Tasa de interés (%) *",
-                min_value=0.0, max_value=100.0,
-                value=5.0, step=0.000001,
-                format="%.6f"
+            # DURACIÓN DEL CICLO
+            duracion_ciclo = st.selectbox(
+                "Duración del ciclo *",
+                options=[6, 12],
+                format_func=lambda x: f"{x} meses"
             )
 
-            # Promotora
+            # ❌ -------------- ELIMINADO --------------
+            # Periodicidad de reuniones
+            # Tasa de interés
+            # ------------------------------------------
+
+            # PROMOTORA
             if promotoras:
                 promotora_options = {f"{p[1]} (ID: {p[0]})": p[0] for p in promotoras}
                 promotora_sel = st.selectbox("Promotora *", list(promotora_options.keys()))
@@ -94,9 +79,10 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                 st.error("❌ No hay promotoras registradas.")
                 ID_Promotora = None
 
+            # Estado
             ID_Estado = st.selectbox(
                 "Estado",
-                options=[1,2],
+                options=[1, 2],
                 format_func=lambda x: "Activo" if x == 1 else "Inactivo"
             )
 
@@ -119,11 +105,12 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                     try:
                         cursor.execute("""
                             INSERT INTO Grupo 
-                            (nombre, ID_Distrito, fecha_inicio, duracion_ciclo, 
-                             periodicidad_reuniones, tasa_interes, ID_Promotora, ID_Estado)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                        """, (nombre, ID_Distrito, fecha_inicio, duracion_ciclo,
-                              periodicidad, tasa_interes, ID_Promotora, ID_Estado))
+                            (nombre, ID_Distrito, fecha_inicio, duracion_ciclo, ID_Promotora, ID_Estado)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (
+                            nombre, ID_Distrito, fecha_inicio, duracion_ciclo,
+                            ID_Promotora, ID_Estado
+                        ))
 
                         con.commit()
 
@@ -133,6 +120,7 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                         st.session_state.grupo_registrado = True
                         st.session_state.id_grupo_creado = id_grupo
                         st.session_state.nombre_grupo_creado = nombre
+
                         st.rerun()
 
                     except Exception as e:
