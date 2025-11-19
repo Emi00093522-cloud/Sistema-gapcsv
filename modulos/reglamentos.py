@@ -9,9 +9,9 @@ def mostrar_reglamentos():
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Cargar grupos existentes con información completa
+        # Cargar grupos existentes con información disponible - CORREGIDO
         cursor.execute("""
-            SELECT g.ID_Grupo, g.nombre, g.fecha_creacion, d.nombre as distrito
+            SELECT g.ID_Grupo, g.nombre, g.fecha_inicio, d.nombre as distrito
             FROM Grupo g
             LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
             ORDER BY g.nombre
@@ -64,9 +64,9 @@ def mostrar_reglamentos():
             st.markdown("#### 1. Nombre de la comunidad")
             st.info(f"**Distrito:** {grupo_info['distrito'] or 'No asignado'}")
 
-            # 2. Fecha en que se formó el grupo - SOLO LECTURA
+            # 2. Fecha en que se formó el grupo - SOLO LECTURA (CORREGIDO)
             st.markdown("#### 2. Fecha en que se formó el grupo de ahorro")
-            fecha_formacion = grupo_info['fecha_creacion']
+            fecha_formacion = grupo_info['fecha_inicio']
             if fecha_formacion:
                 st.info(f"**Fecha de formación:** {fecha_formacion.strftime('%d/%m/%Y')}")
             else:
@@ -246,9 +246,15 @@ def mostrar_reglamentos():
             
             # Calcular fecha fin automáticamente
             if fecha_inicio_ciclo:
-                from dateutil.relativedelta import relativedelta
-                fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=duracion_ciclo)
-                st.info(f"**Fecha fin de ciclo:** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
+                try:
+                    from dateutil.relativedelta import relativedelta
+                    fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=duracion_ciclo)
+                    st.info(f"**Fecha fin de ciclo:** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
+                except:
+                    # Fallback si no tiene dateutil
+                    import datetime as dt
+                    fecha_fin_ciclo = fecha_inicio_ciclo + dt.timedelta(days=duracion_ciclo * 30)
+                    st.info(f"**Fecha fin de ciclo (aproximada):** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
 
             st.markdown("**Al cierre de ciclo, vamos a calcular los ahorros y ganancias de cada socia durante el ciclo, a retirar nuestros ahorros y ganancias y a decidir cuándo vamos a empezar un nuevo ciclo.**")
 
@@ -367,10 +373,10 @@ def mostrar_reglamentos():
                 st.info("📝 No hay reglamentos registrados aún. Usa la pestaña 'Registrar Nuevo Reglamento' para crear el primer reglamento.")
                 return
 
-            # Cargar reglamentos existentes con información del grupo
+            # Cargar reglamentos existentes con información del grupo - CORREGIDO
             cursor.execute("""
                 SELECT r.ID_Reglamento, r.ID_Grupo, g.nombre as nombre_grupo, 
-                       d.nombre as distrito, g.fecha_creacion
+                       d.nombre as distrito, g.fecha_inicio
                 FROM Reglamento r
                 JOIN Grupo g ON r.ID_Grupo = g.ID_Grupo
                 LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
