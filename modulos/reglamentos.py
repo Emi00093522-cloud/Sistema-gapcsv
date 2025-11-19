@@ -1,126 +1,3 @@
-import streamlit as st
-from modulos.config.conexion import obtener_conexion
-from datetime import datetime, date
-
-def mostrar_grupo():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
-    st.header("👥 Registrar Grupo")
-
-    # Estado para controlar el mensaje de éxito
-    if 'grupo_registrado' not in st.session_state:
-        st.session_state.grupo_registrado = False
-
-    if st.session_state.grupo_registrado:
-        st.success("🎉 ¡Grupo registrado con éxito!")
-        
-        if st.button("🆕 Registrar otro grupo"):
-            st.session_state.grupo_registrado = False
-            st.rerun()
-        
-        st.info("💡 **Para seguir navegando, selecciona una opción en el menú**")
-        return
-
-    try:
-        con = obtener_conexion()
-        cursor = con.cursor()
-
-        # Obtener distritos
-        cursor.execute("SELECT ID_Distrito, nombre FROM Distrito")
-        distritos = cursor.fetchall()
-        
-        # Obtener promotoras
-        cursor.execute("SELECT ID_Promotora, nombre FROM Promotora")
-        promotoras = cursor.fetchall()
-
-        # Formulario para registrar grupo
-        with st.form("form_grupo"):
-            st.subheader("Datos del Grupo")
-            
-            nombre = st.text_input("Nombre del grupo *", 
-                                   placeholder="Ingrese el nombre del grupo",
-                                   max_chars=100)
-
-            # Distritos
-            if distritos:
-                distrito_options = {f"{d[1]} (ID: {d[0]})": d[0] for d in distritos}
-                distrito_sel = st.selectbox("Distrito *", list(distrito_options.keys()))
-                ID_Distrito = distrito_options[distrito_sel]
-            else:
-                st.error("❌ No hay distritos registrados.")
-                ID_Distrito = None
-            
-            # Fecha
-            fecha_inicio = st.date_input(
-                "Fecha de inicio *",
-                value=datetime.now().date(),
-                min_value=date(1990,1,1),
-                max_value=date(2100,12,31)
-            )
-
-            # Promotora
-            if promotoras:
-                promotora_options = {f"{p[1]} (ID: {p[0]})": p[0] for p in promotoras}
-                promotora_sel = st.selectbox("Promotora *", list(promotora_options.keys()))
-                ID_Promotora = promotora_options[promotora_sel]
-            else:
-                st.error("❌ No hay promotoras registradas.")
-                ID_Promotora = None
-
-            ID_Estado = st.selectbox(
-                "Estado",
-                options=[1,2],
-                format_func=lambda x: "Activo" if x == 1 else "Inactivo"
-            )
-
-            enviar = st.form_submit_button("✅ Guardar Grupo")
-
-            if enviar:
-                errores = []
-
-                if nombre.strip() == "":
-                    errores.append("⚠ El nombre no puede estar vacío.")
-                if ID_Distrito is None:
-                    errores.append("⚠ Selecciona un distrito.")
-                if ID_Promotora is None:
-                    errores.append("⚠ Selecciona una promotora.")
-
-                if errores:
-                    for e in errores:
-                        st.warning(e)
-                else:
-                    try:
-                        # INSERT sin duracion_ciclo
-                        cursor.execute("""
-                            INSERT INTO Grupo 
-                            (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado)
-                            VALUES (%s,%s,%s,%s,%s)
-                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado))
-
-                        con.commit()
-
-                        cursor.execute("SELECT LAST_INSERT_ID()")
-                        id_grupo = cursor.fetchone()[0]
-
-                        st.session_state.grupo_registrado = True
-                        st.session_state.id_grupo_creado = id_grupo
-                        st.session_state.nombre_grupo_creado = nombre
-                        st.rerun()
-
-                    except Exception as e:
-                        con.rollback()
-                        st.error(f"❌ Error al registrar el grupo: {e}")
-
-    except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
-
-    finally:
-        try:
-            cursor.close()
-            con.close()
-        except:
-            pass
-
-# ... (el resto del código anterior se mantiene igual hasta la sección de frecuencia)
-
 with col_asist2:
     st.markdown("**No pagamos una multa si faltamos a una reunión y tenemos permiso por la siguiente razón (o razones):**")
     justificacion_ausencia = st.text_area(
@@ -130,6 +7,56 @@ with col_asist2:
         key="justificacion_ausencia",
         label_visibility="collapsed"
     )
+
+# 3. Reuniones - MODIFICADO: Frecuencia como menú desplegable
+st.markdown("#### 3. Reuniones")
+
+col_reun1, col_reun2, col_reun3, col_reun4 = st.columns(4)
+
+with col_reun1:
+    st.markdown("**Día:**")
+    dia_reunion = st.selectbox(
+        "Día de reunión:",
+        options=["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+        key="dia_reunion",
+        label_visibility="collapsed"
+    )
+
+with col_reun2:
+    st.markdown("**Hora:**")
+    hora_reunion = st.text_input(
+        "Hora:",
+        placeholder="HH:MM",
+        key="hora_reunion",
+        label_visibility="collapsed"
+    )
+
+with col_reun3:
+    st.markdown("**Período:**")
+    periodo_reunion = st.selectbox(
+        "Período:",
+        options=["AM", "PM"],
+        key="periodo_reunion",
+        label_visibility="collapsed"
+    )
+
+with col_reun4:
+    st.markdown("**Lugar:**")
+    lugar_reunion = st.text_input(
+        "Lugar:",
+        placeholder="Ej: UCA, Escuela, etc.",
+        key="lugar_reunion",
+        label_visibility="collapsed"
+    )
+
+# Frecuencia de reunión - MODIFICADO: Solo menú desplegable
+st.markdown("**Frecuencia de reunión:**")
+frecuencia_reunion = st.selectbox(
+    "Seleccione la frecuencia:",
+    options=["SEMANAL", "QUINCENAL", "MENSUAL"],
+    key="frecuencia_reunion",
+    label_visibility="collapsed"
+)
 
 # 7. Ahorros - CAMPO EDITABLE
 st.markdown("#### 7. Ahorros")
