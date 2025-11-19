@@ -2,7 +2,7 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime, date
 
-def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
+def mostrar_reglamentos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
     st.header("👥 Registrar Grupo")
 
     # Estado para controlar el mensaje de éxito
