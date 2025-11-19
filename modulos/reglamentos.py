@@ -72,7 +72,7 @@ def mostrar_reglamentos():
             else:
                 st.info("**Fecha de formación:** No registrada")
 
-            # 3. Reuniones - CAMPOS EDITABLES (MODIFICADO)
+            # 3. Reuniones - CAMPOS EDITABLES (MODIFICADO CON FRECUENCIA SIMPLE)
             st.markdown("#### 3. Reuniones")
             col_reun1, col_reun2, col_reun3 = st.columns(3)
             
@@ -110,33 +110,20 @@ def mostrar_reglamentos():
                     key="lugar_reunion"
                 )
 
-            # Frecuencia de reunión - MODIFICADO
+            # Frecuencia de reunión - MODIFICADO: Solo menú desplegable
             st.markdown("**Frecuencia de reunión:**")
-            col_frec1, col_frec2 = st.columns(2)
-            
-            with col_frec1:
-                cantidad_frecuencia = st.selectbox(
-                    "Cantidad:",
-                    options=list(range(1, 32)),  # Del 1 al 31
-                    format_func=lambda x: str(x),
-                    key="cantidad_frecuencia"
-                )
-            
-            with col_frec2:
-                tipo_frecuencia = st.selectbox(
-                    "Frecuencia:",
-                    options=["DÍA", "SEMANAS", "MESES"],
-                    key="tipo_frecuencia"
-                )
-            
-            # Construir la frecuencia completa
-            frecuencia_reunion = f"Cada {cantidad_frecuencia} {tipo_frecuencia.lower()}"
+            frecuencia_reunion = st.selectbox(
+                "Seleccione la frecuencia:",
+                options=["QUINCENAL", "SEMANAL", "MENSUAL"],
+                key="frecuencia_reunion",
+                label_visibility="collapsed"
+            )
 
-            # 4. Comité de Dirección - MOSTRAR TODOS LOS MIEMBROS CON ROL (CORREGIDO)
+            # 4. Comité de Dirección - MOSTRAR TODOS LOS MIEMBROS CON ROL
             st.markdown("#### 4. Comité de Dirección")
             
             try:
-                # Mostrar TODOS los miembros que tengan un rol asignado (sin filtrar por nombres específicos)
+                # Mostrar TODOS los miembros que tengan un rol asignado
                 cursor.execute("""
                     SELECT m.nombre, m.apellido, r.nombre_rol as cargo
                     FROM Miembro m
@@ -159,25 +146,6 @@ def mostrar_reglamentos():
                     
             except Exception as e:
                 st.error(f"❌ Error al cargar el comité de dirección: {e}")
-                # Versión de respaldo por si hay error en el JOIN
-                try:
-                    cursor.execute("""
-                        SELECT nombre, apellido, ID_Rol
-                        FROM Miembro 
-                        WHERE ID_Grupo = %s AND ID_Rol IS NOT NULL
-                    """, (id_grupo,))
-                    miembros_con_rol = cursor.fetchall()
-                    
-                    if miembros_con_rol:
-                        st.markdown("""
-                        | Rol ID | Nombre de la Socia |
-                        |--------|-------------------|
-                        """)
-                        for miembro in miembros_con_rol:
-                            nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
-                            st.markdown(f"| {miembro['ID_Rol']} | {nombre_completo} |")
-                except:
-                    st.info("ℹ️ No se pudo cargar la información del comité de dirección.")
 
             # 5. Nombre del grupo de ahorro - SOLO LECTURA
             st.markdown("#### 5. Nombre del grupo de ahorro")
