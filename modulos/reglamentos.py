@@ -3,7 +3,7 @@ from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
 def mostrar_reglamentos():
-    st.header("📜 Gestión de Reglamentos por Grupo")
+    st.header("📜 Gestión de Reglamento por Grupo")
 
     try:
         con = obtener_conexion()
