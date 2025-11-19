@@ -94,13 +94,27 @@ def login():
     """Interfaz del login."""
     st.title("Inicio de sesión 👩‍💼")
     
+    # 🔥 BOTÓN VOLVER AL MENÚ PRINCIPAL
+    if st.button("🏠 Volver al menú principal"):
+        st.session_state["pagina_actual"] = "inicio"
+        st.rerun()
+    
+    st.markdown("---")
+    
     # Mostrar opción de restablecer contraseña si se solicita
     if st.session_state.get("mostrar_restablecer", False):
         restablecer_contrasena()
         
-        if st.button("⬅️ Volver al login"):
-            st.session_state["mostrar_restablecer"] = False
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("⬅️ Volver al login", use_container_width=True):
+                st.session_state["mostrar_restablecer"] = False
+                st.rerun()
+        with col2:
+            if st.button("🏠 Volver al menú principal", use_container_width=True):
+                st.session_state["pagina_actual"] = "inicio"
+                st.session_state["mostrar_restablecer"] = False
+                st.rerun()
         return
 
     usuario = st.text_input("Usuario", key="usuario_input")
