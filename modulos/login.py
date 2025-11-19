@@ -63,24 +63,29 @@ def restablecer_contrasena():
                 return
                 
             try:
-                cursor = con.cursor(dictionary=True)
+                # 🔥 SOLUCIÓN: Usar cursor separado para cada consulta
+                cursor_verificar = con.cursor(dictionary=True)
                 
                 # Verificar si el usuario existe
-                cursor.execute("SELECT ID_Usuario FROM Usuario WHERE Usuario = %s", (usuario,))
-                usuario_existe = cursor.fetchone()
+                cursor_verificar.execute("SELECT ID_Usuario FROM Usuario WHERE Usuario = %s", (usuario,))
+                usuario_existe = cursor_verificar.fetchone()
+                cursor_verificar.close()  # 🔥 Cerrar el cursor después de usarlo
                 
                 if not usuario_existe:
                     st.error("❌ El usuario no existe en el sistema.")
+                    con.close()
                     return
                 
-                # Actualizar la contraseña
+                # 🔥 Usar un NUEVO cursor para la actualización
+                cursor_actualizar = con.cursor()
                 nueva_contrasena_hash = hashlib.sha256(nueva_contrasena.encode()).hexdigest()
                 
-                cursor.execute(
+                cursor_actualizar.execute(
                     "UPDATE Usuario SET Contraseña = %s WHERE Usuario = %s",
                     (nueva_contrasena_hash, usuario)
                 )
                 con.commit()
+                cursor_actualizar.close()  # 🔥 Cerrar el cursor de actualización
                 
                 st.success("✅ Contraseña restablecida exitosamente. Ya puedes iniciar sesión.")
                 st.session_state["mostrar_restablecer"] = False
