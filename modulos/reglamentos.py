@@ -1,5 +1,6 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
+from datetime import datetime
 
 def mostrar_reglamentos():
     st.header("📜 Gestión de Reglamentos por Grupo")
@@ -8,8 +9,13 @@ def mostrar_reglamentos():
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Cargar grupos existentes
-        cursor.execute("SELECT ID_Grupo, nombre FROM Grupo ORDER BY nombre")
+        # Cargar grupos existentes con información completa
+        cursor.execute("""
+            SELECT g.ID_Grupo, g.nombre, g.fecha_creacion, d.nombre as distrito
+            FROM Grupo g
+            LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+            ORDER BY g.nombre
+        """)
         grupos = cursor.fetchall()
             
         if not grupos:
@@ -35,196 +41,324 @@ def mostrar_reglamentos():
                 st.info("Usa la pestaña 'Editar Reglamentos Existentes' para modificar los reglamentos.")
                 return
 
-            # Seleccionar grupo para NUEVO reglamento (solo grupos sin reglamento)
+            # 1. Selección del grupo
+            st.markdown("### 1. Nombre del grupo de ahorro")
             grupo_seleccionado = st.selectbox(
                 "Selecciona el grupo para el NUEVO reglamento:",
                 options=list(grupos_sin_reglamento.keys()),
                 key="nuevo_grupo"
             )
             id_grupo = grupos_sin_reglamento[grupo_seleccionado]
-
-            # Inicializar session_state para las filas del NUEVO reglamento
-            if 'filas_nuevo_reglamento' not in st.session_state:
-                st.session_state.filas_nuevo_reglamento = [{
-                    'numero': 1,
-                    'nombre_regla': '',
-                    'descripcion': '',
-                    'monto_multa': 0.00,
-                    'estado': 1
-                }]
-
-            st.info("Puedes agregar hasta 50 reglas. Completa al menos el nombre de la regla para cada fila.")
-
-            # Mostrar todas las filas existentes del NUEVO reglamento
-            filas_a_eliminar = []
             
-            for i, fila in enumerate(st.session_state.filas_nuevo_reglamento):
-                st.markdown(f"**Regla {fila['numero']}**")
+            # Obtener información del grupo seleccionado
+            grupo_info = next((g for g in grupos if g['ID_Grupo'] == id_grupo), None)
+            
+            if not grupo_info:
+                st.error("❌ No se pudo obtener la información del grupo.")
+                return
+
+            st.markdown("---")
+            st.markdown("### 📋 Formulario de Reglamento Interno")
+
+            # 1. Nombre de la comunidad (Distrito) - SOLO LECTURA
+            st.markdown("#### 1. Nombre de la comunidad")
+            st.info(f"**Distrito:** {grupo_info['distrito'] or 'No asignado'}")
+
+            # 2. Fecha en que se formó el grupo - SOLO LECTURA
+            st.markdown("#### 2. Fecha en que se formó el grupo de ahorro")
+            fecha_formacion = grupo_info['fecha_creacion']
+            if fecha_formacion:
+                st.info(f"**Fecha de formación:** {fecha_formacion.strftime('%d/%m/%Y')}")
+            else:
+                st.info("**Fecha de formación:** No registrada")
+
+            # 3. Reuniones - CAMPOS EDITABLES
+            st.markdown("#### 3. Reuniones")
+            col_reun1, col_reun2, col_reun3, col_reun4 = st.columns(4)
+            
+            with col_reun1:
+                dia_reunion = st.text_input(
+                    "Día:",
+                    placeholder="Ej: Lunes",
+                    key="dia_reunion"
+                )
+            
+            with col_reun2:
+                hora_reunion = st.text_input(
+                    "Hora:",
+                    placeholder="Ej: 14:00",
+                    key="hora_reunion"
+                )
+            
+            with col_reun3:
+                lugar_reunion = st.text_input(
+                    "Lugar:",
+                    placeholder="Ej: Casa comunal",
+                    key="lugar_reunion"
+                )
+            
+            with col_reun4:
+                frecuencia_reunion = st.text_input(
+                    "Frecuencia:",
+                    placeholder="Ej: Semanal",
+                    key="frecuencia_reunion"
+                )
+
+            # 4. Comité de Dirección - CARGAR MIEMBROS DEL GRUPO
+            st.markdown("#### 4. Comité de Dirección")
+            
+            # Cargar miembros del grupo que son directiva
+            cursor.execute("""
+                SELECT m.nombre, c.tipo_de_cargo as cargo
+                FROM Miembro m
+                INNER JOIN Cargo c ON m.ID_Cargo = c.ID_Cargo
+                WHERE m.ID_Grupo = %s AND c.tipo_de_cargo IN ('Presidenta', 'Secretaria', 'Tesorera', 'Responsable de llave')
+                ORDER BY c.tipo_de_cargo
+            """, (id_grupo,))
+            directiva = cursor.fetchall()
+            
+            if directiva:
+                st.markdown("""
+                | Cargo | Nombre de la Socia |
+                |-------|-------------------|
+                """)
+                for miembro in directiva:
+                    st.markdown(f"| {miembro['cargo']} | {miembro['nombre']} |")
+            else:
+                st.info("ℹ️ No se han registrado miembros de la directiva para este grupo.")
+
+            # 5. Nombre del grupo de ahorro - SOLO LECTURA
+            st.markdown("#### 5. Nombre del grupo de ahorro")
+            st.info(f"**Nuestro grupo se llama:** {grupo_info['nombre']}")
+
+            # 6. Asistencia y Reglas - REGLONES EDITABLES
+            st.markdown("#### 6. Asistencia")
+            
+            st.markdown("**Nosotras asistimos a todas las reuniones.**")
+            
+            col_asist1, col_asist2 = st.columns(2)
+            
+            with col_asist1:
+                st.markdown("**Si faltamos a una reunión pagamos una multa de:**")
+                monto_multa_asistencia = st.number_input(
+                    "Monto de multa por falta (USD):",
+                    min_value=0.00,
+                    value=0.00,
+                    step=0.50,
+                    format="%.2f",
+                    key="monto_multa_asistencia",
+                    label_visibility="collapsed"
+                )
+            
+            with col_asist2:
+                st.markdown("**No pagamos una multa si faltamos a una reunión y tenemos permiso por la siguiente razón (o razones):**")
+                justificacion_ausencia = st.text_area(
+                    "Justificación para ausencia sin multa:",
+                    placeholder="Ej: Enfermedad certificada, emergencia familiar, etc.",
+                    height=80,
+                    key="justificacion_ausencia",
+                    label_visibility="collapsed"
+                )
+
+            # 7. Ahorros - CAMPO EDITABLE
+            st.markdown("#### 7. Ahorros")
+            st.markdown("**Depositamos una cantidad mínima de ahorros de:**")
+            ahorro_minimo = st.number_input(
+                "Cantidad mínima de ahorros (USD):",
+                min_value=0.00,
+                value=0.00,
+                step=0.50,
+                format="%.2f",
+                key="ahorro_minimo"
+            )
+
+            # 8. Préstamos - CAMPOS EDITABLES
+            st.markdown("#### 8. Préstamos")
+            
+            st.markdown("**Pagamos interés cuando se cumple el mes.**")
+            
+            col_prest1, col_prest2, col_prest3 = st.columns(3)
+            
+            with col_prest1:
+                st.markdown("**Interés por cada $10.00 prestados:**")
+                interes_por_diez = st.number_input(
+                    "Interés ($):",
+                    min_value=0.00,
+                    value=0.00,
+                    step=0.10,
+                    format="%.2f",
+                    key="interes_por_diez",
+                    label_visibility="collapsed"
+                )
+            
+            with col_prest2:
+                st.markdown("**Monto máximo de préstamo:**")
+                monto_maximo_prestamo = st.number_input(
+                    "Monto máximo (USD):",
+                    min_value=0.00,
+                    value=0.00,
+                    step=10.00,
+                    format="%.2f",
+                    key="monto_maximo_prestamo",
+                    label_visibility="collapsed"
+                )
+            
+            with col_prest3:
+                st.markdown("**Plazo máximo de préstamo:**")
+                plazo_maximo_prestamo = st.number_input(
+                    "Plazo máximo (meses):",
+                    min_value=0,
+                    value=0,
+                    step=1,
+                    key="plazo_maximo_prestamo",
+                    label_visibility="collapsed"
+                )
+            
+            st.markdown("**Solamente podemos tener un préstamo a la vez.**")
+            un_prestamo_vez = st.selectbox(
+                "¿Solo un préstamo a la vez?",
+                options=["Sí", "No"],
+                key="un_prestamo_vez"
+            )
+
+            # 9. Ciclo - CAMPOS EDITABLES
+            st.markdown("#### 9. Ciclo")
+            
+            col_ciclo1, col_ciclo2 = st.columns(2)
+            
+            with col_ciclo1:
+                st.markdown("**Fecha inicio de ciclo:**")
+                fecha_inicio_ciclo = st.date_input(
+                    "Fecha inicio:",
+                    key="fecha_inicio_ciclo",
+                    label_visibility="collapsed"
+                )
+            
+            with col_ciclo2:
+                st.markdown("**Duración del ciclo:**")
+                duracion_ciclo = st.selectbox(
+                    "Duración:",
+                    options=[6, 12],
+                    format_func=lambda x: f"{x} meses",
+                    key="duracion_ciclo",
+                    label_visibility="collapsed"
+                )
+            
+            # Calcular fecha fin automáticamente
+            if fecha_inicio_ciclo:
+                from dateutil.relativedelta import relativedelta
+                fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=duracion_ciclo)
+                st.info(f"**Fecha fin de ciclo:** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
+
+            st.markdown("**Al cierre de ciclo, vamos a calcular los ahorros y ganancias de cada socia durante el ciclo, a retirar nuestros ahorros y ganancias y a decidir cuándo vamos a empezar un nuevo ciclo.**")
+
+            # 10. Meta social - CAMPO EDITABLE
+            st.markdown("#### 10. Meta social")
+            meta_social = st.text_area(
+                "Meta social del grupo:",
+                placeholder="Describa la meta social o propósito del grupo...",
+                height=100,
+                key="meta_social"
+            )
+
+            # 11+. Otras reglas - SISTEMA DE REGLONES
+            st.markdown("#### 11. Otras reglas")
+            st.info("Agrega reglas adicionales específicas de tu grupo:")
+            
+            # Inicializar session_state para reglas adicionales
+            if 'reglas_adicionales' not in st.session_state:
+                st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
+
+            # Mostrar reglas existentes
+            reglas_a_eliminar = []
+            for i, regla in enumerate(st.session_state.reglas_adicionales):
+                col_regla1, col_regla2 = st.columns([5, 1])
                 
-                col1, col2, col3, col4, col5 = st.columns([3, 3, 2, 2, 1])
-                
-                with col1:
-                    nombre_regla = st.text_input(
-                        "Nombre regla",
-                        value=fila['nombre_regla'],
-                        key=f"nuevo_nombre_{i}",
-                        placeholder="Ej: Puntualidad en reuniones",
-                        label_visibility="collapsed"
-                    )
-                
-                with col2:
-                    descripcion = st.text_area(
-                        "Descripción",
-                        value=fila['descripcion'],
-                        key=f"nuevo_desc_{i}",
-                        placeholder="Describe la regla...",
+                with col_regla1:
+                    texto_regla = st.text_area(
+                        f"Regla {regla['id']}:",
+                        value=regla['texto'],
+                        placeholder="Describe la regla adicional...",
                         height=60,
-                        label_visibility="collapsed"
+                        key=f"regla_adicional_{i}"
                     )
+                    # Actualizar en session_state
+                    st.session_state.reglas_adicionales[i]['texto'] = texto_regla
                 
-                with col3:
-                    monto_multa = st.number_input(
-                        "Monto Multa (USD)",
-                        min_value=0.00,
-                        value=float(fila['monto_multa']),
-                        step=0.50,
-                        format="%.2f",
-                        key=f"nuevo_monto_{i}",
-                        label_visibility="collapsed"
-                    )
-                
-                with col4:
-                    estado = st.selectbox(
-                        "Estado",
-                        options=[1, 2],
-                        format_func=lambda x: "✅ Activo" if x == 1 else "❌ Inactivo",
-                        index=0 if fila['estado'] == 1 else 1,
-                        key=f"nuevo_estado_{i}",
-                        label_visibility="collapsed"
-                    )
-                
-                with col5:
-                    st.write("")  # Espacio vertical
-                    st.write("")  # Espacio vertical
-                    if len(st.session_state.filas_nuevo_reglamento) > 1:
-                        if st.button("🗑️", key=f"nuevo_eliminar_{i}"):
-                            filas_a_eliminar.append(i)
-                
-                # Actualizar datos en session_state
-                st.session_state.filas_nuevo_reglamento[i] = {
-                    'numero': fila['numero'],
-                    'nombre_regla': nombre_regla,
-                    'descripcion': descripcion,
-                    'monto_multa': monto_multa,
-                    'estado': estado
-                }
-                
-                st.markdown("---")
+                with col_regla2:
+                    st.write("")  # Espacio
+                    st.write("")  # Espacio
+                    if len(st.session_state.reglas_adicionales) > 1:
+                        if st.button("🗑️", key=f"eliminar_regla_{i}"):
+                            reglas_a_eliminar.append(i)
 
-            # Eliminar filas marcadas para eliminar
-            for indice in sorted(filas_a_eliminar, reverse=True):
-                if 0 <= indice < len(st.session_state.filas_nuevo_reglamento):
-                    st.session_state.filas_nuevo_reglamento.pop(indice)
+            # Eliminar reglas marcadas
+            for indice in sorted(reglas_a_eliminar, reverse=True):
+                if 0 <= indice < len(st.session_state.reglas_adicionales):
+                    st.session_state.reglas_adicionales.pop(indice)
             
-            # Renumerar filas después de eliminar
-            if filas_a_eliminar:
-                for i, fila in enumerate(st.session_state.filas_nuevo_reglamento):
-                    fila['numero'] = i + 1
-                st.rerun()
+            # Renumerar reglas
+            for i, regla in enumerate(st.session_state.reglas_adicionales):
+                regla['id'] = i + 1
 
-            # Botones de control para NUEVO
+            # Botones para gestionar reglas adicionales
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
-                if st.button("➕ Agregar fila", use_container_width=True, key="nuevo_agregar"):
-                    if len(st.session_state.filas_nuevo_reglamento) < 50:
-                        nuevo_numero = len(st.session_state.filas_nuevo_reglamento) + 1
-                        st.session_state.filas_nuevo_reglamento.append({
-                            'numero': nuevo_numero,
-                            'nombre_regla': '',
-                            'descripcion': '',
-                            'monto_multa': 0.00,
-                            'estado': 1
-                        })
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Has alcanzado el límite máximo de 50 reglas.")
+                if st.button("➕ Agregar regla adicional", use_container_width=True):
+                    nuevo_id = len(st.session_state.reglas_adicionales) + 1
+                    st.session_state.reglas_adicionales.append({'id': nuevo_id, 'texto': ''})
+                    st.rerun()
             
             with col_btn2:
-                if st.button("🔄 Limpiar todo", use_container_width=True, key="nuevo_limpiar"):
-                    st.session_state.filas_nuevo_reglamento = [{
-                        'numero': 1,
-                        'nombre_regla': '',
-                        'descripcion': '',
-                        'monto_multa': 0.00,
-                        'estado': 1
-                    }]
+                if st.button("🔄 Limpiar reglas adicionales", use_container_width=True):
+                    st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
                     st.rerun()
 
-            # Formulario para guardar NUEVO reglamento
-            with st.form("form_nuevo_reglamento"):
-                confirmar_otro = st.checkbox(
-                    "📝 Registrar otro reglamento después de guardar",
-                    key="nuevo_confirmar"
-                )
-                
-                guardar = st.form_submit_button("✅ Guardar Reglamento", use_container_width=True)
-                
-                if guardar:
-                    # Validar que haya al menos una regla con nombre
-                    reglas_validas = [f for f in st.session_state.filas_nuevo_reglamento if f['nombre_regla'].strip()]
+            # Botón para guardar TODO el reglamento
+            st.markdown("---")
+            if st.button("💾 Guardar Reglamento Completo", use_container_width=True, type="primary"):
+                # Validar campos obligatorios
+                if not dia_reunion or not hora_reunion or not lugar_reunion:
+                    st.error("❌ Los campos de reuniones (día, hora, lugar) son obligatorios.")
+                    return
+
+                try:
+                    # Preparar reglas adicionales como texto
+                    otras_reglas_texto = "\n".join([
+                        f"{regla['id']}. {regla['texto']}" 
+                        for regla in st.session_state.reglas_adicionales 
+                        if regla['texto'].strip()
+                    ])
+
+                    # Guardar el reglamento completo
+                    cursor.execute("""
+                        INSERT INTO Reglamento 
+                        (ID_Grupo, dia_reunion, hora_reunion, lugar_reunion, frecuencia_reunion,
+                         monto_multa_asistencia, justificacion_ausencia, ahorro_minimo,
+                         interes_por_diez, monto_maximo_prestamo, plazo_maximo_prestamo,
+                         un_prestamo_vez, fecha_inicio_ciclo, duracion_ciclo,
+                         meta_social, otras_reglas)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        id_grupo, dia_reunion, hora_reunion, lugar_reunion, frecuencia_reunion,
+                        monto_multa_asistencia, justificacion_ausencia, ahorro_minimo,
+                        interes_por_diez, monto_maximo_prestamo, plazo_maximo_prestamo,
+                        un_prestamo_vez, fecha_inicio_ciclo, duracion_ciclo,
+                        meta_social, otras_reglas_texto
+                    ))
                     
-                    if not reglas_validas:
-                        st.error("❌ Debes ingresar al menos una regla con nombre.")
-                        return
+                    con.commit()
+                    st.success("✅ Reglamento guardado exitosamente!")
+                    st.balloons()
                     
-                    # Insertar cada regla en la base de datos
-                    reglas_guardadas = 0
-                    errores = []
-                    
-                    for fila in st.session_state.filas_nuevo_reglamento:
-                        # Solo guardar reglas que tengan nombre
-                        if fila['nombre_regla'].strip():
-                            try:
-                                cursor.execute(
-                                    """INSERT INTO Reglamento 
-                                       (ID_Grupo, nombre_regla, descripcion, monto_multa, ID_Estado) 
-                                       VALUES (%s, %s, %s, %s, %s)""",
-                                    (
-                                        id_grupo,
-                                        fila['nombre_regla'].strip(),
-                                        fila['descripcion'].strip() if fila['descripcion'] else None,
-                                        fila['monto_multa'],
-                                        fila['estado']
-                                    )
-                                )
-                                reglas_guardadas += 1
-                                
-                            except Exception as e:
-                                errores.append(f"Error en regla '{fila['nombre_regla']}': {e}")
-                    
-                    if errores:
-                        con.rollback()
-                        st.error("❌ Errores al guardar:")
-                        for error in errores:
-                            st.write(f"- {error}")
-                    else:
-                        con.commit()
-                        st.success(f"✅ Reglamento guardado exitosamente para el grupo {grupo_seleccionado}! Se registraron {reglas_guardadas} regla(s).")
+                    # Limpiar formulario
+                    st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
+                    st.rerun()
                         
-                        if confirmar_otro:
-                            # Limpiar y preparar para nuevo reglamento
-                            st.session_state.filas_nuevo_reglamento = [{
-                                'numero': 1,
-                                'nombre_regla': '',
-                                'descripcion': '',
-                                'monto_multa': 0.00,
-                                'estado': 1
-                            }]
-                            st.rerun()
-                        else:
-                            st.balloons()
-                            st.info("🎉 Reglamento registrado correctamente. Para seguir navegando usa el menú de la izquierda.")
+                except Exception as e:
+                    con.rollback()
+                    st.error(f"❌ Error al guardar el reglamento: {e}")
 
         with tab2:
             st.subheader("Editar Reglamentos Existentes")
@@ -235,11 +369,11 @@ def mostrar_reglamentos():
 
             # Cargar reglamentos existentes con información del grupo
             cursor.execute("""
-                SELECT r.ID_Grupo, g.nombre as nombre_grupo, 
-                       COUNT(r.ID_Reglamento) as total_reglas
+                SELECT r.ID_Reglamento, r.ID_Grupo, g.nombre as nombre_grupo, 
+                       d.nombre as distrito, g.fecha_creacion
                 FROM Reglamento r
                 JOIN Grupo g ON r.ID_Grupo = g.ID_Grupo
-                GROUP BY r.ID_Grupo, g.nombre
+                LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
                 ORDER BY g.nombre
             """)
             reglamentos_existentes = cursor.fetchall()
@@ -247,182 +381,21 @@ def mostrar_reglamentos():
             st.write("### 📋 Reglamentos Guardados")
             
             for reglamento in reglamentos_existentes:
-                with st.expander(f"📜 Reglamento - {reglamento['nombre_grupo']} ({reglamento['total_reglas']} reglas)"):
+                with st.expander(f"📜 {reglamento['nombre_grupo']} - Distrito: {reglamento['distrito']}"):
                     # Botón para editar este reglamento
-                    if st.button(f"✏️ Editar Reglamento del Grupo {reglamento['nombre_grupo']}", 
-                                key=f"editar_{reglamento['ID_Grupo']}"):
-                        st.session_state.grupo_a_editar = reglamento['ID_Grupo']
-                        st.session_state.nombre_grupo_editar = reglamento['nombre_grupo']
+                    if st.button(f"✏️ Editar Reglamento", key=f"editar_{reglamento['ID_Reglamento']}"):
+                        st.session_state.reglamento_a_editar = reglamento['ID_Reglamento']
                         st.rerun()
 
-            # Editar reglamento específico
-            if 'grupo_a_editar' in st.session_state:
+            # TODO: Implementar la funcionalidad de edición completa
+            if 'reglamento_a_editar' in st.session_state:
                 st.write("---")
-                st.subheader(f"✏️ Editando Reglamento del Grupo: {st.session_state.nombre_grupo_editar}")
+                st.subheader("✏️ Editando Reglamento")
+                st.info("🔧 Funcionalidad de edición en desarrollo...")
                 
-                # Cargar reglas existentes de este grupo
-                cursor.execute("""
-                    SELECT ID_Reglamento, nombre_regla, descripcion, monto_multa, ID_Estado
-                    FROM Reglamento 
-                    WHERE ID_Grupo = %s
-                    ORDER BY ID_Reglamento
-                """, (st.session_state.grupo_a_editar,))
-                reglas_existentes = cursor.fetchall()
-
-                # Inicializar session_state para edición
-                if 'filas_edicion_reglamento' not in st.session_state:
-                    st.session_state.filas_edicion_reglamento = []
-                    for i, regla in enumerate(reglas_existentes):
-                        st.session_state.filas_edicion_reglamento.append({
-                            'id_reglamento': regla['ID_Reglamento'],
-                            'numero': i + 1,
-                            'nombre_regla': regla['nombre_regla'],
-                            'descripcion': regla['descripcion'] or '',
-                            'monto_multa': float(regla['monto_multa']) if regla['monto_multa'] else 0.00,
-                            'estado': regla['ID_Estado']
-                        })
-
-                # Mostrar filas para edición
-                filas_edicion_eliminar = []
-                
-                for i, fila in enumerate(st.session_state.filas_edicion_reglamento):
-                    st.markdown(f"**Regla {fila['numero']}**")
-                    
-                    col1, col2, col3, col4, col5 = st.columns([3, 3, 2, 2, 1])
-                    
-                    with col1:
-                        nombre_regla = st.text_input(
-                            "Nombre regla",
-                            value=fila['nombre_regla'],
-                            key=f"editar_nombre_{i}",
-                            placeholder="Ej: Puntualidad en reuniones",
-                            label_visibility="collapsed"
-                        )
-                    
-                    with col2:
-                        descripcion = st.text_area(
-                            "Descripción",
-                            value=fila['descripcion'],
-                            key=f"editar_desc_{i}",
-                            placeholder="Describe la regla...",
-                            height=60,
-                            label_visibility="collapsed"
-                        )
-                    
-                    with col3:
-                        monto_multa = st.number_input(
-                            "Monto Multa (USD)",
-                            min_value=0.00,
-                            value=float(fila['monto_multa']),
-                            step=0.50,
-                            format="%.2f",
-                            key=f"editar_monto_{i}",
-                            label_visibility="collapsed"
-                        )
-                    
-                    with col4:
-                        estado = st.selectbox(
-                            "Estado",
-                            options=[1, 2],
-                            format_func=lambda x: "✅ Activo" if x == 1 else "❌ Inactivo",
-                            index=0 if fila['estado'] == 1 else 1,
-                            key=f"editar_estado_{i}",
-                            label_visibility="collapsed"
-                        )
-                    
-                    with col5:
-                        st.write("")  # Espacio vertical
-                        st.write("")  # Espacio vertical
-                        if st.button("🗑️", key=f"editar_eliminar_{i}"):
-                            filas_edicion_eliminar.append(i)
-                    
-                    # Actualizar datos en session_state
-                    st.session_state.filas_edicion_reglamento[i] = {
-                        'id_reglamento': fila['id_reglamento'],
-                        'numero': fila['numero'],
-                        'nombre_regla': nombre_regla,
-                        'descripcion': descripcion,
-                        'monto_multa': monto_multa,
-                        'estado': estado
-                    }
-                    
-                    st.markdown("---")
-
-                # Botones para edición
-                col_edit1, col_edit2, col_edit3 = st.columns([1, 1, 1])
-                
-                with col_edit1:
-                    if st.button("➕ Agregar regla", use_container_width=True, key="editar_agregar"):
-                        if len(st.session_state.filas_edicion_reglamento) < 50:
-                            nuevo_numero = len(st.session_state.filas_edicion_reglamento) + 1
-                            st.session_state.filas_edicion_reglamento.append({
-                                'id_reglamento': None,  # Nuevo registro
-                                'numero': nuevo_numero,
-                                'nombre_regla': '',
-                                'descripcion': '',
-                                'monto_multa': 0.00,
-                                'estado': 1
-                            })
-                            st.rerun()
-                
-                with col_edit2:
-                    if st.button("💾 Guardar Cambios", use_container_width=True, key="editar_guardar"):
-                        # Procesar cambios
-                        cambios_realizados = 0
-                        errores_edicion = []
-                        
-                        for fila in st.session_state.filas_edicion_reglamento:
-                            try:
-                                if fila['id_reglamento']:  # UPDATE existente
-                                    cursor.execute("""
-                                        UPDATE Reglamento 
-                                        SET nombre_regla=%s, descripcion=%s, monto_multa=%s, ID_Estado=%s
-                                        WHERE ID_Reglamento=%s
-                                    """, (
-                                        fila['nombre_regla'].strip(),
-                                        fila['descripcion'].strip() if fila['descripcion'] else None,
-                                        fila['monto_multa'],
-                                        fila['estado'],
-                                        fila['id_reglamento']
-                                    ))
-                                else:  # INSERT nuevo
-                                    cursor.execute("""
-                                        INSERT INTO Reglamento 
-                                        (ID_Grupo, nombre_regla, descripcion, monto_multa, ID_Estado) 
-                                        VALUES (%s, %s, %s, %s, %s)
-                                    """, (
-                                        st.session_state.grupo_a_editar,
-                                        fila['nombre_regla'].strip(),
-                                        fila['descripcion'].strip() if fila['descripcion'] else None,
-                                        fila['monto_multa'],
-                                        fila['estado']
-                                    ))
-                                cambios_realizados += 1
-                            except Exception as e:
-                                errores_edicion.append(f"Error en regla '{fila['nombre_regla']}': {e}")
-                        
-                        if errores_edicion:
-                            con.rollback()
-                            st.error("❌ Errores al guardar cambios:")
-                            for error in errores_edicion:
-                                st.write(f"- {error}")
-                        else:
-                            con.commit()
-                            st.success(f"✅ Cambios guardados exitosamente! {cambios_realizados} regla(s) actualizadas.")
-                            # Limpiar estado de edición
-                            if 'grupo_a_editar' in st.session_state:
-                                del st.session_state.grupo_a_editar
-                            if 'filas_edicion_reglamento' in st.session_state:
-                                del st.session_state.filas_edicion_reglamento
-                            st.rerun()
-                
-                with col_edit3:
-                    if st.button("❌ Cancelar Edición", use_container_width=True, key="editar_cancelar"):
-                        if 'grupo_a_editar' in st.session_state:
-                            del st.session_state.grupo_a_editar
-                        if 'filas_edicion_reglamento' in st.session_state:
-                            del st.session_state.filas_edicion_reglamento
-                        st.rerun()
+                if st.button("❌ Cancelar Edición"):
+                    del st.session_state.reglamento_a_editar
+                    st.rerun()
 
     except Exception as e:
         st.error(f"❌ Error general: {e}")
