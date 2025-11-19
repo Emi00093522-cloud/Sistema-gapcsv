@@ -31,11 +31,14 @@ def verificar_usuario(usuario, contrasena):
         cursor.execute(query, (usuario, contrasena_hash))
         result = cursor.fetchone()
         
-        # 🔥 FILTRAR SOLO LOS CARGOS PERMITIDOS
-        if result and result["cargo"] in ["promotora", "administrador", "secretaria"]:
+        # 🔥 FILTRAR SOLO LOS CARGOS PERMITIDOS (CON MAYÚSCULA)
+        cargos_permitidos = ["Administrador", "Promotora", "Secretaria"]
+        if result and result["cargo"] in cargos_permitidos:
             return result
+        elif result:
+            st.error(f"❌ Usuario no autorizado. Cargo: {result['cargo']}")
+            return None
         else:
-            st.error("❌ Usuario no autorizado para acceder al sistema.")
             return None
 
     except Exception as e:
