@@ -8,7 +8,7 @@ from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo
 from modulos.reuniones import mostrar_reuniones
-from modulos.asistencia import mostrar_asistencia   # <-- NUEVO MODULO
+from modulos.asistencia import mostrar_asistencia
 
 # ⚙️ Configuración
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="centered")
@@ -19,205 +19,201 @@ if "sesion_iniciada" not in st.session_state:
 if "pagina_actual" not in st.session_state:
     st.session_state["pagina_actual"] = "inicio"
 
-# --- NAVEGACIÓN LATERAL ---
-st.sidebar.title("📋 Menú principal")
-
-# Estilos
+# Estilos globales
 st.markdown("""
-    <style>
-        .titulo { text-align:center; color:#6C3483; font-size:2.2em; font-weight:bold; }
-        .subtitulo { text-align:center; color:#2E4053; font-size:1.3em; }
-        .descripcion { background:#F8F9F9; border-radius:12px; padding:20px; margin-top:10px; box-shadow:0 0 10px rgba(108,52,131,.2); }
-        .emoji { font-size:1.4em; }
-        .sesion-cerrada { text-align:center; padding:20px; background:#f8f9fa; border-radius:10px; margin:20px 0; }
-    </style>
+<style>
+.btn-opcion {
+    width: 100%;
+    background:#E8DAEF;
+    padding:15px;
+    border-radius:12px;
+    text-align:center;
+    margin:8px 0;
+    font-size:1.2em;
+    border:2px solid #BB8FCE;
+}
+.btn-opcion:hover {
+    background:#D2B4DE;
+    cursor:pointer;
+}
+.titulo-panel {
+    text-align:center;
+    color:#6C3483;
+    font-size:2em;
+    font-weight:bold;
+    margin-bottom:10px;
+}
+</style>
 """, unsafe_allow_html=True)
 
-def dashboard_promotora(usuario):
-    st.title("👩‍💼 Dashboard de Promotora")
-    st.success(f"¡Bienvenida, {usuario}!")
-    st.info("Desde aquí puedes gestionar promotoras, distritos y grupos.")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Tu Cargo", "PROMOTORA")
-    with col2:
-        st.metric("Acciones Disponibles", "3")
-    with col3:
-        st.metric("Módulos", "Promotora, Distrito, Grupos")
+# ------------------------------------------------------------------
 
-# Utilidad para menús
-def make_menu(options_dict, default_label=None, key="menu_principal"):
-    labels = list(options_dict.keys())
-    if default_label and default_label in labels:
-        index = labels.index(default_label)
-    else:
-        index = 0
-    chosen = st.sidebar.selectbox("Ir a:", labels, index=index, key=key)
-    return options_dict[chosen]
+# PANEL PARA ADMINISTRADORA
+def panel_admin():
+    st.markdown("<h2 class='titulo-panel'>Panel de Administradora</h2>", unsafe_allow_html=True)
+    
+    if st.button("📊 Consolidado general por distrito", key="admin_cons"):
+        st.session_state["pagina_actual"] = "admin_consolidado"
+        st.rerun()
 
-# Si hay sesión iniciada
+    if st.button("🧑‍💼 Registrar usuario", key="admin_reg"):
+        st.session_state["pagina_actual"] = "admin_registrar_usuario"
+        st.rerun()
+
+    if st.button("🚪 Cerrar sesión"):
+        st.session_state.clear()
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["pagina_actual"] = "inicio"
+        st.rerun()
+
+# PANEL DE SECRETARIA
+def panel_secretaria():
+    st.markdown("<h2 class='titulo-panel'>Panel de Secretaria</h2>", unsafe_allow_html=True)
+
+    if st.button("👥 Registrar Grupo"):
+        st.session_state["pagina_actual"] = "grupos_registrar"
+        st.rerun()
+
+    if st.button("📜 Registrar Reglamentos"):
+        st.session_state["pagina_actual"] = "reglamentos_registrar"
+        st.rerun()
+
+    if st.button("👥 Registrar Miembros"):
+        st.session_state["pagina_actual"] = "miembro_registrar"
+        st.rerun()
+
+    if st.button("💰 Registrar Préstamo"):
+        st.session_state["pagina_actual"] = "prestamo_registrar"
+        st.rerun()
+
+    if st.button("📅 Registrar Reuniones"):
+        st.session_state["pagina_actual"] = "reuniones_registrar"
+        st.rerun()
+
+    if st.button("📝 Control de asistencia"):
+        st.session_state["pagina_actual"] = "asistencia_registrar"
+        st.rerun()
+
+    if st.button("🚪 Cerrar sesión"):
+        st.session_state.clear()
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["pagina_actual"] = "inicio"
+        st.rerun()
+
+# PANEL DE PRESIDENTE
+def panel_presidente():
+    st.markdown("<h2 class='titulo-panel'>Panel de Presidente</h2>", unsafe_allow_html=True)
+
+    if st.button("👥 Registrar Grupo"):
+        st.session_state["pagina_actual"] = "grupos_registrar"
+        st.rerun()
+
+    if st.button("📜 Registrar Reglamentos"):
+        st.session_state["pagina_actual"] = "reglamentos_registrar"
+        st.rerun()
+
+    if st.button("👥 Registrar Miembros"):
+        st.session_state["pagina_actual"] = "miembro_registrar"
+        st.rerun()
+
+    if st.button("💰 Registrar Préstamo"):
+        st.session_state["pagina_actual"] = "prestamo_registrar"
+        st.rerun()
+
+    if st.button("🚪 Cerrar sesión"):
+        st.session_state.clear()
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["pagina_actual"] = "inicio"
+        st.rerun()
+
+# PANEL DE PROMOTORA
+def panel_promotora():
+    st.markdown("<h2 class='titulo-panel'>Panel de Promotora</h2>", unsafe_allow_html=True)
+
+    if st.button("📈 Dashboard promotora"):
+        st.session_state["pagina_actual"] = "prom_dashboard"
+        st.rerun()
+
+    if st.button("👩‍💼 Registrar promotora"):
+        st.session_state["pagina_actual"] = "prom_registrar"
+        st.rerun()
+
+    if st.button("🏛️ Registrar distrito"):
+        st.session_state["pagina_actual"] = "dist_registrar"
+        st.rerun()
+
+    if st.button("🚪 Cerrar sesión"):
+        st.session_state.clear()
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["pagina_actual"] = "inicio"
+        st.rerun()
+
+# ------------------------------------------------------------------
+
+# RENDER DEL SISTEMA
 if st.session_state["sesion_iniciada"]:
 
     usuario = st.session_state.get("usuario", "Usuario")
-    tipo = (st.session_state.get("tipo_usuario", "Desconocido") or "").strip().lower()
-    cargo = st.session_state.get("cargo_de_usuario", "Cargo").strip().upper()
+    cargo = st.session_state.get("cargo_de_usuario", "").strip().upper()
+    tipo = st.session_state.get("tipo_usuario", "").strip().lower()
 
-    st.sidebar.write(f"👤 {usuario} ({cargo})")
-
-    # SECRETARIA o PRESIDENTE: menú reducido
-    if cargo in ("SECRETARIA", "PRESIDENTE"):
-
-        # Menú especial solo para SECRETARIA
-        if cargo == "SECRETARIA":
-            options = {
-                "👥 Registro de grupos": "grupos_registrar",
-                "📜 Registro de reglamentos": "reglamentos_registrar",
-                "👥 Registro de miembro": "miembro_registrar",
-                "💰 Registro de préstamo": "prestamo_registrar",
-                "📅 Registro de reuniones": "reuniones_registrar",
-                "📝 Control de asistencia": "asistencia_registrar",  # <-- NUEVA OPCION
-                "🚪 Cerrar sesión": "logout"
-            }
-        else:
-            # PRESIDENTE (sin reuniones ni asistencia)
-            options = {
-                "👥 Registro de grupos": "grupos_registrar",
-                "📜 Registro de reglamentos": "reglamentos_registrar",
-                "👥 Registro de miembro": "miembro_registrar",
-                "💰 Registro de préstamo": "prestamo_registrar",
-                "🚪 Cerrar sesión": "logout"
-            }
-
-        route = make_menu(options, default_label="👥 Registro de grupos", key="menu_secret_pres_reducido")
-
-        if route == "grupos_registrar":
-            st.title("👥 Registrar Grupo")
-            mostrar_grupos()
-        elif route == "reglamentos_registrar":
-            st.title("📜 Registrar Reglamento")
-            mostrar_reglamentos()
-        elif route == "miembro_registrar":
-            st.title("👥 Registro de miembros")
-            mostrar_miembro()
-        elif route == "prestamo_registrar":
-            st.title("💰 Registrar Préstamo")
-            mostrar_prestamo()
-        elif route == "reuniones_registrar":
-            st.title("📅 Registro de Reuniones")
-            mostrar_reuniones()
-        elif route == "asistencia_registrar":   # <-- RUTA NUEVA
-            st.title("📝 Control de Asistencia")
-            mostrar_asistencia()
-        elif route == "logout":
-            st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
-
+    # Mostrar el panel correspondiente
+    if cargo == "SECRETARIA":
+        panel_secretaria()
+    elif cargo == "PRESIDENTE":
+        panel_presidente()
+    elif cargo == "PROMOTORA" or tipo == "promotora":
+        panel_promotora()
+    elif tipo == "administradora":
+        panel_admin()
     else:
-        # Usuario normal por tipo
-        if tipo == "administradora":
-            options = {
-                "📊 Consolidado por distrito": "admin_consolidado",
-                "🧑‍💻 Registrar usuario": "admin_registrar_usuario",
-                "🚪 Cerrar sesión": "logout"
-            }
-            route = make_menu(options, default_label="📊 Consolidado por distrito")
+        st.write("Usuario sin rol definido.")
 
-            if route == "admin_consolidado":
-                st.title("📊 Consolidado general por distrito 💲")
-            elif route == "admin_registrar_usuario":
-                registrar_usuario()
-            elif route == "logout":
-                st.session_state.clear()
-                st.session_state["sesion_iniciada"] = False
-                st.session_state["pagina_actual"] = "sesion_cerrada"
-                st.rerun()
+    # ----------- RUTAS A LOS MÓDULOS -------------
+    if st.session_state["pagina_actual"] == "grupos_registrar":
+        mostrar_grupos()
 
-        elif (tipo == "promotora") or (cargo == "PROMOTORA"):
-            options = {
-                "📈 Dashboard promotora": "prom_dashboard",
-                "👩‍💼 Registro de promotora": "prom_registrar",
-                "🏛️ Registro de distrito": "dist_registrar",
-                "🚪 Cerrar sesión": "logout"
-            }
-            route = make_menu(options, default_label="📈 Dashboard promotora")
+    elif st.session_state["pagina_actual"] == "reglamentos_registrar":
+        mostrar_reglamentos()
 
-            if route == "prom_dashboard":
-                dashboard_promotora(usuario)
-            elif route == "prom_registrar":
-                st.title("👩‍💼 Registrar Nueva Promotora")
-                mostrar_promotora()
-            elif route == "dist_registrar":
-                st.title("🏛️ Registrar Nuevo Distrito")
-                mostrar_distrito()
-            elif route == "logout":
-                st.session_state.clear()
-                st.session_state["sesion_iniciada"] = False
-                st.session_state["pagina_actual"] = "sesion_cerrada"
-                st.rerun()
+    elif st.session_state["pagina_actual"] == "miembro_registrar":
+        mostrar_miembro()
 
-        else:
-            # Otros usuarios
-            options = {
-                "👥 Registro de grupos": "grupos_registrar",
-                "📜 Registro de reglamentos": "reglamentos_registrar",
-                "👥 Registro de miembro": "miembro_registrar",
-                "🚪 Cerrar sesión": "logout"
-            }
-            route = make_menu(options, default_label="👥 Registro de grupos")
+    elif st.session_state["pagina_actual"] == "prestamo_registrar":
+        mostrar_prestamo()
 
-            if route == "grupos_registrar":
-                st.title("👥 Registrar Nuevo Grupo")
-                mostrar_grupos()
-            elif route == "reglamentos_registrar":
-                st.title("📜 Registrar Reglamento")
-                mostrar_reglamentos()
-            elif route == "miembro_registrar":
-                st.title("👥 Registro de miembros")
-                mostrar_miembro()
-            elif route == "logout":
-                st.session_state.clear()
-                st.session_state["sesion_iniciada"] = False
-                st.session_state["pagina_actual"] = "sesion_cerrada"
-                st.rerun()
+    elif st.session_state["pagina_actual"] == "reuniones_registrar":
+        mostrar_reuniones()
 
-# Sin sesión activa
-else:
-    if st.session_state["pagina_actual"] == "sesion_cerrada":
-        st.markdown("<div class='sesion-cerrada'>", unsafe_allow_html=True)
-        st.markdown("### ✅ Sesión finalizada")
-        st.markdown("<p>Has cerrado sesión exitosamente.</p>", unsafe_allow_html=True)
-        if st.button("🏠 Volver al inicio"):
-            st.session_state["pagina_actual"] = "inicio"
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+    elif st.session_state["pagina_actual"] == "asistencia_registrar":
+        mostrar_asistencia()
 
-    elif st.session_state["pagina_actual"] == "inicio":
-        st.markdown("<h1 class='titulo'> Bienvenido al Sistema GAPCSV </h1>", unsafe_allow_html=True)
-        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Prestamo Comunitario </h3>", unsafe_allow_html=True)
-        st.markdown("""
-        <div class='descripcion'>
-            <p class='emoji'>Este sistema te ayuda a registrar, monitorear y consolidar los ahorros de los grupos comunitarios.</p>
-            <p class='emoji'>Promueve la colaboración, la transparencia y el crecimiento económico local 🤝.</p>
-            <p>Si tienes cuenta, inicia sesión.<br>
-            Si aún no tienes usuario, puedes registrarte fácilmente. 🌱</p>
-        </div>
-        """, unsafe_allow_html=True)
+    elif st.session_state["pagina_actual"] == "prom_registrar":
+        mostrar_promotora()
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔑 Iniciar sesión"):
-                st.session_state["pagina_actual"] = "login"
-                st.rerun()
-        with col2:
-            if st.button("📝 Registrarme"):
-                st.session_state["pagina_actual"] = "registro"
-                st.rerun()
+    elif st.session_state["pagina_actual"] == "dist_registrar":
+        mostrar_distrito()
 
-    elif st.session_state["pagina_actual"] == "login":
-        login()
+    elif st.session_state["pagina_actual"] == "prom_dashboard":
+        st.title("📈 Dashboard de Promotora")
 
-    elif st.session_state["pagina_actual"] == "registro":
+    elif st.session_state["pagina_actual"] == "admin_consolidado":
+        st.title("📊 Consolidado general por distrito")
+
+    elif st.session_state["pagina_actual"] == "admin_registrar_usuario":
         registrar_usuario()
 
+else:
+    # Pantallas sin sesión
+    if st.session_state["pagina_actual"] == "login":
+        login()
+    elif st.session_state["pagina_actual"] == "registro":
+        registrar_usuario()
+    else:
+        st.title("Bienvenido al Sistema GAPCSV")
+        if st.button("🔑 Iniciar sesión"):
+            st.session_state["pagina_actual"] = "login"
+            st.rerun()
+        if st.button("📝 Registrarme"):
+            st.session_state["pagina_actual"] = "registro"
+            st.rerun()
