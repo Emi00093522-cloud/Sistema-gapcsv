@@ -8,6 +8,7 @@ from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo
 from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
+from modulos.reglamentos import mostrat_reglamentos
 
 # -------- CONFIG -----------
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="wide")
