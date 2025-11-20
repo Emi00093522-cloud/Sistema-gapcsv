@@ -16,7 +16,6 @@ def mostrar_prestamo():
         cursor.execute("SELECT ID_Estado_prestamo, estado_prestamo FROM Estado_prestamo")
         estados_prestamo = cursor.fetchall()
 
-        # Formulario
         with st.form("form_prestamo"):
             st.subheader("Datos del Préstamo")
 
@@ -39,13 +38,13 @@ def mostrar_prestamo():
                                     step=100.00,
                                     format="%.2f")
 
-            # 🔵 Tasa de interés MENSUAL (YA NO ANUAL)
-            total_interes = st.number_input("Tasa de interés MENSUAL (%) *",
-                                            min_value=0.00,
-                                            max_value=100.00,
-                                            value=2.00,
-                                            step=0.10,
-                                            format="%.2f")
+            # 🔵 Tasa de interés MENSUAL (real)
+            tasa_mensual = st.number_input("Tasa de interés MENSUAL (%) *",
+                                           min_value=0.00,
+                                           max_value=100.00,
+                                           value=5.00,
+                                           step=0.10,
+                                           format="%.2f")
 
             # Estado préstamo
             if estados_prestamo:
@@ -57,7 +56,7 @@ def mostrar_prestamo():
                 ID_Estado_prestamo = None
 
             # Plazo
-            plazo = st.number_input("Plazo (meses) *", min_value=1, max_value=120, value=12, step=1)
+            plazo = st.number_input("Plazo (meses) *", min_value=1, max_value=120, value=6, step=1)
 
             # Propósito
             proposito = st.text_area("Propósito del préstamo (opcional)",
@@ -66,27 +65,31 @@ def mostrar_prestamo():
                                      height=80)
 
             # ================================
-            # 🔵 CÁLCULOS CORRECTOS (SISTEMA FRANCÉS)
+            # 🔵 CÁLCULOS DE INTERÉS MENSUAL SIMPLE
             # ================================
             if monto > 0 and plazo > 0:
 
-                # AHORA LA TASA ES MENSUAL DIRECTA
-                tasa_mensual = (total_interes / 100)
+                # Convertir tasa mensual a decimal
+                tasa_decimal = tasa_mensual / 100
 
-                if tasa_mensual > 0:
-                    cuota_mensual = (monto * tasa_mensual) / (1 - (1 + tasa_mensual) ** (-plazo))
-                else:
-                    cuota_mensual = monto / plazo
+                # Interés de un mes
+                interes_mensual = monto * tasa_decimal
 
-                interes_total = (cuota_mensual * plazo) - monto
+                # Interés total
+                interes_total = interes_mensual * plazo
+
+                # Total a pagar
                 monto_total = monto + interes_total
 
-                # Mostrar resultado
+                # Cuota fija mensual simple
+                cuota_mensual = monto_total / plazo
+
                 st.info("📊 **Resumen del préstamo:**")
-                st.write(f"- Tasa mensual: **{tasa_mensual * 100:.4f}%**")
+                st.write(f"- Tasa mensual: **{tasa_mensual:.2f}%**")
+                st.write(f"- Interés mensual: **${interes_mensual:,.2f}**")
                 st.write(f"- Interés total a pagar: **${interes_total:,.2f}**")
                 st.write(f"- Monto total a pagar: **${monto_total:,.2f}**")
-                st.write(f"- 💵 **Cuota mensual real: ${cuota_mensual:,.2f}**")
+                st.write(f"- 💵 **Cuota mensual: ${cuota_mensual:,.2f}**")
 
             enviar = st.form_submit_button("✅ Registrar Préstamo")
 
@@ -96,16 +99,12 @@ def mostrar_prestamo():
 
                 if ID_Miembro is None:
                     errores.append("⚠ Debes seleccionar un miembro.")
-
                 if monto <= 0:
                     errores.append("⚠ El monto debe ser mayor a 0.")
-
-                if total_interes < 0:
-                    errores.append("⚠ La tasa de interés no puede ser negativa.")
-
+                if tasa_mensual < 0:
+                    errores.append("⚠ La tasa mensual no puede ser negativa.")
                 if plazo <= 0:
                     errores.append("⚠ El plazo debe ser mayor a 0.")
-
                 if ID_Estado_prestamo is None:
                     errores.append("⚠ Debes seleccionar un estado del préstamo.")
 
@@ -121,18 +120,14 @@ def mostrar_prestamo():
                             (ID_Miembro, fecha_desembolso, monto, total_interes,
                              ID_Estado_prestamo, plazo, proposito)
                             VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """, (ID_Miembro, fecha_desembolso, monto, total_interes,
+                        """, (ID_Miembro, fecha_desembolso, monto, tasa_mensual,
                               ID_Estado_prestamo, plazo, proposito_val))
 
                         con.commit()
 
                         st.success("✅ Préstamo registrado correctamente!")
-                        st.success(f"- Monto: ${monto:,.2f}")
-                        st.success(f"- Tasa mensual: {total_interes}%")
-                        st.success(f"- Plazo: {plazo} meses")
                         st.success(f"- Interés total: ${interes_total:,.2f}")
-                        st.success(f"- Monto total: ${monto_total:,.2f}")
-                        st.success(f"- 💵 **Cuota mensual: ${cuota_mensual:,.2f}**")
+                        st.success(f"- Cuota mensual: ${cuota_mensual:,.2f}")
 
                         if st.button("🆕 Registrar otro préstamo"):
                             st.rerun()
