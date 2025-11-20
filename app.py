@@ -134,8 +134,7 @@ def panel_secretaria():
     with tabs[1]: mostrar_reglamentos()
     with tabs[2]: mostrar_miembro()
     
-    with tabs[3]: mostrar_gestion_integrada()
-    with tabs[4]: mostrar_asistencia()
+    with tabs[3]: mostrar_gestion_integrada()w
 
     with tabs[5]:
         if st.button("Cerrar sesión"):
