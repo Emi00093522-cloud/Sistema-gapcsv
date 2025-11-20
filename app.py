@@ -1,8 +1,4 @@
 import streamlit as st
-from datetime import datetime
-from modulos.config.conexion import obtener_conexion
-import pandas as pd
-
 from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
 from modulos.promotora import mostrar_promotora
@@ -15,347 +11,275 @@ from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 
 
-# ==========================================================
-#   FUNCIONES INTERNAS
-# ==========================================================
+# ---------------------------------------------------------
+# ESTILO AZUL CLARO PREMIUM
+# ---------------------------------------------------------
+def estilo_azul_claro_premium():
+    st.markdown("""
+    <style>
 
-def _get_cargo_detectado():
-    return st.session_state.get("cargo_de_usuario", "").strip().upper()
+    .stApp {
+        background: linear-gradient(135deg, #eaf3ff 0%, #dcecff 50%, #cfe5ff 100%);
+        font-family: 'Segoe UI', sans-serif;
+    }
 
-def _tiene_rol_secretaria():
-    return _get_cargo_detectado() == "SECRETARIA"
+    h1 {
+        color: #1B4F72 !important;
+        font-weight: 800 !important;
+        text-shadow: 0px 1px 3px rgba(0,0,0,0.1);
+    }
 
-# ==========================================================
-#   MÓDULO PRINCIPAL
-# ==========================================================
+    h2, h3 {
+        color: #21618C !important;
+        font-weight: 700 !important;
+    }
 
-def mostrar_reuniones():
-    # Títulos
-    st.header("📅 Registro de Reuniones")
-    st.subheader("📌 Registro de Reuniones por Distrito y Grupo")
+    .stTabs [data-baseweb="tab"] {
+        color: #1b4f72 !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+    }
 
-    if not _tiene_rol_secretaria():
-        st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede ver y editar las reuniones.")
-        return
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #2874a6 !important;
+    }
 
-    # Conexión
-    try:
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-    except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
-        return
+    .stTabs [aria-selected="true"] {
+        color: white !important;
+        background: #2874a6 !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+    }
 
-    # ======================================================
-    # 1. SELECCIONAR DISTRITO
-    # ======================================================
-    try:
-        cursor.execute("SELECT ID_Distrito, nombre FROM Distrito ORDER BY nombre")
-        distritos = cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error al cargar distritos: {e}")
-        distritos = []
+    .stButton > button {
+        background: linear-gradient(135deg, #2874a6 0%, #1b4f72 100%) !important;
+        color: white !important;
+        border: none !important;
+        padding: 12px 24px !important;
+        border-radius: 10px !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 3px 10px rgba(40,116,166,0.25) !important;
+        transition: 0.3s ease-in-out;
+    }
 
-    if not distritos:
-        st.error("⚠️ No existen Distritos registrados.")
-        cursor.close()
-        con.close()
-        return
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #3598db 0%, #21618c 100%) !important;
+        box-shadow: 0 4px 14px rgba(40,116,166,0.35) !important;
+        transform: translateY(-2px);
+    }
 
-    mapa_distritos = {f"{d['ID_Distrito']} - {d['nombre']}": d['ID_Distrito'] for d in distritos}
-    distrito_label = st.selectbox("Seleccione Distrito", options=list(mapa_distritos.keys()))
-    id_distrito = mapa_distritos[distrito_label]
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div,
+    .stNumberInput > div > div > input {
+        border-radius: 8px !important;
+        border: 1px solid #aed6f1 !important;
+        padding: 10px !important;
+    }
 
-    st.write("")
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div:focus,
+    .stNumberInput > div > div > input:focus {
+        border: 1px solid #3498db !important;
+        box-shadow: 0 0 6px rgba(52,152,219,0.4) !important;
+    }
 
-    # ======================================================
-    # 2. SELECCIONAR GRUPO SEGÚN DISTRITO
-    # ======================================================
-    try:
-        cursor.execute(
-            "SELECT ID_Grupo, nombre FROM Grupo WHERE ID_Distrito = %s ORDER BY nombre",
-            (id_distrito,)
-        )
-        grupos = cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error al cargar grupos: {e}")
-        grupos = []
+    .banner-container {
+        background: white;
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid #d6eaf8;
+        margin-bottom: 25px;
+    }
 
-    if not grupos:
-        st.warning("⚠️ Este distrito no tiene grupos registrados.")
-        cursor.close()
-        con.close()
-        return
+    .banner-img {
+        width: 100%;
+        border-radius: 12px;
+    }
 
-    mapa_grupos = {f"{g['ID_Grupo']} - {g['nombre']}": g['ID_Grupo'] for g in grupos}
-    grupo_label = st.selectbox("Seleccione Grupo", list(mapa_grupos.keys()))
-    id_grupo = mapa_grupos[grupo_label]
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.write("---")
 
-    # ======================================================
-    # 3. CARGAR REUNIONES DEL GRUPO
-    # ======================================================
-    try:
-        cursor.execute("""
-            SELECT ID_Reunion, fecha, Hora, lugar, total_presentes, ID_Estado_reunion
-            FROM Reunion
-            WHERE ID_Grupo = %s
-            ORDER BY fecha DESC, Hora DESC
-        """, (id_grupo,))
-        reuniones = cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error al cargar reuniones: {e}")
-        reuniones = []
+# ---------------------------------------------------------
+# CONFIGURACIÓN
+# ---------------------------------------------------------
+st.set_page_config(page_title="Sistema GAPCSV", page_icon="💙", layout="wide")
+estilo_azul_claro_premium()
 
-    st.subheader("📄 Reuniones registradas")
+if "sesion_iniciada" not in st.session_state:
+    st.session_state["sesion_iniciada"] = False
+if "pagina_actual" not in st.session_state:
+    st.session_state["pagina_actual"] = "inicio"
 
-    if not reuniones:
-        st.info("No hay reuniones registradas para este grupo.")
+
+# ---------------------------------------------------------
+# PANEL SECRETARIA
+# ---------------------------------------------------------
+def panel_secretaria():
+    st.title("💼 Panel de Secretaria")
+
+    tabs = st.tabs([
+        "👥 Registrar Grupo",
+        "📜 Reglamentos",
+        "👥 Miembros",
+        "💰 Préstamos",
+        "📅 Reuniones",
+        "📝 Asistencia",
+        "🚪 Cerrar sesión"
+    ])
+
+    with tabs[0]: mostrar_grupos()
+    with tabs[1]: mostrar_reglamentos()
+    with tabs[2]: mostrar_miembro()
+    with tabs[3]: mostrar_prestamo()
+    with tabs[4]: mostrar_reuniones()
+    with tabs[5]: mostrar_asistencia()
+
+    with tabs[6]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+
+# ---------------------------------------------------------
+# PANEL PRESIDENTE
+# ---------------------------------------------------------
+def panel_presidente():
+    st.title("👑 Panel de Presidente")
+
+    tabs = st.tabs([
+        "👥 Registrar Grupo",
+        "📜 Reglamentos",
+        "👥 Miembros",
+        "💰 Préstamos",
+        "🚪 Cerrar sesión"
+    ])
+
+    with tabs[0]: mostrar_grupos()
+    with tabs[1]: mostrar_reglamentos()
+    with tabs[2]: mostrar_miembro()
+    with tabs[3]: mostrar_prestamo()
+
+    with tabs[4]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+
+# ---------------------------------------------------------
+# PANEL PROMOTORA
+# ---------------------------------------------------------
+def panel_promotora(usuario):
+    st.title("🤝 Panel de Promotora")
+
+    tabs = st.tabs([
+        "📈 Dashboard",
+        "👩‍💼 Registro Promotora",
+        "🏛️ Distrito",
+        "🚪 Cerrar sesión"
+    ])
+
+    with tabs[0]:
+        st.success(f"Bienvenida, {usuario} 🌟")
+        st.info("📊 Dashboard general de promotoras en desarrollo...")
+
+    with tabs[1]: mostrar_promotora()
+    with tabs[2]: mostrar_distrito()
+
+    with tabs[3]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+
+# ---------------------------------------------------------
+# PANEL ADMINISTRADORA
+# ---------------------------------------------------------
+def panel_admin():
+    st.title("🛡️ Panel de Administradora")
+
+    tabs = st.tabs([
+        "📊 Consolidado Distritos",
+        "🧑‍💻 Registrar Usuario",
+        "🚪 Cerrar sesión"
+    ])
+
+    with tabs[0]:
+        st.info("📊 Aquí irá el consolidado general por distrito.")
+
+    with tabs[1]: registrar_usuario()
+
+    with tabs[2]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+
+# ---------------------------------------------------------
+# FLUJO PRINCIPAL
+# ---------------------------------------------------------
+if st.session_state["sesion_iniciada"]:
+
+    usuario = st.session_state.get("usuario", "Usuario")
+    tipo = (st.session_state.get("tipo_usuario", "") or "").lower()
+    cargo = (st.session_state.get("cargo_de_usuario", "") or "").upper()
+
+    if cargo == "SECRETARIA":
+        panel_secretaria()
+
+    elif cargo == "PRESIDENTE":
+        panel_presidente()
+
+    elif tipo == "promotora" or cargo == "PROMOTORA":
+        panel_promotora(usuario)
+
+    elif tipo == "administradora":
+        panel_admin()
+
     else:
-        filas = []
-        for r in reuniones:
-            # Manejo seguro de fecha y hora
-            fecha_val = r.get("fecha")
-            if hasattr(fecha_val, "strftime"):
-                fecha_str = fecha_val.strftime("%Y-%m-%d")
-            else:
-                fecha_str = str(fecha_val) if fecha_val is not None else ""
+        st.error("⚠️ Tipo de usuario no reconocido.")
 
-            hora_val = r.get("Hora")
-            hora_str = ""
-            if hora_val:
-                if hasattr(hora_val, "strftime"):
-                    hora_str = hora_val.strftime("%H:%M")
-                else:
-                    hora_str = str(hora_val)
+else:
 
-            filas.append({
-                "ID": r["ID_Reunion"],
-                "Fecha": fecha_str,
-                "Hora": hora_str,
-                "Lugar": r.get("lugar") or "",
-                "Estado": r.get("ID_Estado_reunion"),
-                "Presentes": r.get("total_presentes") or 0
-            })
-        st.dataframe(pd.DataFrame(filas), use_container_width=True)
+    # CIERRE DE SESIÓN
+    if st.session_state["pagina_actual"] == "sesion_cerrada":
+        st.success("Sesión finalizada.")
+        if st.button("Volver al inicio"):
+            st.session_state["pagina_actual"] = "inicio"
+            st.rerun()
 
-    st.write("---")
+    # -----------------------------------------------------
+    # PANTALLA DE INICIO CON IMAGEN + ESTILO PREMIUM
+    # -----------------------------------------------------
+    elif st.session_state["pagina_actual"] == "inicio":
+        st.markdown("""
+        <div class="banner-container">
+            <img src="AQUÍ_TU_IMAGEN.png" class="banner-img" alt="Banner de ahorro y préstamos comunitarios">
+        </div>
+        """, unsafe_allow_html=True)
 
-    # ======================================================
-    # 4. FORMULARIO: CREAR O EDITAR
-    # ======================================================
-    st.subheader("✏️ Crear o Editar Reunión")
+        st.title("Bienvenida al Sistema GAPCSV")
+        st.subheader("Grupos de  Ahorro y Préstamos Comunitarios 🤝🌱💰")
 
-    opciones = ["➕ Nueva reunión"]
-    mapa_reuniones = {"➕ Nueva reunión": None}
-
-    for r in reuniones:
-        fecha_val = r.get("fecha")
-        if hasattr(fecha_val, "strftime"):
-            fecha_str = fecha_val.strftime("%Y-%m-%d")
-        else:
-            fecha_str = str(fecha_val) if fecha_val is not None else ""
-
-        hora_val = r.get("Hora")
-        hora_str = ""
-        if hora_val:
-            if hasattr(hora_val, "strftime"):
-                hora_str = hora_val.strftime("%H:%M")
-            else:
-                hora_str = str(hora_val)
-
-        etiqueta = f"{r['ID_Reunion']} — {fecha_str} {hora_str}"
-        opciones.append(etiqueta)
-        mapa_reuniones[etiqueta] = r["ID_Reunion"]
-
-    seleccion = st.selectbox("Seleccione una reunión", opciones)
-    id_reunion = mapa_reuniones[seleccion]
-
-    # Valores por defecto
-    if id_reunion is None:
-        fecha_def = datetime.now().date()
-        hora_def = datetime.now().time().replace(second=0, microsecond=0)
-        lugar_def = ""
-        pres_def = ""
-        estado_def = 1
-    else:
-        fila = next((x for x in reuniones if x["ID_Reunion"] == id_reunion), {})
-        fecha_def = fila.get("fecha") or datetime.now().date()
-        hora_def = fila.get("Hora") or datetime.now().time().replace(second=0, microsecond=0)
-        lugar_def = fila.get("lugar", "")
-        pres_def = fila.get("total_presentes", "")
-        estado_def = fila.get("ID_Estado_reunion", 1)
-
-    with st.form("form_reuniones"):
         col1, col2 = st.columns(2)
         with col1:
-            fecha = st.date_input("Fecha", fecha_def)
+            if st.button("🔑 Iniciar sesión"):
+                st.session_state["pagina_actual"] = "login"
+                st.rerun()
+
         with col2:
-            hora = st.time_input("Hora", hora_def)
+            if st.button("📝 Registrarme"):
+                st.session_state["pagina_actual"] = "registro"
+                st.rerun()
 
-        lugar = st.text_input("Lugar", lugar_def)
-        total_presentes = st.text_area("Presentes", pres_def)
+    elif st.session_state["pagina_actual"] == "login":
+        login()
 
-        estados = {"Programada": 1, "Realizada": 2, "Cancelada": 3}
-        estado_texto_actual = [k for k, v in estados.items() if v == estado_def][0] if estado_def in estados.values() else "Programada"
-
-        estado_texto = st.selectbox(
-            "Estado de la reunión",
-            list(estados.keys()),
-            index=list(estados.keys()).index(estado_texto_actual)
-        )
-        estado = estados[estado_texto]
-
-        guardar = st.form_submit_button("💾 Guardar")
-        eliminar = st.form_submit_button("🗑️ Eliminar") if id_reunion else False
-
-    # GUARDAR / INSERT / UPDATE
-    if guardar:
-        try:
-            if hasattr(hora, "strftime"):
-                hora_str_full = hora.strftime("%H:%M:%S")
-            else:
-                hora_str_full = str(hora)
-
-            if id_reunion:
-                cursor.execute("""
-                    UPDATE Reunion
-                    SET fecha=%s, Hora=%s, lugar=%s, total_presentes=%s, ID_Estado_reunion=%s
-                    WHERE ID_Reunion=%s
-                """, (fecha, hora_str_full, lugar, total_presentes, int(estado), id_reunion))
-            else:
-                cursor.execute("""
-                    INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, total_presentes, ID_Estado_reunion)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (id_grupo, fecha, hora_str_full, lugar, total_presentes, int(estado)))
-
-            con.commit()
-            st.success("✅ Reunión guardada correctamente.")
-            st.rerun()
-
-        except Exception as e:
-            con.rollback()
-            st.error(f"❌ Error al guardar: {e}")
-
-    # ELIMINAR
-    if eliminar and id_reunion:
-        try:
-            cursor.execute("DELETE FROM Reunion WHERE ID_Reunion=%s", (id_reunion,))
-            con.commit()
-            st.success("🗑️ Reunión eliminada.")
-            st.rerun()
-        except Exception as e:
-            con.rollback()
-            st.error(f"❌ Error al eliminar: {e}")
-
-    # ======================================================
-    # ASISTENCIA Y PRÉSTAMO DENTRO DE LA REUNIÓN
-    # ======================================================
-    if id_reunion:
-        st.write("---")
-        st.subheader(f"📋 Gestión de la Reunión {id_reunion}")
-        
-        # Crear pestañas
-        tab1, tab2 = st.tabs(["🧍‍♂️🧍‍♀️ Asistencia", "💰 Préstamo"])
-        
-        # PESTAÑA 1: ASISTENCIA
-        with tab1:
-            st.subheader("🧍‍♂️🧍‍♀️ Registro de Asistencia")
-
-            try:
-                cursor.execute("""
-                    SELECT ID_Miembro, nombre, apellido
-                    FROM Miembro
-                    WHERE ID_Grupo = %s
-                    ORDER BY nombre, apellido
-                """, (id_grupo,))
-                miembros = cursor.fetchall()
-            except Exception as e:
-                st.error(f"❌ Error al cargar miembros: {e}")
-                miembros = []
-
-            if not miembros:
-                st.info("No hay miembros registrados en este grupo.")
-            else:
-                try:
-                    cursor.execute("""
-                        SELECT ID_Miembro, asistencia
-                        FROM MiembroXReunion
-                        WHERE ID_Reunion = %s
-                    """, (id_reunion,))
-                    asistencia_previa_rows = cursor.fetchall()
-                    asistencia_previa = {r["ID_Miembro"]: r["asistencia"] for r in asistencia_previa_rows}
-                except Exception as e:
-                    st.error(f"❌ Error al cargar asistencia previa: {e}")
-                    asistencia_previa = {}
-
-                st.write("Marque asistencia y luego presione '💾 Guardar asistencia'")
-
-                asistentes_dict = {}
-                for m in miembros:
-                    mid = m["ID_Miembro"]
-                    label = f"{m.get('nombre','')} {m.get('apellido','')}".strip()
-                    key = f"asist_{id_reunion}_{mid}"
-                    default_val = bool(asistencia_previa.get(mid, 0))
-                    asistentes_dict[mid] = st.checkbox(label, value=default_val, key=key)
-
-                if st.button("💾 Guardar asistencia", key="guardar_asistencia"):
-                    try:
-                        for mid, checked in asistentes_dict.items():
-                            asistencia_val = 1 if checked else 0
-                            cursor.execute("""
-                                INSERT INTO MiembroXReunion (ID_Miembro, ID_Reunion, asistencia, Fecha_registro)
-                                VALUES (%s, %s, %s, NOW())
-                                ON DUPLICATE KEY UPDATE
-                                    asistencia = VALUES(asistencia),
-                                    Fecha_registro = VALUES(Fecha_registro)
-                            """, (mid, id_reunion, asistencia_val))
-
-                        cursor.execute("""
-                            SELECT COUNT(*) AS total
-                            FROM MiembroXReunion
-                            WHERE ID_Reunion = %s AND asistencia = 1
-                        """, (id_reunion,))
-                        total_row = cursor.fetchone()
-                        total = int(total_row["total"]) if total_row and "total" in total_row else 0
-
-                        cursor.execute("""
-                            UPDATE Reunion SET total_presentes = %s WHERE ID_Reunion = %s
-                        """, (total, id_reunion))
-
-                        con.commit()
-                        st.success(f"✅ Asistencia guardada. Total presentes: {total}")
-                        st.rerun()
-
-                    except Exception as e:
-                        con.rollback()
-                        st.error(f"❌ Error al guardar asistencia: {e}")
-
-        # PESTAÑA 2: PRÉSTAMO
-        with tab2:
-            st.subheader("💰 Gestión de Préstamos")
-            st.info("Funcionalidad de préstamos asociados a esta reunión")
-            
-            with st.form("form_prestamo"):
-                st.write("Registrar nuevo préstamo para esta reunión:")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    monto = st.number_input("Monto del préstamo", min_value=0.0, step=0.01, key="monto_prestamo")
-                    fecha_prestamo = st.date_input("Fecha del préstamo", datetime.now().date(), key="fecha_prestamo")
-                
-                with col2:
-                    plazo = st.selectbox("Plazo (meses)", [1, 3, 6, 12, 24, 36], key="plazo_prestamo")
-                    tasa_interes = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1, key="tasa_prestamo")
-                
-                descripcion = st.text_area("Descripción del préstamo", key="desc_prestamo")
-                
-                guardar_prestamo = st.form_submit_button("💾 Guardar Préstamo")
-                
-                if guardar_prestamo:
-                    st.success(f"Préstamo de ${monto} registrado correctamente para esta reunión")
-
-    # Cerrar conexión
-    cursor.close()
-    con.close()
+    elif st.session_state["pagina_actual"] == "registro":
+        registrar_usuario()
