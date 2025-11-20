@@ -65,26 +65,13 @@ def mostrar_prestamo():
                                      max_chars=200,
                                      height=80)
 
-            # ================================
-            # 🔵 CÁLCULOS DEL PRÉSTAMO
-            # ================================
-            if monto > 0 and total_interes > 0 and plazo > 0:
-                interes_mensual = (monto * (total_interes / 100)) / 12
-                interes_total = interes_mensual * plazo
-                monto_total = monto + interes_total
-
-                # 🔥 NUEVO: cálculo de la cuota
-                cuota_mensual = monto_total / plazo
-
-                st.info("**📊 Resumen del préstamo:**")
-                st.write(f"- Interés mensual: **${interes_mensual:,.2f}**")
-                st.write(f"- Interés total a pagar: **${interes_total:,.2f}**")
-                st.write(f"- Monto total a pagar: **${monto_total:,.2f}**")
-                st.write(f"- **Cuota mensual: ${cuota_mensual:,.2f}**")
-
             enviar = st.form_submit_button("✅ Registrar Préstamo")
 
+            # =====================================================================
+            #   🔥 CÁLCULOS DEL PRÉSTAMO — AHORA DENTRO DEL ENVÍO DEL FORMULARIO 🔥
+            # =====================================================================
             if enviar:
+
                 # Validaciones
                 errores = []
 
@@ -106,34 +93,44 @@ def mostrar_prestamo():
                 if errores:
                     for e in errores:
                         st.warning(e)
-                else:
-                    try:
-                        proposito_val = proposito.strip() if proposito.strip() else None
+                    return
 
-                        cursor.execute("""
-                            INSERT INTO Prestamo
-                            (ID_Miembro, fecha_desembolso, monto, total_interes,
-                             ID_Estado_prestamo, plazo, proposito)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """, (ID_Miembro, fecha_desembolso, monto, total_interes,
-                              ID_Estado_prestamo, plazo, proposito_val))
+                # ========================
+                # 🔵 CÁLCULOS CORRECTOS
+                # ========================
+                interes_mensual = (monto * (total_interes / 100)) / 12
+                interes_total = interes_mensual * plazo
+                monto_total = monto + interes_total
+                cuota_mensual = monto_total / plazo
 
-                        con.commit()
+                # Guardar en BD
+                try:
+                    proposito_val = proposito.strip() if proposito.strip() else None
 
-                        st.success("✅ Préstamo registrado correctamente!")
-                        st.success(f"- Monto: ${monto:,.2f}")
-                        st.success(f"- Tasa: {total_interes}%")
-                        st.success(f"- Plazo: {plazo} meses")
-                        st.success(f"- Interés total: ${interes_total:,.2f}")
-                        st.success(f"- Monto total: ${monto_total:,.2f}")
-                        st.success(f"- **Cuota mensual: ${cuota_mensual:,.2f}**")
+                    cursor.execute("""
+                        INSERT INTO Prestamo
+                        (ID_Miembro, fecha_desembolso, monto, total_interes,
+                         ID_Estado_prestamo, plazo, proposito)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (ID_Miembro, fecha_desembolso, monto, total_interes,
+                          ID_Estado_prestamo, plazo, proposito_val))
 
-                        if st.button("🆕 Registrar otro préstamo"):
-                            st.rerun()
+                    con.commit()
 
-                    except Exception as e:
-                        con.rollback()
-                        st.error(f"❌ Error al registrar el préstamo: {e}")
+                    st.success("✅ Préstamo registrado correctamente!")
+                    st.success(f"- Monto: ${monto:,.2f}")
+                    st.success(f"- Tasa: {total_interes}%")
+                    st.success(f"- Plazo: {plazo} meses")
+                    st.success(f"- Interés total: ${interes_total:,.2f}")
+                    st.success(f"- Monto total: ${monto_total:,.2f}")
+                    st.success(f"- **Cuota mensual: ${cuota_mensual:,.2f}**")
+
+                    if st.button("🆕 Registrar otro préstamo"):
+                        st.rerun()
+
+                except Exception as e:
+                    con.rollback()
+                    st.error(f"❌ Error al registrar el préstamo: {e}")
 
     except Exception as e:
         st.error(f"❌ Error general: {e}")
