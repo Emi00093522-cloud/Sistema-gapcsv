@@ -17,16 +17,16 @@ st.set_page_config(page_title="Sistema GAPCSV", page_icon="💼", layout="wide")
 st.markdown("""
     <style>
     body { background-color: #F5F6FA !important; }
-    h1, h2, h3, h4, h5, label { font-family: 'Roboto', sans-serif !important; color: #0A3D62 !important; }
+    h1, h2, h3, h4, h5, label { font-family: 'Roboto', sans-serif !important; color: #5A2D82 !important; }
     p, div, span { font-family: 'Roboto', sans-serif !important; color: #1A1A1A !important; }
-    .titulo-principal { color: #0A3D62 !important; font-size: 50px !important; font-weight: 900; text-align: center; }
-    .subtitulo-principal { color: #3C6382 !important; font-size: 22px; text-align: center; }
+    .titulo-principal { color: #5A2D82 !important; font-size: 50px !important; font-weight: 900; text-align: center; }
+    .subtitulo-principal { color: #7D5BA6 !important; font-size: 22px; text-align: center; }
     .texto-objetivo { color: #2C3E50 !important; font-size: 17px; text-align: center; padding: 0 90px; }
     .card { padding: 25px; background: white; border-radius: 10px; box-shadow: 0px 2px 6px rgba(0,0,0,0.12); margin-bottom: 20px; }
-    .stTabs [role="tab"] { font-weight: 600; padding: 12px 18px; border-radius: 6px; border: 1px solid #0A3D62 !important; background-color: #EAF2F8; color: #0A3D62 !important; }
-    .stTabs [aria-selected="true"] { background-color: #0A3D62 !important; color: white !important; }
-    .stButton>button { background-color: #0A3D62 !important; color: white !important; border-radius: 6px !important; padding: 8px 20px !important; font-weight: 600 !important; }
-    .stButton>button:hover { background-color: #3C6382 !important; transform: scale(1.02); }
+    .stTabs [role="tab"] { font-weight: 600; padding: 12px 18px; border-radius: 6px; border: 1px solid #5A2D82 !important; background-color: #F3E8FF; color: #5A2D82 !important; }
+    .stTabs [aria-selected="true"] { background-color: #5A2D82 !important; color: white !important; }
+    .stButton>button { background-color: #5A2D82 !important; color: white !important; border-radius: 6px !important; padding: 8px 20px !important; font-weight: 600 !important; }
+    .stButton>button:hover { background-color: #7D5BA6 !important; transform: scale(1.02); }
     </style>
 """, unsafe_allow_html=True)
 
