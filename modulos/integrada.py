@@ -27,11 +27,10 @@ def mostrar_gestion_integrada():
         st.subheader("🧍‍♂️ Registro de Asistencia")
         mostrar_asistencia()
 
-  with tab3:
+    with tab3:  # ← CORREGIDO (indentación correcta)
         st.subheader("💰 Gestión de Préstamos")
         try:
             mostrar_prestamo()
         except Exception as e:
             st.error("Error temporal en préstamos - trabajando en la solución")
             st.info("Por ahora, usa el módulo individual de préstamos")
-
