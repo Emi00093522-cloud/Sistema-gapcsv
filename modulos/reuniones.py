@@ -2,8 +2,7 @@ import streamlit as st
 from datetime import datetime
 from modulos.config.conexion import obtener_conexion
 import pandas as pd
-from modulos.asistencia import mostrar_asistencia
-from modulos.prestamo import mostrar_prestamo
+
 
 # ==========================================================
 #   FUNCIONES INTERNAS
@@ -18,10 +17,6 @@ def _tiene_rol_secretaria():
 # ==========================================================
 #   MÓDULO PRINCIPAL
 # ==========================================================
-tab1, tab2, tab3 = st.tabs(["📝 Prestamos", "✏️ Reuniones","Asistencia"])
-
-        with tab1:
-            st.subheader("Registrar Nuevo Reglamento")
 
 def mostrar_reuniones():
 
