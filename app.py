@@ -18,6 +18,25 @@ from modulos.pagoprestamo import mostrar_pago_prestamo
 def estilo_azul_claro_premium():
     st.markdown("""
     <style>
+/* 🔹 Solución: hacer visible el texto en inputs, selects y opciones */
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input,
+.stSelectbox > div > div,
+.stSelectbox > div > div > div {
+    color: #1B4F72 !important;         /* texto visible */
+    font-weight: 600 !important;
+}
+
+/* Texto dentro del dropdown */
+.stSelectbox div[role="option"] {
+    color: #1B4F72 !important;
+}
+
+/* Placeholder visible */
+input::placeholder {
+    color: #5f7c8a !important;
+    opacity: 1 !important;
+}
 
     .stApp {
         background: linear-gradient(135deg, #eaf3ff 0%, #dcecff 50%, #cfe5ff 100%);
