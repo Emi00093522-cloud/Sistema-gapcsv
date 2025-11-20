@@ -13,7 +13,7 @@ def mostrar_pago_prestamo():
         # CARGAR PRÉSTAMOS EXISTENTES
         # ------------------------------------------
         cursor.execute("""
-            SELECT ID_Prestamo, ID_Miembro, monto_prestado
+            SELECT ID_Prestamo, ID_Miembro, monto
             FROM Prestamo
         """)
         prestamos = cursor.fetchall()
