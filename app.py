@@ -3,16 +3,16 @@ from datetime import datetime
 from modulos.config.conexion import obtener_conexion
 import pandas as pd
 
-from modules.registro_usuario import registrar_usuario
-from modules.login import login
-from modules.promotora import mostrar_promotora
-from modules.distrito import mostrar_distrito
-from modules.grupos import mostrar_grupos
-from modules.miembros import mostrar_miembro
-from modules.prestamo import mostrar_prestamo
-from modules.reuniones import mostrar_reuniones
-from modules.asistencia import mostrar_asistencia
-from modules.reglamentos import mostrar_reglamento
+from modulos.registro_usuario import registrar_usuario
+from modulos.login import login
+from modulos.promotora import mostrar_promotora
+from modulos.distrito import mostrar_distrito
+from modulos.grupos import mostrar_grupos
+from modulos.miembros import mostrar_miembro
+from modulos.prestamo import mostrar_prestamo
+from modulos.reuniones import mostrar_reuniones
+from modulos.asistencia import mostrar_asistencia
+from modulos.reglamentos import mostrar_reglamentos
 
 
 # ==========================================================
