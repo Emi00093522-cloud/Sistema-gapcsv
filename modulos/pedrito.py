@@ -33,53 +33,48 @@ def panel_secretaria(usuario, dui):
 
     st.write(f"Secretaria: **{usuario}** — DUI: **{dui}**")
 
-    menu = st.tabs(["Registrar Grupo", "Miembros", "Reglamentos", "Reuniones"])
+    # Lista de opciones en lugar de pestañas
+    st.sidebar.title("📋 Menú de Gestión")
+    
+    opciones = [
+        "Registrar Grupo",
+        "Reglamentos", 
+        "Miembros",
+        "Préstamos",
+        "Reuniones",
+        "Asistencia"
+    ]
+    
+    opcion_seleccionada = st.sidebar.radio(
+        "Selecciona una opción:",
+        options=opciones,
+        index=0
+    )
 
-    with menu[0]:
+    # Mostrar el contenido según la opción seleccionada
+    if opcion_seleccionada == "Registrar Grupo":
         st.header("Registrar Grupo")
         mostrar_grupos()
-
-    with menu[1]:
-        st.header("Gestión de Miembros")
-        mostrar_miembros()
-
-    with menu[2]:
+        
+    elif opcion_seleccionada == "Reglamentos":
         st.header("Reglamentos del Grupo")
         mostrar_reglamentos()
-
-    with menu[3]:
+        
+    elif opcion_seleccionada == "Miembros":
+        st.header("Gestión de Miembros")
+        mostrar_miembros()
+        
+    elif opcion_seleccionada == "Préstamos":
+        st.header("Gestión de Préstamos")
+        mostrar_prestamos()
+        
+    elif opcion_seleccionada == "Reuniones":
         st.header("Reuniones del Grupo")
+        mostrar_reuniones()
         
-        # Botones para las opciones dentro de Reuniones
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("📅 Gestión de Reuniones", use_container_width=True):
-                st.session_state.mostrar_reuniones = True
-                st.session_state.mostrar_prestamos = False
-                st.session_state.mostrar_asistencia = False
-                
-        with col2:
-            if st.button("💰 Préstamos", use_container_width=True):
-                st.session_state.mostrar_reuniones = False
-                st.session_state.mostrar_prestamos = True
-                st.session_state.mostrar_asistencia = False
-        
-        # Botón para Asistencia en una nueva fila
-        col3, col4 = st.columns(2)
-        with col3:
-            if st.button("✅ Asistencia", use_container_width=True):
-                st.session_state.mostrar_reuniones = False
-                st.session_state.mostrar_prestamos = False
-                st.session_state.mostrar_asistencia = True
-        
-        # Mostrar el contenido según la selección
-        if st.session_state.get('mostrar_reuniones', True):
-            mostrar_reuniones()
-        elif st.session_state.get('mostrar_prestamos', False):
-            mostrar_prestamos()
-        elif st.session_state.get('mostrar_asistencia', False):
-            mostrar_asistencia()
+    elif opcion_seleccionada == "Asistencia":
+        st.header("Gestión de Asistencia")
+        mostrar_asistencia()
 
 
 # -----------------------------
