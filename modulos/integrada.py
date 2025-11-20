@@ -17,13 +17,17 @@ def mostrar_gestion_integrada():
         return
 
     # Crear pestañas principales
-    tab1, tab2, tab3 = st.tabs(["📅 Reuniones", "💰 Préstamos", "🧍‍♂️ Asistencia"])
+    tab1, tab2, tab3 = st.tabs(["📅 Reuniones","🧍‍♂️ Asistencia", "💰 Préstamos"])
 
     with tab1:
         st.subheader("📅 Gestión de Reuniones")
         mostrar_reuniones()
 
     with tab2:
+        st.subheader("🧍‍♂️ Registro de Asistencia")
+        mostrar_asistencia()
+
+  with tab3:
         st.subheader("💰 Gestión de Préstamos")
         try:
             mostrar_prestamo()
@@ -31,6 +35,3 @@ def mostrar_gestion_integrada():
             st.error("Error temporal en préstamos - trabajando en la solución")
             st.info("Por ahora, usa el módulo individual de préstamos")
 
-    with tab3:
-        st.subheader("🧍‍♂️ Registro de Asistencia")
-        mostrar_asistencia()
