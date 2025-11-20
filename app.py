@@ -17,45 +17,61 @@ if "sesion_iniciada" not in st.session_state:
     st.session_state["sesion_iniciada"] = False
 if "pagina_actual" not in st.session_state:
     st.session_state["pagina_actual"] = "inicio"
+# Estado para el menú de secretaria
+if "opcion_secreta_activa" not in st.session_state:
+    st.session_state["opcion_secreta_activa"] = "👥 Registrar Grupo"
 
 # ------------ PANELS ---------------
 def panel_secretaria():
     st.title("Panel de Secretaria")
-
-    tabs = st.tabs([
+    
+    # MENÚ LATERAL para Secretaria
+    st.sidebar.title("📋 Menú de Secretaria")
+    
+    opciones = [
         "👥 Registrar Grupo",
-        "📜 Reglamentos",
+        "📜 Reglamentos", 
         "👥 Miembros",
         "💰 Préstamos",
         "📅 Reuniones",
-        "📝 Asistencia",
-        "🚪 Cerrar sesión"
-    ])
+        "📝 Asistencia"
+    ]
+    
+    # Radio button en el sidebar
+    opcion_seleccionada = st.sidebar.radio(
+        "Selecciona una opción:",
+        options=opciones,
+        key="opcion_secreta_activa"
+    )
+    
+    # Botón de cerrar sesión en el sidebar
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Cerrar sesión", use_container_width=True):
+        st.session_state.clear()
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["pagina_actual"] = "sesion_cerrada"
+        st.rerun()
 
-    with tabs[0]:
+    # Mostrar el contenido según la opción seleccionada
+    st.header(opcion_seleccionada)
+    
+    if opcion_seleccionada == "👥 Registrar Grupo":
         mostrar_grupos()
-
-    with tabs[1]:
+        
+    elif opcion_seleccionada == "📜 Reglamentos":
         mostrar_reglamentos()
-
-    with tabs[2]:
+        
+    elif opcion_seleccionada == "👥 Miembros":
         mostrar_miembro()
-
-    with tabs[3]:
+        
+    elif opcion_seleccionada == "💰 Préstamos":
         mostrar_prestamo()
-
-    with tabs[4]:
+        
+    elif opcion_seleccionada == "📅 Reuniones":
         mostrar_reuniones()
-
-    with tabs[5]:
+        
+    elif opcion_seleccionada == "📝 Asistencia":
         mostrar_asistencia()
-
-    with tabs[6]:
-        if st.button("Cerrar sesión"):
-            st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
 
 
 def panel_presidente():
