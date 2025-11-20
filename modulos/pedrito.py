@@ -8,6 +8,7 @@ from miembros import mostrar_miembros
 from reglamentos import mostrar_reglamentos
 from reuniones import mostrar_reuniones
 from prestamo import mostrar_prestamos
+from integrada import mostrar_gestion_integrada
 
 # -----------------------------
 # PANEL DE PROMOTORA
