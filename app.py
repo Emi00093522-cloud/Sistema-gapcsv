@@ -264,8 +264,8 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        st.title("💙 Sistema GAPCSV")
-        st.subheader("🤝🌱💰 Ahorro y préstamos comunitarios para el desarrollo local")
+        st.title("Bienvenida al Sistema GAPCSV")
+        st.subheader("Grupos de  Ahorro y Préstamos Comunitarios 🤝🌱💰")
 
         col1, col2 = st.columns(2)
         with col1:
