@@ -10,93 +10,104 @@ from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 
-# ================================
-# CONFIGURACIÓN GENERAL
-# ================================
-st.set_page_config(
-    page_title="Sistema GAPCSV",
-    page_icon="💙",
-    layout="wide"
-)
 
-# ================================
-# ESTILOS (CSS CORPORATIVO AZUL SUAVE)
-# ================================
-st.markdown("""
-<style>
+# ---------------------------------------------------------
+# ESTILO MORADO PREMIUM
+# ---------------------------------------------------------
+def estilo_morado_premium():
+    st.markdown("""
+    <style>
 
-:root {
-    --azul-suave: #4A90E2;
-    --azul-claro: #E7F0FA;
-    --gris-texto: #3A3A3A;
-    --gris-suave: #F7F9FB;
-    --borde-suave: #D9E4F1;
-}
+    .stApp {
+        background: linear-gradient(135deg, #f5f0ff 0%, #ece4ff 50%, #e6dbff 100%);
+        font-family: 'Segoe UI', sans-serif;
+    }
 
-/* Fondo general */
-body {
-    background-color: var(--gris-suave) !important;
-}
+    h1 {
+        color: #5423A7 !important;
+        font-weight: 800 !important;
+        text-shadow: 0px 1px 3px rgba(0,0,0,0.1);
+    }
 
-/* TITULOS PRINCIPALES */
-h1, h2, h3 {
-    color: var(--gris-texto) !important;
-    font-weight: 700 !important;
-}
+    h2, h3 {
+        color: #6A32C9 !important;
+        font-weight: 700 !important;
+    }
 
-/* Tarjetas elegantes */
-.card {
-    background: white;
-    padding: 25px;
-    border-radius: 12px;
-    border: 1px solid var(--borde-suave);
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.05);
-    margin-bottom: 25px;
-}
+    .stTabs [data-baseweb="tab"] {
+        color: #5a21a6 !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+    }
 
-/* Botones */
-div.stButton > button {
-    background-color: var(--azul-suave);
-    color: white;
-    padding: 10px 18px;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
-}
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #7d2fe3 !important;
+    }
 
-div.stButton > button:hover {
-    background-color: #357ABD;
-    color: white;
-}
+    .stTabs [aria-selected="true"] {
+        color: white !important;
+        background: #7d2fe3 !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+    }
 
-/* Tabs */
-div[data-baseweb="tab-list"] {
-    background-color: var(--azul-claro);
-    padding: 10px;
-    border-radius: 8px;
-}
-</style>
-""", unsafe_allow_html=True)
+    .stButton > button {
+        background: linear-gradient(135deg, #7d2fe3 0%, #6424b8 100%) !important;
+        color: white !important;
+        border: none !important;
+        padding: 12px 24px !important;
+        border-radius: 10px !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 3px 10px rgba(125,47,227,0.25) !important;
+        transition: 0.3s ease-in-out;
+    }
 
-# ======================================
-# SESIÓN
-# ======================================
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #8e47f0 0%, #6a2ac9 100%) !important;
+        box-shadow: 0 4px 14px rgba(125,47,227,0.35) !important;
+        transform: translateY(-2px);
+    }
+
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div,
+    .stNumberInput > div > div > input {
+        border-radius: 8px !important;
+        border: 1px solid #c8b6ff !important;
+        padding: 10px !important;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div:focus,
+    .stNumberInput > div > div > input:focus {
+        border: 1px solid #7d2fe3 !important;
+        box-shadow: 0 0 6px rgba(125,47,227,0.4) !important;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# CONFIGURACIÓN
+# ---------------------------------------------------------
+st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="wide")
+estilo_morado_premium()
+
 if "sesion_iniciada" not in st.session_state:
     st.session_state["sesion_iniciada"] = False
 if "pagina_actual" not in st.session_state:
     st.session_state["pagina_actual"] = "inicio"
 
 
-# ================================
-# PANEL DE SECRETARIA
-# ================================
+# ---------------------------------------------------------
+# PANEL SECRETARIA
+# ---------------------------------------------------------
 def panel_secretaria():
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.title("📘 Panel de Secretaría")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.title("💼 Panel de Secretaria")
 
     tabs = st.tabs([
-        "📁 Registrar Grupo",
+        "👥 Registrar Grupo",
         "📜 Reglamentos",
         "👥 Miembros",
         "💰 Préstamos",
@@ -105,95 +116,51 @@ def panel_secretaria():
         "🚪 Cerrar sesión"
     ])
 
-    with tabs[0]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_grupos()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[1]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_reglamentos()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[2]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_miembro()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[3]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_prestamo()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[4]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_reuniones()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[5]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_asistencia()
-        st.markdown('</div>', unsafe_allow_html=True)
+    with tabs[0]: mostrar_grupos()
+    with tabs[1]: mostrar_reglamentos()
+    with tabs[2]: mostrar_miembro()
+    with tabs[3]: mostrar_prestamo()
+    with tabs[4]: mostrar_reuniones()
+    with tabs[5]: mostrar_asistencia()
 
     with tabs[6]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
             st.rerun()
 
 
-# ================================
-# PANEL DE PRESIDENTE
-# ================================
+# ---------------------------------------------------------
+# PANEL PRESIDENTE
+# ---------------------------------------------------------
 def panel_presidente():
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.title("📘 Panel de Presidente")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.title("👑 Panel de Presidente")
 
     tabs = st.tabs([
-        "📁 Registrar Grupo",
+        "👥 Registrar Grupo",
         "📜 Reglamentos",
         "👥 Miembros",
         "💰 Préstamos",
         "🚪 Cerrar sesión"
     ])
 
-    with tabs[0]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_grupos()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[1]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_reglamentos()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[2]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_miembro()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[3]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_prestamo()
-        st.markdown('</div>', unsafe_allow_html=True)
+    with tabs[0]: mostrar_grupos()
+    with tabs[1]: mostrar_reglamentos()
+    with tabs[2]: mostrar_miembro()
+    with tabs[3]: mostrar_prestamo()
 
     with tabs[4]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
             st.rerun()
 
 
-# ================================
-# PANEL DE PROMOTORA
-# ================================
+# ---------------------------------------------------------
+# PANEL PROMOTORA
+# ---------------------------------------------------------
 def panel_promotora(usuario):
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.title("📊 Panel de Promotora")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.title("🤝 Panel de Promotora")
 
     tabs = st.tabs([
         "📈 Dashboard",
@@ -203,36 +170,24 @@ def panel_promotora(usuario):
     ])
 
     with tabs[0]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.success(f"Bienvenida, {usuario}")
-        st.info("Dashboard general de promotoras")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.success(f"Bienvenida, {usuario} 🌟")
+        st.info("📊 Dashboard general de promotoras en desarrollo...")
 
-    with tabs[1]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_promotora()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tabs[2]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        mostrar_distrito()
-        st.markdown('</div>', unsafe_allow_html=True)
+    with tabs[1]: mostrar_promotora()
+    with tabs[2]: mostrar_distrito()
 
     with tabs[3]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
             st.rerun()
 
 
-# ================================
-# PANEL DE ADMINISTRADORA
-# ================================
+# ---------------------------------------------------------
+# PANEL ADMINISTRADORA
+# ---------------------------------------------------------
 def panel_admin():
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.title("🧑‍💻 Panel de Administradora")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.title("🛡️ Panel de Administradora")
 
     tabs = st.tabs([
         "📊 Consolidado Distritos",
@@ -241,26 +196,20 @@ def panel_admin():
     ])
 
     with tabs[0]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.info("Aquí irá el consolidado general por distrito")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.info("📊 Aquí irá el consolidado general por distrito.")
 
-    with tabs[1]:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        registrar_usuario()
-        st.markdown('</div>', unsafe_allow_html=True)
+    with tabs[1]: registrar_usuario()
 
     with tabs[2]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
             st.rerun()
 
 
-# ================================
-# FLUJO DE LA APLICACIÓN
-# ================================
+# ---------------------------------------------------------
+# FLUJO PRINCIPAL
+# ---------------------------------------------------------
 if st.session_state["sesion_iniciada"]:
 
     usuario = st.session_state.get("usuario", "Usuario")
@@ -283,9 +232,7 @@ if st.session_state["sesion_iniciada"]:
         st.error("⚠️ Tipo de usuario no reconocido.")
 
 else:
-    # ================
-    # PANTALLA SIN SESIÓN (BIENVENIDA)
-    # ================
+
     if st.session_state["pagina_actual"] == "sesion_cerrada":
         st.success("Sesión finalizada.")
         if st.button("Volver al inicio"):
@@ -293,28 +240,22 @@ else:
             st.rerun()
 
     elif st.session_state["pagina_actual"] == "inicio":
-
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.title("💙 Sistema GAPCSV")
-        st.subheader("Plataforma oficial de Grupos de Ahorro y Préstamo Comunitario")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.title("Bienvenida al Sistema GAPCSV")
+        st.subheader(" Grupos comunitarios fortaleciendo el ahorro y los préstamos solidarios🤝🌱💰")
 
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔑 Iniciar sesión"):
                 st.session_state["pagina_actual"] = "login"
                 st.rerun()
+
         with col2:
             if st.button("📝 Registrarme"):
                 st.session_state["pagina_actual"] = "registro"
                 st.rerun()
 
     elif st.session_state["pagina_actual"] == "login":
-        st.markdown('<div class="card">', unsafe_allow_html=True)
         login()
-        st.markdown('</div>', unsafe_allow_html=True)
 
     elif st.session_state["pagina_actual"] == "registro":
-        st.markdown('<div class="card">', unsafe_allow_html=True)
         registrar_usuario()
-        st.markdown('</div>', unsafe_allow_html=True)
