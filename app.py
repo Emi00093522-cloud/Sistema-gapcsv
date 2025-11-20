@@ -13,11 +13,10 @@ from modulos.reglamentos import mostrar_reglamentos
 # -------- CONFIG -----------
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="🏛️", layout="wide")
 
-# ----------- ESTILO CORPORATIVO -----------
+# ----------- ESTILO CORPORATIVO GLOBAL -----------
 st.markdown("""
     <style>
 
-    /* Paleta corporativa */
     :root {
         --vino: #7A1E48;
         --vino-oscuro: #5A0F32;
@@ -35,28 +34,11 @@ st.markdown("""
         font-family: 'Segoe UI', sans-serif !important;
     }
 
-    /* Fondos */
     body {
         background-color: var(--gris-claro) !important;
     }
 
-    /* Título */
-    .titulo {
-        text-align: center;
-        font-size: 48px;
-        font-weight: 800;
-        color: var(--vino);
-        margin-bottom: -10px;
-    }
-
-    .subtitulo {
-        text-align: center;
-        font-size: 20px;
-        color: var(--gris);
-        margin-bottom: 20px;
-    }
-
-    /* Tarjetas */
+    /* Tarjetas corporativas */
     .card {
         padding: 25px;
         background: var(--blanco);
@@ -66,7 +48,7 @@ st.markdown("""
         border-left: 6px solid var(--vino);
     }
 
-    /* Tabs */
+    /* Tabs corporativos */
     .stTabs [role="tab"] {
         padding: 10px 18px;
         font-weight: 600;
@@ -81,7 +63,7 @@ st.markdown("""
         color: white !important;
     }
 
-    /* Botones */
+    /* Botones corporativos */
     .stButton>button {
         background-color: var(--vino) !important;
         color: white !important;
@@ -193,7 +175,7 @@ def panel_admin():
         "🚪 Cerrar sesión"
     ])
 
-    with tabs[0]: st.info("Aquí irá el consolidado general por distrito")
+    with tabs[0]: st.info("Aquí irá el consolidado general por distrito.")
     with tabs[1]: registrar_usuario()
 
     with tabs[2]:
@@ -228,18 +210,61 @@ if st.session_state["sesion_iniciada"]:
 
 else:
 
+    # PÁGINA DE SESIÓN CERRADA
     if st.session_state["pagina_actual"] == "sesion_cerrada":
         st.success("Sesión finalizada.")
         if st.button("Volver al inicio"):
             st.session_state["pagina_actual"] = "inicio"
             st.rerun()
 
+    # PÁGINA DE INICIO — BIENVENIDA CORPORATIVA
     elif st.session_state["pagina_actual"] == "inicio":
 
-        st.markdown("<h1 class='titulo'>Sistema GAPCSV</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 class='subtitulo'>Grupos de Ahorro y Préstamo Comunitario</h3>", unsafe_allow_html=True)
+        st.markdown("""
+            <div style="
+                background: linear-gradient(135deg, #7A1E48, #5A0F32);
+                padding: 60px 30px;
+                border-radius: 15px;
+                text-align: center;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+            ">
+                <h1 style="
+                    color: white;
+                    font-size: 52px;
+                    font-weight: 900;
+                    margin-bottom: 10px;
+                    letter-spacing: 1px;
+                ">
+                    Sistema GAPCSV
+                </h1>
+
+                <h3 style="
+                    color: #f1d7e5;
+                    font-size: 22px;
+                    font-weight: 400;
+                    margin-top: 0;
+                    margin-bottom: 20px;
+                ">
+                    Plataforma Corporativa de Gestión de Grupos de Ahorro y Préstamo Comunitario
+                </h3>
+
+                <p style="
+                    color: #f7eaf0;
+                    max-width: 700px;
+                    margin: 0 auto;
+                    font-size: 16px;
+                    line-height: 1.6;
+                ">
+                    Bienvenida al sistema oficial utilizado para la administración, supervisión y 
+                    control de los grupos comunitarios.  
+                    Inicia sesión o regístrate para continuar.
+                </p>
+            </div>
+            <br>
+        """, unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
+
         with col1:
             if st.button("🔑 Iniciar sesión"):
                 st.session_state["pagina_actual"] = "login"
@@ -250,8 +275,10 @@ else:
                 st.session_state["pagina_actual"] = "registro"
                 st.rerun()
 
+    # LOGIN
     elif st.session_state["pagina_actual"] == "login":
         login()
 
+    # REGISTRO
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
