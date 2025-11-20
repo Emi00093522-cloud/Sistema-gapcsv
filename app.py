@@ -122,17 +122,15 @@ def panel_secretaria():
 
     tabs = st.tabs([
         "👥 Registrar Grupo",
-        "📜 Reglamentos",
         "👥 Miembros",
-        
+        "📜 Reglamentos",
         "📅 Reuniones",
         "🚪 Cerrar sesión"
     ])
 
     with tabs[0]: mostrar_grupos()
-    with tabs[1]: mostrar_reglamentos()
-    with tabs[2]: mostrar_miembro()
-    
+    with tabs[1]: mostrar_miembro()
+    with tabs[2]: mostrar_reglamentos()
     with tabs[3]: mostrar_gestion_integrada()
 
     with tabs[4]:
@@ -150,8 +148,8 @@ def panel_presidente():
 
     tabs = st.tabs([
         "👥 Registrar Grupo",
-        "📜 Reglamentos",
         "👥 Miembros",
+        "📜 Reglamentos",
         "💰 Préstamos",
         "🚪 Cerrar sesión"
     ])
