@@ -48,7 +48,7 @@ def panel_secretaria(usuario, dui):
 
     with menu[3]:
         st.header("Reuniones del Grupo")
-        _mostrar_registro_reuniones()
+        mostrar_reuniones()
 
     with menu[4]:
         st.header("Gestión de Préstamos")
