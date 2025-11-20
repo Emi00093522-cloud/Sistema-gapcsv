@@ -2,6 +2,8 @@ import streamlit as st
 from datetime import datetime
 from modulos.config.conexion import obtener_conexion
 import pandas as pd
+from modulos.asistencia import mostrar_asistencia
+from modulos.prestamo import mostrar_prestamo
 
 # ==========================================================
 #   FUNCIONES INTERNAS
