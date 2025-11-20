@@ -6,7 +6,6 @@ from modulos.distrito import mostrar_distrito
 from modulos.grupos import mostrar_grupos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo
-from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.integrada import mostrar_gestion_integrada
