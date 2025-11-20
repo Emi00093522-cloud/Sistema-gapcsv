@@ -5,7 +5,7 @@ from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
 from modulos.grupos import mostrar_grupos
 from modulos.miembros import mostrar_miembro
-from modulos.prestamo import mostrar_prestamo
+
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.integrada import mostrar_gestion_integrada
@@ -124,7 +124,7 @@ def panel_secretaria():
         "👥 Registrar Grupo",
         "📜 Reglamentos",
         "👥 Miembros",
-        "💰 Préstamos",
+        
         "📅 Reuniones",
         "📝 Asistencia",
         "🚪 Cerrar sesión"
@@ -133,11 +133,11 @@ def panel_secretaria():
     with tabs[0]: mostrar_grupos()
     with tabs[1]: mostrar_reglamentos()
     with tabs[2]: mostrar_miembro()
-    with tabs[3]: mostrar_prestamo()
-    with tabs[4]: mostrar_gestion_integrada()
-    with tabs[5]: mostrar_asistencia()
+    
+    with tabs[3]: mostrar_gestion_integrada()
+    with tabs[4]: mostrar_asistencia()
 
-    with tabs[6]:
+    with tabs[5]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
