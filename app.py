@@ -1,110 +1,115 @@
+```python
 import streamlit as st
-from modulos.registro_usuario import registrar_usuario
-from modulos.login import login
-from modulos.promotora import mostrar_promotora
-from modulos.distrito import mostrar_distrito
-from modulos.grupos import mostrar_grupos
-from modulos.miembros import mostrar_miembro
-from modulos.prestamo import mostrar_prestamo
-from modulos.reuniones import mostrar_reuniones
-from modulos.asistencia import mostrar_asistencia
-from modulos.reglamentos import mostrar_reglamentos
+from streamlit_option_menu import option_menu
 
-# -------- CONFIG ----------- 
-st.set_page_config(page_title="Sistema GAPCSV", page_icon="💼", layout="wide")
+# ---------- CONFIGURACIÓN GENERAL ----------
+st.set_page_config(page_title="Panel Administrativo", page_icon="📊", layout="wide")
 
-# ------------ ESTILO CORPORATIVO ---------------
-st.markdown("""
-    <style>
-    body { background-color: #F5F6FA !important; }
-    h1, h2, h3, h4, h5, label { font-family: 'Roboto', sans-serif !important; color: #5A2D82 !important; }
-    p, div, span { font-family: 'Roboto', sans-serif !important; color: #1A1A1A !important; }
-    .titulo-principal { color: #5A2D82 !important; font-size: 50px !important; font-weight: 900; text-align: center; }
-    .subtitulo-principal { color: #7D5BA6 !important; font-size: 22px; text-align: center; }
-    .texto-objetivo { color: #2C3E50 !important; font-size: 17px; text-align: center; padding: 0 90px; }
-    .card { padding: 25px; background: white; border-radius: 10px; box-shadow: 0px 2px 6px rgba(0,0,0,0.12); margin-bottom: 20px; }
-    .stTabs [role="tab"] { font-weight: 600; padding: 12px 18px; border-radius: 6px; border: 1px solid #5A2D82 !important; background-color: #F3E8FF; color: #5A2D82 !important; }
-    .stTabs [aria-selected="true"] { background-color: #5A2D82 !important; color: white !important; }
-    .stButton>button { background-color: #5A2D82 !important; color: white !important; border-radius: 6px !important; padding: 8px 20px !important; font-weight: 600 !important; }
-    .stButton>button:hover { background-color: #7D5BA6 !important; transform: scale(1.02); }
-    </style>
+# Paleta formal
+PRIMARY = "#8B5E83"      # Acento elegante
+BG_LIGHT = "#F7F5F2"      # Fondo claro profesional
+CARD_BG = "#FFFFFF"       # Tarjetas blancas
+TEXT_DARK = "#3A3A3A"     
+
+# ---------- ESTILOS CSS ----------
+st.markdown(f"""
+<style>
+    body {{ background-color: {BG_LIGHT}; }}
+
+    .main > div {{ padding: 20px 40px; }}
+
+    h1, h2, h3, h4, h5, h6 {{
+        color: {TEXT_DARK};
+        font-family: 'Segoe UI', sans-serif;
+        font-weight: 600;
+    }}
+
+    .stButton>button {{
+        background-color: {PRIMARY};
+        color: white;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        border: none;
+        font-size: 16px;
+    }}
+    .stButton>button:hover {{
+        background-color: #6F4768;
+    }}
+
+    .card {{
+        background-color: {CARD_BG};
+        padding: 18px;
+        border-radius: 12px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        margin-bottom: 20px;
+    }}
+</style>
 """, unsafe_allow_html=True)
 
-# --------- VARIABLES DE SESIÓN ----------
-if "sesion_iniciada" not in st.session_state:
-    st.session_state["sesion_iniciada"] = False
-if "pagina_actual" not in st.session_state:
-    st.session_state["pagina_actual"] = "inicio"
+# ---------- SIDEBAR ----------
+with st.sidebar:
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/UN_logo.svg/1200px-UN_logo.svg.png", width=130)
+    st.markdown("### **Panel Administrativo**")
 
-# ---------------- PANEL SECRETARIA ----------------
-def panel_secretaria():
-    st.markdown("<div class='card'><h1>📋 Panel de Secretaria</h1><p>Gestión general de grupos y actividades</p></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["👥 Registrar Grupo", "📜 Reglamentos", "👥 Miembros", "💰 Préstamos", "📅 Reuniones", "📝 Asistencia", "🚪 Cerrar sesión"])
-    with tabs[0]: mostrar_grupos()
-    with tabs[1]: mostrar_reglamentos()
-    with tabs[2]: mostrar_miembro()
-    with tabs[3]: mostrar_prestamo()
-    with tabs[4]: mostrar_reuniones()
-    with tabs[5]: mostrar_asistencia()
-    with tabs[6]:
-        if st.button("Cerrar sesión"):
-            st.session_state.clear(); st.session_state["sesion_iniciada"] = False; st.session_state["pagina_actual"] = "sesion_cerrada"; st.rerun()
+    menu = option_menu(
+        menu_title="Navegación",
+        options=["Inicio", "Usuarios", "Grupos", "Reportes"],
+        icons=["house", "people", "layers", "bar-chart"],
+        default_index=0,
+        styles={{
+            "container": {{"background-color": BG_LIGHT}},
+            "icon": {{"color": PRIMARY}},
+            "nav-link": {{"font-size": "16px", "text-align": "left", "padding": "10px"}},
+            "nav-link-selected": {{"background-color": PRIMARY}},
+        }},
+    )
 
-# ---------------- PANEL PRESIDENTE ----------------
-def panel_presidente():
-    st.markdown("<div class='card'><h1>🏛️ Panel de Presidente</h1><p>Supervisión de grupos y actividades</p></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["👥 Registrar Grupo", "📜 Reglamentos", "👥 Miembros", "💰 Préstamos", "🚪 Cerrar sesión"])
-    with tabs[0]: mostrar_grupos()
-    with tabs[1]: mostrar_reglamentos()
-    with tabs[2]: mostrar_miembro()
-    with tabs[3]: mostrar_prestamo()
-    with tabs[4]:
-        if st.button("Cerrar sesión"):
-            st.session_state.clear(); st.session_state["sesion_iniciada"] = False; st.session_state["pagina_actual"] = "sesion_cerrada"; st.rerun()
+# ---------- PÁGINA: INICIO ----------
+if menu == "Inicio":
+    st.markdown("<h1>📌 Dashboard General</h1>", unsafe_allow_html=True)
+    st.write("Bienvenida al sistema administrativo. Aquí podrás gestionar usuarios, grupos y ver reportes consolidados.")
 
-# ---------------- PANEL PROMOTORA ----------------
-def panel_promotora(usuario):
-    st.markdown("<div class='card'><h1>👩‍💼 Panel de Promotora</h1><p>Supervisión y administración territorial</p></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["📈 Dashboard", "👩‍💼 Registro Promotora", "🏛️ Distrito", "🚪 Cerrar sesión"])
-    with tabs[0]: st.success(f"Bienvenida, {usuario}"); st.info("Dashboard general de promotoras")
-    with tabs[1]: mostrar_promotora()
-    with tabs[2]: mostrar_distrito()
-    with tabs[3]:
-        if st.button("Cerrar sesión"):
-            st.session_state.clear(); st.session_state["sesion_iniciada"] = False; st.session_state["pagina_actual"] = "sesion_cerrada"; st.rerun()
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"<div class='card'><h3>👥 Total Usuarios</h3><h2 style='color:{PRIMARY}'>128</h2></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='card'><h3>🧩 Grupos Activos</h3><h2 style='color:{PRIMARY}'>34</h2></div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"<div class='card'><h3>📊 Reportes</h3><h2 style='color:{PRIMARY}'>12</h2></div>", unsafe_allow_html=True)
 
-# ---------------- PANEL ADMINISTRADORA ----------------
-def panel_admin():
-    st.markdown("<div class='card'><h1>🧑‍💻 Panel de Administradora</h1><p>Gestión integral del sistema</p></div>", unsafe_allow_html=True)
-    tabs = st.tabs(["📊 Consolidado Distritos", "🧑‍💻 Registrar Usuario", "🚪 Cerrar sesión"])
-    with tabs[0]: st.info("Aquí irá el consolidado general por distrito")
-    with tabs[1]: registrar_usuario()
-    with tabs[2]:
-        if st.button("Cerrar sesión"):
-            st.session_state.clear(); st.session_state["sesion_iniciada"] = False; st.session_state["pagina_actual"] = "sesion_cerrada"; st.rerun()
+# ---------- PÁGINA: USUARIOS ----------
+if menu == "Usuarios":
+    st.markdown("<h1>👤 Gestión de Usuarios</h1>", unsafe_allow_html=True)
 
-# ----------- APP FLOW ----------
-if st.session_state["sesion_iniciada"]:
-    usuario = st.session_state.get("usuario", "Usuario")
-    tipo = (st.session_state.get("tipo_usuario", "") or "").lower()
-    cargo = (st.session_state.get("cargo_de_usuario", "") or "").upper()
-    if cargo == "SECRETARIA": panel_secretaria()
-    elif cargo == "PRESIDENTE": panel_presidente()
-    elif tipo == "promotora" or cargo == "PROMOTORA": panel_promotora(usuario)
-    elif tipo == "administradora": panel_admin()
-    else: st.error("⚠️ Tipo de usuario no reconocido.")
+    with st.container():
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.subheader("Registrar Nuevo Usuario")
+        nombre = st.text_input("Nombre completo:")
+        correo = st.text_input("Correo electrónico:")
+        rol = st.selectbox("Rol", ["Administrador", "Promotora", "Invitado"])
+        if st.button("Guardar Usuario"):
+            st.success("Usuario registrado correctamente ✨")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-else:
-    if st.session_state["pagina_actual"] == "sesion_cerrada":
-        st.success("Sesión finalizada.")
-        if st.button("Volver al inicio"): st.session_state["pagina_actual"] = "inicio"; st.rerun()
+# ---------- PÁGINA: GRUPOS ----------
+if menu == "Grupos":
+    st.markdown("<h1>🧩 Administración de Grupos</h1>", unsafe_allow_html=True)
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-    elif st.session_state["pagina_actual"] == "inicio":
-        st.markdown("<h1 class='titulo-principal'>Sistema GAPCSV</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 class='subtitulo-principal'>Grupos de Ahorro y Préstamo Comunitario</h3>", unsafe_allow_html=True)
-        st.markdown("<p class='texto-objetivo'>Plataforma institucional para la gestión, administración y control operativo...</p>", unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔑 Iniciar sesión", use_container_width=True): st.session_state["pagina_actual"] = "login"; st.rerun()
-        with col2:
-            if st.button("📝 Registrarme", use_container_width=True): st
+    nombre_grupo = st.text_input("Nombre del grupo:")
+    id_usuario = st.text_input("ID del usuario encargado:")
+    
+    if st.button("Crear Grupo"):
+        st.success("Grupo creado exitosamente ✨")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ---------- PÁGINA: REPORTES ----------
+if menu == "Reportes":
+    st.markdown("<h1>📈 Reportes Consolidado</h1>", unsafe_allow_html=True)
+    st.write("Aquí se mostrarán gráficos de ingresos, egresos y consolidado general.")
+
+    st.markdown(f"<div class='card'><h3>🔧 Módulo en desarrollo…</h3></div>", unsafe_allow_html=True)
+```
+
