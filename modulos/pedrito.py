@@ -6,7 +6,7 @@ from distrito import mostrar_distrito            # para PROMOTORA
 from grupos import mostrar_grupos                # para SECRETARIA
 from miembros import mostrar_miembros
 from reglamentos import mostrar_reglamentos
-from reuniones import mostrar_reuniones
+from reuniones import _mostrar_registro_reuniones
 from prestamo import mostrar_prestamos
 
 # -----------------------------
@@ -48,7 +48,7 @@ def panel_secretaria(usuario, dui):
 
     with menu[3]:
         st.header("Reuniones del Grupo")
-        mostrar_reuniones()
+        _mostrar_registro_reuniones()
 
     with menu[4]:
         st.header("Gestión de Préstamos")
