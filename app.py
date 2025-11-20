@@ -199,7 +199,9 @@ else:
             st.rerun()
 
     elif st.session_state["pagina_actual"] == "inicio":
-        st.title("💜 Sistema GAPCSV")
+        st.title("🟦 Sistema GAPCSV
+Grupos de Ahorro y Préstamo Comunitario
+Esta página servirá como plataforma para gestionar grupos, registrar miembros, administrar reuniones y llevar el control financiero de forma eficiente y organizada.")
         st.subheader("Grupos de Ahorro y Préstamo Comunitario")
         st.write("---")
 
