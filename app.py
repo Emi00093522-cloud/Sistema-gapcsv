@@ -24,8 +24,8 @@ def panel_secretaria():
 
     tabs = st.tabs([
         "👥 Registrar Grupo",
-        "📜 Reglamentos",
         "👥 Miembros",
+        "📜 Reglamentos"
         "💰 Préstamos",
         "📅 Reuniones",
         "📝 Asistencia",
@@ -36,11 +36,9 @@ def panel_secretaria():
         mostrar_grupos()
 
     with tabs[1]:
-        mostrar_reglamentos()
-
-    with tabs[2]:
         mostrar_miembro()
-
+    with tabs[2]:
+        mostrar_reglamentos()
     with tabs[3]:
         mostrar_prestamo()
 
