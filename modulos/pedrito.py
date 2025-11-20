@@ -6,7 +6,7 @@ from distrito import mostrar_distrito            # para PROMOTORA
 from grupos import mostrar_grupos                # para SECRETARIA
 from miembros import mostrar_miembros
 from reglamentos import mostrar_reglamentos
-from reuniones import _mostrar_registro_reuniones
+from reuniones import mostrar_reuniones
 from prestamo import mostrar_prestamos
 
 # -----------------------------
