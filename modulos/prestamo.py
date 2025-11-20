@@ -39,12 +39,12 @@ def mostrar_prestamo():
                                     step=100.00,
                                     format="%.2f")
 
-            # Interés %
-            total_interes = st.number_input("Tasa de interés ANUAL (%) *",
+            # 🔵 Tasa de interés MENSUAL (YA NO ANUAL)
+            total_interes = st.number_input("Tasa de interés MENSUAL (%) *",
                                             min_value=0.00,
                                             max_value=100.00,
-                                            value=10.00,
-                                            step=0.5,
+                                            value=2.00,
+                                            step=0.10,
                                             format="%.2f")
 
             # Estado préstamo
@@ -70,14 +70,13 @@ def mostrar_prestamo():
             # ================================
             if monto > 0 and plazo > 0:
 
-                # Convertir tasa anual a tasa mensual en decimal
-                tasa_mensual = (total_interes / 100) / 12  
+                # AHORA LA TASA ES MENSUAL DIRECTA
+                tasa_mensual = (total_interes / 100)
 
                 if tasa_mensual > 0:
-                    # Fórmula real de cuota fija
                     cuota_mensual = (monto * tasa_mensual) / (1 - (1 + tasa_mensual) ** (-plazo))
                 else:
-                    cuota_mensual = monto / plazo  # Caso especial sin interés
+                    cuota_mensual = monto / plazo
 
                 interes_total = (cuota_mensual * plazo) - monto
                 monto_total = monto + interes_total
@@ -129,7 +128,7 @@ def mostrar_prestamo():
 
                         st.success("✅ Préstamo registrado correctamente!")
                         st.success(f"- Monto: ${monto:,.2f}")
-                        st.success(f"- Tasa anual: {total_interes}%")
+                        st.success(f"- Tasa mensual: {total_interes}%")
                         st.success(f"- Plazo: {plazo} meses")
                         st.success(f"- Interés total: ${interes_total:,.2f}")
                         st.success(f"- Monto total: ${monto_total:,.2f}")
