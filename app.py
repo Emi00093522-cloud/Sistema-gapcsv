@@ -99,8 +99,27 @@ def estilo_azul_claro_premium():
         border-radius: 12px;
     }
 
+    /* --------------------------- */
+    /* CORRECCIÓN: TEXTO VISIBLE   */
+    /* --------------------------- */
+    .stTextInput input,
+    .stNumberInput input,
+    .stSelectbox div[data-baseweb="select"] *,
+    .stDateInput input {
+        color: #1B4F72 !important;        /* Texto azul oscuro visible */
+        font-weight: 600 !important;      /* Más legible */
+    }
+
+    .stTextInput input::placeholder,
+    .stNumberInput input::placeholder,
+    .stDateInput input::placeholder {
+        color: #5dade2 !important;
+        opacity: 1 !important;
+    }
+
     </style>
     """, unsafe_allow_html=True)
+
 
 
 # ---------------------------------------------------------
