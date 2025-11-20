@@ -10,55 +10,102 @@ from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 
-# -------- CONFIG -----------
-st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="wide")
+# -------- CONFIG ----------- 
+st.set_page_config(page_title="Sistema GAPCSV", page_icon="💼", layout="wide")
 
-# ------------ ESTILOS ---------------
+# ------------ ESTILO CORPORATIVO ---------------
 st.markdown("""
     <style>
 
-    /* Tipografías */
-    h1, h2, h3, h4, h5 {
-        font-family: 'Segoe UI', sans-serif !important;
-        color: #3A3A3A;
+    /* ======= PALETA CORPORATIVA =======
+       Azul petróleo      #0A3D62
+       Azul suave         #3C6382
+       Gris grafito       #333333
+       Gris claro         #F2F2F2
+    */
+
+    /* Fondo elegante */
+    body {
+        background-color: #F5F6FA !important;
     }
 
-    /* Color corporativo */
+    /* Tipografía corporativa */
+    h1, h2, h3, h4, h5, label {
+        font-family: 'Roboto', sans-serif !important;
+        color: #0A3D62;
+    }
+
+    p, div, span {
+        font-family: 'Roboto', sans-serif !important;
+        color: #333333;
+    }
+
+    /* Título corporativo */
     .titulo-principal {
-        color: #5A2D82 !important;
-        font-size: 48px !important;
-        font-weight: 800;
+        color: #0A3D62 !important;
+        font-size: 50px !important;
+        font-weight: 900;
         text-align: center;
-        margin-bottom: -10px;
+        letter-spacing: 1px;
+        margin-bottom: -5px;
     }
 
     .subtitulo-principal {
-        color: #6A4C93 !important;
-        font-size: 22px !important;
+        color: #3C6382 !important;
+        font-size: 22px;
         font-weight: 500;
         text-align: center;
         margin-top: -10px;
+        margin-bottom: 5px;
     }
 
     .texto-objetivo {
-        color: #4B4B4B !important;
-        font-size: 17px !important;
+        color: #555555 !important;
+        font-size: 17px;
         text-align: center;
+        padding: 0 90px;
         margin-top: 10px;
-        padding: 0 80px;
     }
 
-    /* Tabs más elegantes */
+    /* Tarjetas corporativas */
+    .card {
+        padding: 25px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0px 2px 6px rgba(0,0,0,0.12);
+        margin-bottom: 20px;
+    }
+
+    /* Tabs corporativas */
     .stTabs [role="tab"] {
         font-weight: 600;
-        padding: 10px 16px;
-        border-radius: 8px;
+        padding: 12px 18px;
+        border-radius: 6px;
+        border: 1px solid #0A3D62 !important;
+        background-color: #EAF2F8;
+        color: #0A3D62 !important;
+        margin-right: 4px;
     }
 
     .stTabs [aria-selected="true"] {
-        background-color: #E9D8FD !important;
-        color: #4B0082 !important;
-        border-bottom: 3px solid #5A2D82 !important;
+        background-color: #0A3D62 !important;
+        color: white !important;
+        border-bottom: 3px solid #0A3D62 !important;
+    }
+
+    /* Botones corporativos */
+    .stButton>button {
+        background-color: #0A3D62 !important;
+        color: white !important;
+        border-radius: 6px !important;
+        padding: 8px 20px !important;
+        font-weight: 600 !important;
+        border: none;
+        transition: 0.2s;
+    }
+    .stButton>button:hover {
+        background-color: #3C6382 !important;
+        transform: scale(1.02);
     }
 
     </style>
@@ -70,10 +117,9 @@ if "sesion_iniciada" not in st.session_state:
 if "pagina_actual" not in st.session_state:
     st.session_state["pagina_actual"] = "inicio"
 
-# ---------------- PANELS ----------------
+# ---------------- PANEL CORPORATIVOS ----------------
 def panel_secretaria():
-    st.title("📋 Panel de Secretaria")
-    st.caption("Gestión general de grupos y actividades")
+    st.markdown("<div class='card'><h1>📋 Panel de Secretaria</h1><p>Gestión general de grupos y actividades</p></div>", unsafe_allow_html=True)
 
     tabs = st.tabs([
         "👥 Registrar Grupo",
@@ -93,7 +139,7 @@ def panel_secretaria():
     with tabs[5]: mostrar_asistencia()
 
     with tabs[6]:
-        if st.button("Cerrar sesión", type="primary"):
+        if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -101,8 +147,7 @@ def panel_secretaria():
 
 
 def panel_presidente():
-    st.title("🏛️ Panel de Presidente")
-    st.caption("Supervisión de grupos y actividades principales")
+    st.markdown("<div class='card'><h1>🏛️ Panel de Presidente</h1><p>Supervisión de grupos y actividades</p></div>", unsafe_allow_html=True)
 
     tabs = st.tabs([
         "👥 Registrar Grupo",
@@ -118,7 +163,7 @@ def panel_presidente():
     with tabs[3]: mostrar_prestamo()
 
     with tabs[4]:
-        if st.button("Cerrar sesión", type="primary"):
+        if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -126,8 +171,7 @@ def panel_presidente():
 
 
 def panel_promotora(usuario):
-    st.title("👩‍💼 Panel de Promotora")
-    st.caption("Supervisión y registro administrativo")
+    st.markdown("<div class='card'><h1>👩‍💼 Panel de Promotora</h1><p>Supervisión y administración territorial</p></div>", unsafe_allow_html=True)
 
     tabs = st.tabs([
         "📈 Dashboard",
@@ -144,7 +188,7 @@ def panel_promotora(usuario):
     with tabs[2]: mostrar_distrito()
 
     with tabs[3]:
-        if st.button("Cerrar sesión", type="primary"):
+        if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -152,8 +196,7 @@ def panel_promotora(usuario):
 
 
 def panel_admin():
-    st.title("🧑‍💻 Panel de Administradora")
-    st.caption("Control total del sistema GAPCSV")
+    st.markdown("<div class='card'><h1>🧑‍💻 Panel de Administradora</h1><p>Gestión integral del sistema</p></div>", unsafe_allow_html=True)
 
     tabs = st.tabs([
         "📊 Consolidado Distritos",
@@ -161,21 +204,17 @@ def panel_admin():
         "🚪 Cerrar sesión"
     ])
 
-    with tabs[0]:
-        st.info("Aquí irá el consolidado general por distrito")
-
-    with tabs[1]:
-        registrar_usuario()
+    with tabs[0]: st.info("Aquí irá el consolidado general por distrito")
+    with tabs[1]: registrar_usuario()
 
     with tabs[2]:
-        if st.button("Cerrar sesión", type="primary"):
+        if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["sesion_iniciada"] = False
             st.session_state["pagina_actual"] = "sesion_cerrada"
             st.rerun()
 
-
-# ----------- APP FLOW ----------
+# ----------- APP FLOW (NO CAMBIADO, SOLO ESTÉTICA) ----------
 if st.session_state["sesion_iniciada"]:
 
     usuario = st.session_state.get("usuario", "Usuario")
@@ -198,7 +237,7 @@ if st.session_state["sesion_iniciada"]:
         st.error("⚠️ Tipo de usuario no reconocido.")
 
 else:
-    # --- PANTALLA SIN SESIÓN ---
+
     if st.session_state["pagina_actual"] == "sesion_cerrada":
         st.success("Sesión finalizada.")
         if st.button("Volver al inicio"):
@@ -211,14 +250,15 @@ else:
         st.markdown("<h3 class='subtitulo-principal'>Grupos de Ahorro y Préstamo Comunitario</h3>", unsafe_allow_html=True)
 
         st.markdown(
-            "<p class='texto-objetivo'>Este sistema tiene como objetivo facilitar la gestión, "
-            "organización y seguimiento administrativo de los grupos de ahorro, "
-            "promoviendo la transparencia, participación y desarrollo comunitario.</p>",
+            "<p class='texto-objetivo'>Plataforma institucional para la gestión, "
+            "administración y control operativo de los grupos de ahorro comunitarios, "
+            "orientada a fortalecer la transparencia, la eficiencia y la organización financiera local.</p>",
             unsafe_allow_html=True
         )
 
         st.write("")
         st.write("")
+
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔑 Iniciar sesión", use_container_width=True):
