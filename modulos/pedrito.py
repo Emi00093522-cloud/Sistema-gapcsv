@@ -1,48 +1,86 @@
-def panel_secretaria():
-    st.title("Panel de Secretaria - 🚨 VERSIÓN NUEVA")
-    
-    # DEBUG VISIBLE
-    st.error("🚨 ¡ESTA ES LA VERSIÓN NUEVA CON ORDEN CORREGIDO!")
-    st.warning("Si ves este mensaje, el código SÍ se está ejecutando")
-    
-    tabs = st.tabs([
-        "👥 Registrar Grupo - 1",
-        "👥 Miembros - 2", 
-        "📜 Reglamentos - 3",
-        "📅 Reuniones - 4",
-        "💰 Préstamos - 5",
-        "📝 Asistencia - 6",
-        "🚪 Cerrar sesión - 7"
-    ])
+import streamlit as st
 
-    with tabs[0]:
-        st.header("📍 PESTAÑA 1 - REGISTRAR GRUPO")
+# Importar módulos de cada panel
+from distrito import mostrar_distrito            # para PROMOTORA
+
+from grupos import mostrar_grupos                # para SECRETARIA
+from miembros import mostrar_miembros
+from reuniones import mostrar_reuniones
+from reglamentos import mostrar_reglamentos
+from prestamo import mostrar_prestamos
+
+# -----------------------------
+# PANEL DE PROMOTORA
+# -----------------------------
+def panel_promotora(usuario, dui):
+    st.title("Panel de Promotora")
+
+    st.write(f"Promotora: **{usuario}** — DUI: **{dui}**")
+
+    menu = st.tabs(["Distritos"])
+
+    with menu[0]:
+        st.header("Gestión de Distritos")
+        mostrar_distrito()
+
+
+# -----------------------------
+# PANEL DE SECRETARÍA
+# -----------------------------
+def panel_secretaria(usuario, dui):
+    st.title("Panel de Secretaría")
+
+    st.write(f"Secretaria: **{usuario}** — DUI: **{dui}**")
+
+    menu = st.tabs(["Crear Grupo", "Miembros", "Reuniones", "Reglamentos", "Préstamos"])
+
+    with menu[0]:
+        st.header("Crear Grupo")
         mostrar_grupos()
 
-    with tabs[1]:
-        st.header("📍 PESTAÑA 2 - MIEMBROS")
-        mostrar_miembro()
+    with menu[1]:
+        st.header("Gestión de Miembros")
+        mostrar_miembros()
 
-    with tabs[2]:
-        st.header("📍 PESTAÑA 3 - REGLAMENTOS")
-        mostrar_reglamentos()
-
-    with tabs[3]:
-        st.header("📍 PESTAÑA 4 - REUNIONES")
+    with menu[2]:
+        st.header("Reuniones del Grupo")
         mostrar_reuniones()
 
-    with tabs[4]:
-        st.header("📍 PESTAÑA 5 - PRÉSTAMOS")
-        mostrar_prestamo()
+    with menu[3]:
+        st.header("Reglamentos del Grupo")
+        mostrar_reglamentos()
 
-    with tabs[5]:
-        st.header("📍 PESTAÑA 6 - ASISTENCIA")
-        mostrar_asistencia()
+    with menu[4]:
+        st.header("Gestión de Préstamos")
+        mostrar_prestamos()
 
-    with tabs[6]:
-        st.header("📍 PESTAÑA 7 - CERRAR SESIÓN")
-        if st.button("Cerrar sesión"):
-            st.session_state.clear()
-            st.session_state["sesion_iniciada"] = False
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
+
+# -----------------------------
+# PANEL DE ADMINISTRADOR
+# -----------------------------
+def panel_admin(usuario, dui):
+    st.title("Panel de Administrador")
+
+    st.write(f"Administrador: **{usuario}** — DUI: **{dui}**")
+
+    st.info("Aquí irá toda la gestión del sistema.")  # temporal
+
+
+# -----------------------------
+# FUNCIÓN PRINCIPAL PARA ELECCIÓN DE PANEL
+# -----------------------------
+def cargar_panel(tipo_usuario, usuario, dui):
+
+    tipo_usuario = tipo_usuario.lower().strip()
+
+    if tipo_usuario == "promotora":
+        panel_promotora(usuario, dui)
+
+    elif tipo_usuario == "secretaria":
+        panel_secretaria(usuario, dui)
+
+    elif tipo_usuario == "administrador":
+        panel_admin(usuario, dui)
+
+    else:
+        st.error("⚠️ Tipo de usuario no reconocido. Contacte al administrador.")
