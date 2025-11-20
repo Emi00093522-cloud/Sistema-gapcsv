@@ -9,6 +9,7 @@ from modulos.prestamo import mostrar_prestamo
 from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
+from modulos.integrada import mostrar_gestion_integrada
 
 
 # ---------------------------------------------------------
@@ -134,7 +135,7 @@ def panel_secretaria():
     with tabs[1]: mostrar_reglamentos()
     with tabs[2]: mostrar_miembro()
     with tabs[3]: mostrar_prestamo()
-    with tabs[4]: mostrar_reuniones()
+    with tabs[4]: mostrar_gestion_integrada()
     with tabs[5]: mostrar_asistencia()
 
     with tabs[6]:
