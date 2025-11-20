@@ -24,20 +24,31 @@ def panel_secretaria():
 
     tabs = st.tabs([
         "👥 Registrar Grupo",
-        "👥 Miembros",
         "📜 Reglamentos",
+        "👥 Miembros",
+        "💰 Préstamos",
         "📅 Reuniones",
+        "📝 Asistencia",
         "🚪 Cerrar sesión"
     ])
 
     with tabs[0]:
         mostrar_grupos()
+
     with tabs[1]:
-        mostrar_miembro()
-    with tabs[2]:
         mostrar_reglamentos()
+
+    with tabs[2]:
+        mostrar_miembro()
+
+    with tabs[3]:
+        mostrar_prestamo()
+
     with tabs[4]:
         mostrar_reuniones()
+
+    with tabs[5]:
+        mostrar_asistencia()
 
     with tabs[6]:
         if st.button("Cerrar sesión"):
