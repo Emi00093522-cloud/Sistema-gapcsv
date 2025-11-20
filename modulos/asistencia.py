@@ -46,7 +46,7 @@ def mostrar_asistencia():
             st.warning("⚠ No hay miembros en este grupo.")
             return
 
-        # 3. Cargar asistencia previa
+        # 3. Cargar asistencia previa (incluye justificación)
         cursor.execute("""
             SELECT ID_Miembro, asistio, justificacion
             FROM Miembroxreunion
@@ -63,38 +63,34 @@ def mostrar_asistencia():
             st.write("### Tabla de asistencia")
 
             for id_miembro, nombre in miembros:
-                asistio_prev, just_prev = asistencia_previa.get(id_miembro, (1, ""))
+                asistio_prev, just_prev = asistencia_previa.get(id_miembro, (0, ""))
 
-                col1, col2 = st.columns([2, 2])
+                col1, col2, col3 = st.columns([2, 1, 3])
 
                 # Nombre
                 col1.write(nombre)
 
-                # Selectbox con SI - NO - JUSTIFICACION
+                # SI / NO
                 asistio = col2.selectbox(
                     "Asistió",
-                    ["SI", "NO", "JUSTIFICACION"],
-                    index=(
-                        0 if asistio_prev == 1 else
-                        2 if just_prev not in ("", None) else
-                        1
-                    ),
+                    ["SI", "NO"],
+                    index=0 if asistio_prev == 1 else 1,
                     key=f"asistio_{id_miembro}"
                 )
 
-                # Guardar valores convertidos
-                if asistio == "SI":
-                    asistio_val = 1
-                    just_val = ""
-                elif asistio == "NO":
-                    asistio_val = 0
-                    just_val = ""
-                else:  # JUSTIFICACION
-                    asistio_val = 0
-                    just_val = "JUSTIFICADO"
+                # Justificación solo si NO asistió
+                justificacion = ""
+                if asistio == "NO":
+                    justificacion = col3.text_input(
+                        "Justificación",
+                        value=just_prev or "",
+                        key=f"just_{id_miembro}"
+                    )
+                else:
+                    col3.write("—")
 
-                checkboxes[id_miembro] = asistio_val
-                justificaciones[id_miembro] = just_val
+                checkboxes[id_miembro] = 1 if asistio == "SI" else 0
+                justificaciones[id_miembro] = justificacion
 
             guardar = st.form_submit_button("💾 Guardar asistencia")
 
@@ -102,7 +98,7 @@ def mostrar_asistencia():
             try:
                 for id_miembro in checkboxes.keys():
                     asistio_val = checkboxes[id_miembro]
-                    just_val = justificaciones[id_miembro]
+                    just_val = justificaciones[id_miembro] if asistio_val == 0 else ""
 
                     # ¿Existe ya?
                     cursor.execute("""
@@ -127,7 +123,7 @@ def mostrar_asistencia():
 
                 con.commit()
 
-                # Contar presentes (solo SI)
+                # Contar presentes
                 cursor.execute("""
                     SELECT COUNT(*)
                     FROM Miembroxreunion
