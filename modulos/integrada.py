@@ -5,10 +5,7 @@ from modulos.asistencia import mostrar_asistencia
 
 def mostrar_gestion_integrada():
     """
-    Módulo integrado que contiene 3 pestañas con los módulos existentes:
-    1. Reuniones
-    2. Préstamos  
-    3. Asistencia
+    Módulo integrado que contiene 3 pestañas con los módulos existentes
     """
     
     st.header("📊 Gestión Integrada de Grupo")
@@ -22,23 +19,18 @@ def mostrar_gestion_integrada():
     # Crear pestañas principales
     tab1, tab2, tab3 = st.tabs(["📅 Reuniones", "💰 Préstamos", "🧍‍♂️ Asistencia"])
 
-    # ======================================================
-    # PESTAÑA 1: REUNIONES
-    # ======================================================
     with tab1:
         st.subheader("📅 Gestión de Reuniones")
         mostrar_reuniones()
 
-    # ======================================================
-    # PESTAÑA 2: PRÉSTAMOS
-    # ======================================================
     with tab2:
         st.subheader("💰 Gestión de Préstamos")
-        mostrar_prestamo()
+        try:
+            mostrar_prestamo()
+        except Exception as e:
+            st.error("Error temporal en préstamos - trabajando en la solución")
+            st.info("Por ahora, usa el módulo individual de préstamos")
 
-    # ======================================================
-    # PESTAÑA 3: ASISTENCIA
-    # ======================================================
     with tab3:
         st.subheader("🧍‍♂️ Registro de Asistencia")
         mostrar_asistencia()
