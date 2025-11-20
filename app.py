@@ -126,7 +126,6 @@ def panel_secretaria():
         "👥 Miembros",
         
         "📅 Reuniones",
-        "📝 Asistencia",
         "🚪 Cerrar sesión"
     ])
 
@@ -136,7 +135,7 @@ def panel_secretaria():
     
     with tabs[3]: mostrar_gestion_integrada()w
 
-    with tabs[5]:
+    with tabs[4]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
