@@ -6,7 +6,7 @@ from modulos.distrito import mostrar_distrito
 from modulos.grupos import mostrar_grupos
 from modulos.miembros import mostrar_miembro
 from modulos.prestamo import mostrar_prestamo
-from modulos.reuniones import mostrar_reuniones
+from modulos.reuniones import _mostrar_registro_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 
@@ -37,7 +37,7 @@ def panel_secretaria():
     with tabs[2]:
         mostrar_reglamentos()
     with tabs[4]:
-        mostrar_reuniones()
+       _mostrar_registro_reuniones()
 
     with tabs[6]:
         if st.button("Cerrar sesión"):
