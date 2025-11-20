@@ -32,7 +32,7 @@ def panel_secretaria(usuario, dui):
 
     st.write(f"Secretaria: **{usuario}** — DUI: **{dui}**")
 
-    menu = st.tabs(["Crear Grupo", "Miembros", "Reuniones", "Reglamentos", "Préstamos"])
+    menu = st.tabs(["Crear Grupo", "Miembros", "Reglamentos","Reuniones", "Préstamos"])
 
     with menu[0]:
         st.header("Crear Grupo")
@@ -43,12 +43,12 @@ def panel_secretaria(usuario, dui):
         mostrar_miembros()
 
     with menu[2]:
-        st.header("Reuniones del Grupo")
-        mostrar_reuniones()
-
-    with menu[3]:
         st.header("Reglamentos del Grupo")
         mostrar_reglamentos()
+
+    with menu[3]:
+        st.header("Reuniones del Grupo")
+        mostrar_reuniones()
 
     with menu[4]:
         st.header("Gestión de Préstamos")
