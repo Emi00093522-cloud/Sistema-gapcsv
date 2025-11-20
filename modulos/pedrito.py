@@ -1,112 +1,188 @@
 import streamlit as st
+from modulos.registro_usuario import registrar_usuario
+from modulos.login import login
+from modulos.promotora import mostrar_promotora
+from modulos.distrito import mostrar_distrito
+from modulos.grupos import mostrar_grupos
+from modulos.miembros import mostrar_miembro
+from modulos.prestamo import mostrar_prestamo
+from modulos.reuniones import mostrar_reuniones
+from modulos.asistencia import mostrar_asistencia
+from modulos.reglamentos import mostrar_reglamentos
 
-# DEBUG: Verificar si se está ejecutando el código nuevo
-st.sidebar.info("🔍 Código nuevo cargado")
+# -------- CONFIG -----------
+st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="wide")
 
-# Inicializar estados de sesión
-if 'opcion_secreta_activa' not in st.session_state:
-    st.session_state.opcion_secreta_activa = "Registrar Grupo"
+if "sesion_iniciada" not in st.session_state:
+    st.session_state["sesion_iniciada"] = False
+if "pagina_actual" not in st.session_state:
+    st.session_state["pagina_actual"] = "inicio"
 
-# Importar módulos de cada panel
-try:
-    from distrito import mostrar_distrito
-    from grupos import mostrar_grupos
-    from miembros import mostrar_miembros
-    from reuniones import mostrar_reuniones
-    from reglamentos import mostrar_reglamentos
-    from prestamo import mostrar_prestamos
-    from asistencia import mostrar_asistencia
-    st.sidebar.success("✅ Módulos importados")
-except ImportError as e:
-    st.sidebar.error(f"❌ Error importando: {e}")
+# ------------ PANELS ---------------
+def panel_secretaria():
+    st.title("Panel de Secretaria")
 
-# -----------------------------
-# PANEL DE PROMOTORA
-# -----------------------------
-def panel_promotora(usuario, dui):
-    st.title("Panel de Promotora")
-    st.write(f"Promotora: **{usuario}** — DUI: **{dui}**")
+    tabs = st.tabs([
+        "👥 Registrar Grupo",
+        "👥 Miembros",
+        "📜 Reglamentos",
+        "📅 Reuniones",
+        "💰 Préstamos",
+        "📝 Asistencia",
+        "🚪 Cerrar sesión"
+    ])
 
-    menu = st.tabs(["Distritos"])
-    with menu[0]:
-        st.header("Gestión de Distritos")
-        mostrar_distrito()
-
-# -----------------------------
-# PANEL DE SECRETARÍA - VERSIÓN NUEVA
-# -----------------------------
-def panel_secretaria(usuario, dui):
-    st.title("Panel de Secretaría - NUEVA VERSIÓN")
-    st.write(f"Secretaria: **{usuario}** — DUI: **{dui}**")
-    
-    # Mostrar debug info
-    st.sidebar.write(f"Opción activa: {st.session_state.opcion_secreta_activa}")
-
-    # Lista de opciones en el sidebar
-    st.sidebar.markdown("---")
-    st.sidebar.title("📋 Menú de Gestión")
-    
-    opciones = [
-        "Registrar Grupo",
-        "Reglamentos", 
-        "Miembros",
-        "Préstamos",
-        "Reuniones",
-        "Asistencia"
-    ]
-    
-    # Radio button en el sidebar
-    opcion = st.sidebar.radio(
-        "Selecciona una opción:",
-        options=opciones,
-        key="opcion_secreta_activa"
-    )
-
-    # Mostrar el contenido según la opción seleccionada
-    st.header(f"📌 {opcion}")
-    
-    if opcion == "Registrar Grupo":
+    with tabs[0]:
         mostrar_grupos()
-        
-    elif opcion == "Reglamentos":
+
+    with tabs[1]:
+        mostrar_miembro()
+
+    with tabs[2]:
         mostrar_reglamentos()
-        
-    elif opcion == "Miembros":
-        mostrar_miembros()
-        
-    elif opcion == "Préstamos":
-        mostrar_prestamos()
-        
-    elif opcion == "Reuniones":
+
+    with tabs[3]:
         mostrar_reuniones()
-        
-    elif opcion == "Asistencia":
+
+    with tabs[4]:
+        mostrar_prestamo()
+
+    with tabs[5]:
         mostrar_asistencia()
 
-# -----------------------------
-# PANEL DE ADMINISTRADOR
-# -----------------------------
-def panel_admin(usuario, dui):
-    st.title("Panel de Administrador")
-    st.write(f"Administrador: **{usuario}** — DUI: **{dui}**")
-    st.info("Aquí irá toda la gestión del sistema.")
+    with tabs[6]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
 
-# -----------------------------
-# FUNCIÓN PRINCIPAL PARA ELECCIÓN DE PANEL
-# -----------------------------
-def cargar_panel(tipo_usuario, usuario, dui):
-    tipo_usuario = tipo_usuario.lower().strip()
-    
-    st.sidebar.write(f"Tipo usuario: {tipo_usuario}")
 
-    if tipo_usuario == "promotora":
-        panel_promotora(usuario, dui)
+def panel_presidente():
+    st.title("Panel de Presidente")
 
-    elif tipo_usuario == "secretaria":
-        panel_secretaria(usuario, dui)
+    tabs = st.tabs([
+        "👥 Registrar Grupo",
+        "📜 Reglamentos",
+        "👥 Miembros",
+        "💰 Préstamos",
+        "🚪 Cerrar sesión"
+    ])
 
-    elif tipo_usuario == "administrador":
-        panel_admin(usuario, dui)
+    with tabs[0]:
+        mostrar_grupos()
+    with tabs[1]:
+        mostrar_reglamentos()
+    with tabs[2]:
+        mostrar_miembro()
+    with tabs[3]:
+        mostrar_prestamo()
+
+    with tabs[4]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+
+def panel_promotora(usuario):
+    st.title("Panel de Promotora")
+
+    tabs = st.tabs([
+        "📈 Dashboard",
+        "👩‍💼 Registro Promotora",
+        "🏛️ Distrito",
+        "🚪 Cerrar sesión"
+    ])
+
+    with tabs[0]:
+        st.success(f"Bienvenida, {usuario}")
+        st.info("Dashboard general de promotoras")
+
+    with tabs[1]:
+        mostrar_promotora()
+
+    with tabs[2]:
+        mostrar_distrito()
+
+    with tabs[3]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+
+def panel_admin():
+    st.title("Panel de Administradora")
+
+    tabs = st.tabs([
+        "📊 Consolidado Distritos",
+        "🧑‍💻 Registrar Usuario",
+        "🚪 Cerrar sesión"
+    ])
+
+    with tabs[0]:
+        st.info("Aquí irá el consolidado general por distrito")
+
+    with tabs[1]:
+        registrar_usuario()
+
+    with tabs[2]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
+
+
+# ----------- APP FLOW ----------
+if st.session_state["sesion_iniciada"]:
+
+    usuario = st.session_state.get("usuario", "Usuario")
+    tipo = (st.session_state.get("tipo_usuario", "") or "").lower()
+    cargo = (st.session_state.get("cargo_de_usuario", "") or "").upper()
+
+    if cargo == "SECRETARIA":
+        panel_secretaria()
+
+    elif cargo == "PRESIDENTE":
+        panel_presidente()
+
+    elif tipo == "promotora" or cargo == "PROMOTORA":
+        panel_promotora(usuario)
+
+    elif tipo == "administradora":
+        panel_admin()
 
     else:
-        st.error("⚠️ Tipo de usuario no reconocido. Contacte al administrador.")
+        st.error("⚠️ Tipo de usuario no reconocido.")
+
+else:
+    # --- PANTALLA SIN SESIÓN ---
+    if st.session_state["pagina_actual"] == "sesion_cerrada":
+        st.success("Sesión finalizada.")
+        if st.button("Volver al inicio"):
+            st.session_state["pagina_actual"] = "inicio"
+            st.rerun()
+
+    elif st.session_state["pagina_actual"] == "inicio":
+        st.title("Sistema GAPCSV")
+        st.subheader("Grupos de Ahorro y Préstamo Comunitario")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔑 Iniciar sesión"):
+                st.session_state["pagina_actual"] = "login"
+                st.rerun()
+        with col2:
+            if st.button("📝 Registrarme"):
+                st.session_state["pagina_actual"] = "registro"
+                st.rerun()
+
+    elif st.session_state["pagina_actual"] == "login":
+        login()
+
+    elif st.session_state["pagina_actual"] == "registro":
+        registrar_usuario()
