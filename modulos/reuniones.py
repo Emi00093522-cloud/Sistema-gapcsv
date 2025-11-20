@@ -237,82 +237,119 @@ def mostrar_reuniones():
             con.rollback()
             st.error(f"❌ Error al eliminar: {e}")
 
-    # ------------------------------------------------------
-    # 5. REGISTRO DE ASISTENCIA (solo si hay una reunión seleccionada)
-    # ------------------------------------------------------
+    # ======================================================
+    # PESTAÑAS PARA ASISTENCIA Y PRÉSTAMO
+    # ======================================================
     if id_reunion:
         st.write("---")
-        st.subheader("🧍‍♂️🧍‍♀️ Registro de Asistencia")
+        
+        # Crear pestañas
+        tab1, tab2 = st.tabs(["🧍‍♂️🧍‍♀️ Asistencia", "💰 Préstamo"])
+        
+        # ======================================================
+        # PESTAÑA 1: ASISTENCIA
+        # ======================================================
+        with tab1:
+            st.subheader("🧍‍♂️🧍‍♀️ Registro de Asistencia")
 
-        # 5.1 obtener miembros del grupo
-        cursor.execute("""
-            SELECT ID_Miembro, nombre, apellido
-            FROM Miembro
-            WHERE ID_Grupo = %s
-            ORDER BY nombre, apellido
-        """, (id_grupo,))
-        miembros = cursor.fetchall()
-
-        if not miembros:
-            st.info("No hay miembros registrados en este grupo.")
-        else:
-            # 5.2 obtener asistencia previa para la reunión
+            # 5.1 obtener miembros del grupo
             cursor.execute("""
-                SELECT ID_Miembro, asistencia
-                FROM MiembroXReunion
-                WHERE ID_Reunion = %s
-            """, (id_reunion,))
-            asistencia_previa_rows = cursor.fetchall()
-            asistencia_previa = {r["ID_Miembro"]: r["asistencia"] for r in asistencia_previa_rows}
+                SELECT ID_Miembro, nombre, apellido
+                FROM Miembro
+                WHERE ID_Grupo = %s
+                ORDER BY nombre, apellido
+            """, (id_grupo,))
+            miembros = cursor.fetchall()
 
-            st.write("Marque asistencia y luego presione '💾 Guardar asistencia'")
+            if not miembros:
+                st.info("No hay miembros registrados en este grupo.")
+            else:
+                # 5.2 obtener asistencia previa para la reunión
+                cursor.execute("""
+                    SELECT ID_Miembro, asistencia
+                    FROM MiembroXReunion
+                    WHERE ID_Reunion = %s
+                """, (id_reunion,))
+                asistencia_previa_rows = cursor.fetchall()
+                asistencia_previa = {r["ID_Miembro"]: r["asistencia"] for r in asistencia_previa_rows}
 
-            # Generar checkboxes con keys estables para que no se pierdan con reruns
-            asistentes_dict = {}
-            cols = st.columns([3,1])  # layout: lista y luego un pequeño espacio
-            # Mostramos un checkbox por miembro
-            for m in miembros:
-                mid = m["ID_Miembro"]
-                label = f"{m.get('nombre','')} {m.get('apellido','')}".strip()
-                key = f"asist_{id_reunion}_{mid}"
-                default_val = bool(asistencia_previa.get(mid, 0))
-                asistentes_dict[mid] = st.checkbox(label, value=default_val, key=key)
+                st.write("Marque asistencia y luego presione '💾 Guardar asistencia'")
 
-            # Botón para guardar asistencia
-            if st.button("💾 Guardar asistencia"):
-                try:
-                    # Insert / update por cada miembro
-                    for mid, checked in asistentes_dict.items():
-                        asistencia_val = 1 if checked else 0
+                # Generar checkboxes con keys estables para que no se pierdan con reruns
+                asistentes_dict = {}
+                # Mostramos un checkbox por miembro
+                for m in miembros:
+                    mid = m["ID_Miembro"]
+                    label = f"{m.get('nombre','')} {m.get('apellido','')}".strip()
+                    key = f"asist_{id_reunion}_{mid}"
+                    default_val = bool(asistencia_previa.get(mid, 0))
+                    asistentes_dict[mid] = st.checkbox(label, value=default_val, key=key)
+
+                # Botón para guardar asistencia
+                if st.button("💾 Guardar asistencia", key="guardar_asistencia"):
+                    try:
+                        # Insert / update por cada miembro
+                        for mid, checked in asistentes_dict.items():
+                            asistencia_val = 1 if checked else 0
+                            cursor.execute("""
+                                INSERT INTO MiembroXReunion (ID_Miembro, ID_Reunion, asistencia, Fecha_registro)
+                                VALUES (%s, %s, %s, NOW())
+                                ON DUPLICATE KEY UPDATE
+                                    asistencia = VALUES(asistencia),
+                                    Fecha_registro = VALUES(Fecha_registro)
+                            """, (mid, id_reunion, asistencia_val))
+
+                        # Calcular nuevo total_presentes
                         cursor.execute("""
-                            INSERT INTO MiembroXReunion (ID_Miembro, ID_Reunion, asistencia, Fecha_registro)
-                            VALUES (%s, %s, %s, NOW())
-                            ON DUPLICATE KEY UPDATE
-                                asistencia = VALUES(asistencia),
-                                Fecha_registro = VALUES(Fecha_registro)
-                        """, (mid, id_reunion, asistencia_val))
+                            SELECT COUNT(*) AS total
+                            FROM MiembroXReunion
+                            WHERE ID_Reunion = %s AND asistencia = 1
+                        """, (id_reunion,))
+                        total_row = cursor.fetchone()
+                        total = int(total_row["total"]) if total_row and "total" in total_row else 0
 
-                    # Calcular nuevo total_presentes
-                    cursor.execute("""
-                        SELECT COUNT(*) AS total
-                        FROM MiembroXReunion
-                        WHERE ID_Reunion = %s AND asistencia = 1
-                    """, (id_reunion,))
-                    total_row = cursor.fetchone()
-                    total = int(total_row["total"]) if total_row and "total" in total_row else 0
+                        # Actualizar Reunion.total_presentes
+                        cursor.execute("""
+                            UPDATE Reunion SET total_presentes = %s WHERE ID_Reunion = %s
+                        """, (total, id_reunion))
 
-                    # Actualizar Reunion.total_presentes
-                    cursor.execute("""
-                        UPDATE Reunion SET total_presentes = %s WHERE ID_Reunion = %s
-                    """, (total, id_reunion))
+                        con.commit()
+                        st.success(f"✅ Asistencia guardada. Total presentes: {total}")
+                        st.rerun()
 
-                    con.commit()
-                    st.success(f"✅ Asistencia guardada. Total presentes: {total}")
-                    st.rerun()
+                    except Exception as e:
+                        con.rollback()
+                        st.error(f"❌ Error al guardar asistencia: {e}")
 
-                except Exception as e:
-                    con.rollback()
-                    st.error(f"❌ Error al guardar asistencia: {e}")
+        # ======================================================
+        # PESTAÑA 2: PRÉSTAMO
+        # ======================================================
+        with tab2:
+            st.subheader("💰 Gestión de Préstamos")
+            
+            # Aquí puedes agregar la funcionalidad específica para préstamos
+            st.info("Funcionalidad de préstamos en desarrollo...")
+            
+            # Ejemplo básico de formulario para préstamos
+            with st.form("form_prestamo"):
+                st.write("Registrar nuevo préstamo:")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    monto = st.number_input("Monto del préstamo", min_value=0.0, step=0.01)
+                    fecha_prestamo = st.date_input("Fecha del préstamo", datetime.now().date())
+                
+                with col2:
+                    plazo = st.selectbox("Plazo (meses)", [1, 3, 6, 12, 24, 36])
+                    tasa_interes = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
+                
+                descripcion = st.text_area("Descripción del préstamo")
+                
+                guardar_prestamo = st.form_submit_button("💾 Guardar Préstamo")
+                
+                if guardar_prestamo:
+                    st.success(f"Préstamo de ${monto} registrado correctamente")
+                    # Aquí iría la lógica para guardar en la base de datos
 
     # Cerrar conexión
     cursor.close()
