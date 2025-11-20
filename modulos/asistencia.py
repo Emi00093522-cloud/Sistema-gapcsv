@@ -9,7 +9,7 @@ def mostrar_asistencia():
         con = obtener_conexion()
         cursor = con.cursor()
 
-        # 1. Cargar reuniones (lugar + fecha)
+        # Reuniones
         cursor.execute("""
             SELECT ID_Reunion, lugar, fecha, ID_Grupo
             FROM Reunion
@@ -20,11 +20,7 @@ def mostrar_asistencia():
             st.warning("⚠ No hay reuniones registradas.")
             return
 
-        # Diccionario: mostrar fecha | lugar
-        reuniones_dict = {
-            r[0]: f"{r[2]} | {r[1]}"
-            for r in reuniones
-        }
+        reuniones_dict = {r[0]: f"{r[2]} | {r[1]}" for r in reuniones}
 
         id_reunion = st.selectbox(
             "Selecciona la reunión",
@@ -32,10 +28,9 @@ def mostrar_asistencia():
             format_func=lambda x: reuniones_dict[x]
         )
 
-        # Obtener ID_Grupo
         id_grupo = next(r[3] for r in reuniones if r[0] == id_reunion)
 
-        # 2. Cargar miembros del grupo
+        # Miembros
         cursor.execute("""
             SELECT ID_Miembro, nombre
             FROM Miembro
@@ -45,31 +40,30 @@ def mostrar_asistencia():
         miembros = cursor.fetchall()
 
         if not miembros:
-            st.warning("⚠ No hay miembros en este grupo.")
+            st.warning("⚠ No hay miembros para este grupo.")
             return
 
-        # 3. Cargar asistencia previa
+        # Asistencia previa
         cursor.execute("""
             SELECT ID_Miembro, asistio, justificacion
             FROM Miembroxreunion
             WHERE ID_Reunion = %s
         """, (id_reunion,))
-        asistencia_previa_raw = cursor.fetchall()
+        prev = cursor.fetchall()
+
         asistencia_previa = {
             fila[0]: {"asistio": fila[1], "justificacion": fila[2]}
-            for fila in asistencia_previa_raw
+            for fila in prev
         }
 
-        st.subheader("📋 Tabla de asistencia")
+        st.subheader("📋 Lista de asistencia")
 
-        # ---------------- FORMULARIO ----------------
         with st.form("form_asistencia"):
-
             asistencia_data = {}
 
             for id_miembro, nombre in miembros:
 
-                asistio_prev = asistencia_previa.get(id_miembro, {}).get("asistio", 0)
+                asistio_prev = asistencia_previa.get(id_miembro, {}).get("asistio", 1)
                 just_prev = asistencia_previa.get(id_miembro, {}).get("justificacion", "")
 
                 col1, col2, col3 = st.columns([2, 1.2, 2])
@@ -77,51 +71,50 @@ def mostrar_asistencia():
                 with col1:
                     st.write(nombre)
 
-                # Selector SI/NO
+                # ---------- SELECTBOX ----------
                 key_asistio = f"asistio_{id_miembro}"
                 with col2:
-                    asistio_value = st.selectbox(
-                        "Asistió",
+                    asistio = st.selectbox(
+                        f"Asistió_{id_miembro}",          # Label ÚNICO
                         ["SI", "NO"],
                         index=(0 if asistio_prev == 1 else 1),
                         key=key_asistio
                     )
 
-                # Justificación SOLO si la persona NO asistió
-                justificacion = ""
+                # ---------- JUSTIFICACIÓN SOLO SI ES "NO" ----------
                 key_just = f"just_{id_miembro}"
-
                 with col3:
                     if st.session_state.get(key_asistio) == "NO":
                         justificacion = st.text_input(
-                            "Justificación",
+                            f"Justificacion_{id_miembro}",  # Label ÚNICO
                             value=just_prev,
                             key=key_just
                         )
+                    else:
+                        justificacion = ""
 
                 asistencia_data[id_miembro] = {
-                    "asistio": 1 if asistio_value == "SI" else 0,
+                    "asistio": 1 if asistio == "SI" else 0,
                     "justificacion": justificacion
                 }
 
             guardar = st.form_submit_button("💾 Guardar asistencia")
 
-        # ---------------- GUARDADO ----------------
         if guardar:
             try:
                 for id_miembro, datos in asistencia_data.items():
                     asistio = datos["asistio"]
                     justificacion = datos["justificacion"]
 
-                    # ¿Existe registro previo?
+                    # Verificar si existe
                     cursor.execute("""
                         SELECT ID_MiembroxReunion
                         FROM Miembroxreunion
                         WHERE ID_Miembro = %s AND ID_Reunion = %s
                     """, (id_miembro, id_reunion))
-                    fila = cursor.fetchone()
+                    existe = cursor.fetchone()
 
-                    if fila:
+                    if existe:
                         cursor.execute("""
                             UPDATE Miembroxreunion
                             SET asistio = %s,
@@ -129,7 +122,6 @@ def mostrar_asistencia():
                                 fecha_registro = CURRENT_TIMESTAMP
                             WHERE ID_Miembro = %s AND ID_Reunion = %s
                         """, (asistio, justificacion, id_miembro, id_reunion))
-
                     else:
                         cursor.execute("""
                             INSERT INTO Miembroxreunion
@@ -139,26 +131,11 @@ def mostrar_asistencia():
 
                 con.commit()
 
-                # ---- Actualizar total de presentes ----
-                cursor.execute("""
-                    SELECT COUNT(*)
-                    FROM Miembroxreunion
-                    WHERE ID_Reunion = %s AND asistio = 1
-                """, (id_reunion,))
-                total_presentes = cursor.fetchone()[0]
-
-                cursor.execute("""
-                    UPDATE Reunion
-                    SET total_presentes = %s
-                    WHERE ID_Reunion = %s
-                """, (total_presentes, id_reunion))
-                con.commit()
-
-                st.success("✅ Asistencia guardada correctamente.")
+                st.success("✔ Asistencia guardada correctamente.")
 
             except Exception as e:
                 con.rollback()
-                st.error(f"❌ Error al guardar asistencia: {e}")
+                st.error(f"❌ Error al guardar: {e}")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
