@@ -18,6 +18,10 @@ def _tiene_rol_secretaria():
 # ==========================================================
 #   MÓDULO PRINCIPAL
 # ==========================================================
+tab1, tab2, tab3 = st.tabs(["📝 Prestamos", "✏️ Reuniones","Asistencia"])
+
+        with tab1:
+            st.subheader("Registrar Nuevo Reglamento")
 
 def mostrar_reuniones():
 
