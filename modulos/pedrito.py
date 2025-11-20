@@ -1,5 +1,9 @@
 import streamlit as st
 
+# Inicializar estados de sesión SI NO EXISTEN
+if 'opcion_secreta_activa' not in st.session_state:
+    st.session_state.opcion_secreta_activa = "Registrar Grupo"
+
 # Importar módulos de cada panel
 from distrito import mostrar_distrito            # para PROMOTORA
 
@@ -30,10 +34,9 @@ def panel_promotora(usuario, dui):
 # -----------------------------
 def panel_secretaria(usuario, dui):
     st.title("Panel de Secretaría")
-
     st.write(f"Secretaria: **{usuario}** — DUI: **{dui}**")
 
-    # Lista de opciones en lugar de pestañas
+    # Lista de opciones en el sidebar
     st.sidebar.title("📋 Menú de Gestión")
     
     opciones = [
@@ -45,35 +48,32 @@ def panel_secretaria(usuario, dui):
         "Asistencia"
     ]
     
+    # Usar st.sidebar.radio y guardar en session_state
     opcion_seleccionada = st.sidebar.radio(
         "Selecciona una opción:",
         options=opciones,
-        index=0
+        key="opcion_secreta_activa"  # IMPORTANTE: usar key para session_state
     )
 
     # Mostrar el contenido según la opción seleccionada
+    st.header(opcion_seleccionada)
+    
     if opcion_seleccionada == "Registrar Grupo":
-        st.header("Registrar Grupo")
         mostrar_grupos()
         
     elif opcion_seleccionada == "Reglamentos":
-        st.header("Reglamentos del Grupo")
         mostrar_reglamentos()
         
     elif opcion_seleccionada == "Miembros":
-        st.header("Gestión de Miembros")
         mostrar_miembros()
         
     elif opcion_seleccionada == "Préstamos":
-        st.header("Gestión de Préstamos")
         mostrar_prestamos()
         
     elif opcion_seleccionada == "Reuniones":
-        st.header("Reuniones del Grupo")
         mostrar_reuniones()
         
     elif opcion_seleccionada == "Asistencia":
-        st.header("Gestión de Asistencia")
         mostrar_asistencia()
 
 
