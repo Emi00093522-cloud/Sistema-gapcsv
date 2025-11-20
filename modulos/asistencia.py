@@ -8,7 +8,7 @@ def mostrar_asistencia():
         con = obtener_conexion()
         cursor = con.cursor()
 
-        # 1. Obtener reuniones
+        # 1. Cargar reuniones
         cursor.execute("""
             SELECT ID_Reunion, lugar, fecha, ID_Grupo
             FROM Reunion
@@ -30,14 +30,10 @@ def mostrar_asistencia():
             format_func=lambda x: reuniones_dict[x]
         )
 
-        # Identificar grupo
-        id_grupo = None
-        for r in reuniones:
-            if r[0] == id_reunion:
-                id_grupo = r[3]
-                break
+        # Obtener ID_Grupo asociado
+        id_grupo = next((r[3] for r in reuniones if r[0] == id_reunion), None)
 
-        # 2. Obtener miembros
+        # 2. Cargar miembros
         cursor.execute("""
             SELECT ID_Miembro, nombre
             FROM Miembro
@@ -50,95 +46,91 @@ def mostrar_asistencia():
             st.warning("⚠ No hay miembros en este grupo.")
             return
 
-        # 3. Obtener asistencia previa
+        # 3. Cargar asistencia previa
         cursor.execute("""
             SELECT ID_Miembro, asistio, justificacion
             FROM Miembroxreunion
             WHERE ID_Reunion = %s
         """, (id_reunion,))
-        asistencia_previa = {
-            row[0]: {"asistio": row[1], "justificacion": row[2]}
-            for row in cursor.fetchall()
-        }
+        asistencia_previa = {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
 
         st.subheader("👥 Lista de asistencia")
 
-        if "asistencia_data" not in st.session_state:
-            st.session_state.asistencia_data = {
-                m[0]: {
-                    "asistio": asistencia_previa.get(m[0], {}).get("asistio", 1),
-                    "justificacion": asistencia_previa.get(m[0], {}).get("justificacion", "")
-                }
-                for m in miembros
-            }
+        checkboxes = {}
+        justificaciones = {}
 
-        # ------- TABLA DINÁMICA -------
-        for id_m, nombre in miembros:
-            st.write(f"### {nombre}")
+        with st.form("form_asistencia"):
+            st.write("### Tabla de asistencia")
 
-            col1, col2 = st.columns([1, 3])
+            for id_miembro, nombre in miembros:
+                asistio_prev, just_prev = asistencia_previa.get(id_miembro, (1, ""))
 
-            # Checkbox de asistencia
-            with col1:
-                asistio = st.checkbox(
+                col1, col2 = st.columns([2, 2])
+
+                # Nombre
+                col1.write(nombre)
+
+                # Selectbox con SI - NO - JUSTIFICACION
+                asistio = col2.selectbox(
                     "Asistió",
-                    value=True if st.session_state.asistencia_data[id_m]["asistio"] == 1 else False,
-                    key=f"chk_{id_m}"
+                    ["SI", "NO", "JUSTIFICACION"],
+                    index=(
+                        0 if asistio_prev == 1 else
+                        2 if just_prev not in ("", None) else
+                        1
+                    ),
+                    key=f"asistio_{id_miembro}"
                 )
 
-            # Si NO asistió → mostrar campo de justificación
-            with col2:
-                if not asistio:
-                    just = st.text_input(
-                        "Justificación",
-                        value=st.session_state.asistencia_data[id_m]["justificacion"],
-                        key=f"just_{id_m}"
-                    )
-                else:
-                    just = ""
+                # Guardar valores convertidos
+                if asistio == "SI":
+                    asistio_val = 1
+                    just_val = ""
+                elif asistio == "NO":
+                    asistio_val = 0
+                    just_val = ""
+                else:  # JUSTIFICACION
+                    asistio_val = 0
+                    just_val = "JUSTIFICADO"
 
-            # Actualizar estado
-            st.session_state.asistencia_data[id_m]["asistio"] = 1 if asistio else 0
-            st.session_state.asistencia_data[id_m]["justificacion"] = just
+                checkboxes[id_miembro] = asistio_val
+                justificaciones[id_miembro] = just_val
 
-            st.markdown("---")
+            guardar = st.form_submit_button("💾 Guardar asistencia")
 
-        # ------- GUARDAR -------
-        if st.button("💾 Guardar asistencia"):
+        if guardar:
             try:
-                for id_m, datos in st.session_state.asistencia_data.items():
-                    asistio = datos["asistio"]
-                    justificacion = datos["justificacion"]
+                for id_miembro in checkboxes.keys():
+                    asistio_val = checkboxes[id_miembro]
+                    just_val = justificaciones[id_miembro]
 
-                    # Verificar si existe registro
+                    # ¿Existe ya?
                     cursor.execute("""
                         SELECT ID_MiembroxReunion
                         FROM Miembroxreunion
                         WHERE ID_Miembro = %s AND ID_Reunion = %s
-                    """, (id_m, id_reunion))
-                    fila = cursor.fetchone()
+                        LIMIT 1
+                    """, (id_miembro, id_reunion))
+                    existe = cursor.fetchone()
 
-                    if fila:
+                    if existe:
                         cursor.execute("""
                             UPDATE Miembroxreunion
-                            SET asistio = %s,
-                                justificacion = %s,
-                                fecha_registro = CURRENT_TIMESTAMP
+                            SET asistio = %s, justificacion = %s, fecha_registro = CURRENT_TIMESTAMP
                             WHERE ID_Miembro = %s AND ID_Reunion = %s
-                        """, (asistio, justificacion, id_m, id_reunion))
-
+                        """, (asistio_val, just_val, id_miembro, id_reunion))
                     else:
                         cursor.execute("""
-                            INSERT INTO Miembroxreunion
-                            (ID_Miembro, ID_Reunion, asistio, justificacion, fecha_registro)
+                            INSERT INTO Miembroxreunion (ID_Miembro, ID_Reunion, asistio, justificacion, fecha_registro)
                             VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                        """, (id_m, id_reunion, asistio, justificacion))
+                        """, (id_miembro, id_reunion, asistio_val, just_val))
 
                 con.commit()
 
-                # Actualizar total de presentes
+                # Contar presentes (solo SI)
                 cursor.execute("""
-                    SELECT COUNT(*) FROM Miembroxreunion
+                    SELECT COUNT(*)
+                    FROM Miembroxreunion
                     WHERE ID_Reunion = %s AND asistio = 1
                 """, (id_reunion,))
                 total_presentes = cursor.fetchone()[0]
@@ -150,15 +142,17 @@ def mostrar_asistencia():
                 """, (total_presentes, id_reunion))
                 con.commit()
 
-                st.success("✅ Asistencia guardada correctamente.")
+                st.success(f"✅ Asistencia guardada. Presentes: {total_presentes}")
 
             except Exception as e:
                 con.rollback()
-                st.error(f"❌ Error al guardar: {e}")
+                st.error(f"❌ Error al guardar asistencia: {e}")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
     finally:
-        if "cursor" in locals(): cursor.close()
-        if "con" in locals(): con.close()
+        if "cursor" in locals():
+            cursor.close()
+        if "con" in locals():
+            con.close()
