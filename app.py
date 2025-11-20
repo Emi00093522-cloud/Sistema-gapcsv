@@ -10,6 +10,12 @@ from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 
+# ====== DEBUG INICIAL ======
+st.sidebar.title("🔍 DEBUG")
+st.sidebar.write("App.py cargado: ✅")
+st.sidebar.write("Versión: 2.0 - ORDEN NUEVO")
+# ===========================
+
 # -------- CONFIG -----------
 st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="wide")
 
