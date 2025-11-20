@@ -10,20 +10,93 @@ from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 
-# -------- CONFIG -----------
-st.set_page_config(page_title="Sistema GAPCSV", page_icon="💜", layout="wide")
+# ================================
+# CONFIGURACIÓN GENERAL
+# ================================
+st.set_page_config(
+    page_title="Sistema GAPCSV",
+    page_icon="💙",
+    layout="wide"
+)
 
+# ================================
+# ESTILOS (CSS CORPORATIVO AZUL SUAVE)
+# ================================
+st.markdown("""
+<style>
+
+:root {
+    --azul-suave: #4A90E2;
+    --azul-claro: #E7F0FA;
+    --gris-texto: #3A3A3A;
+    --gris-suave: #F7F9FB;
+    --borde-suave: #D9E4F1;
+}
+
+/* Fondo general */
+body {
+    background-color: var(--gris-suave) !important;
+}
+
+/* TITULOS PRINCIPALES */
+h1, h2, h3 {
+    color: var(--gris-texto) !important;
+    font-weight: 700 !important;
+}
+
+/* Tarjetas elegantes */
+.card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    border: 1px solid var(--borde-suave);
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+}
+
+/* Botones */
+div.stButton > button {
+    background-color: var(--azul-suave);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+}
+
+div.stButton > button:hover {
+    background-color: #357ABD;
+    color: white;
+}
+
+/* Tabs */
+div[data-baseweb="tab-list"] {
+    background-color: var(--azul-claro);
+    padding: 10px;
+    border-radius: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ======================================
+# SESIÓN
+# ======================================
 if "sesion_iniciada" not in st.session_state:
     st.session_state["sesion_iniciada"] = False
 if "pagina_actual" not in st.session_state:
     st.session_state["pagina_actual"] = "inicio"
 
-# ------------ PANELS ---------------
+
+# ================================
+# PANEL DE SECRETARIA
+# ================================
 def panel_secretaria():
-    st.title("Panel de Secretaria")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.title("📘 Panel de Secretaría")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     tabs = st.tabs([
-        "👥 Registrar Grupo",
+        "📁 Registrar Grupo",
         "📜 Reglamentos",
         "👥 Miembros",
         "💰 Préstamos",
@@ -33,22 +106,34 @@ def panel_secretaria():
     ])
 
     with tabs[0]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_grupos()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[1]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_reglamentos()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[2]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_miembro()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[3]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_prestamo()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[4]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_reuniones()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[5]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_asistencia()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[6]:
         if st.button("Cerrar sesión"):
@@ -58,11 +143,16 @@ def panel_secretaria():
             st.rerun()
 
 
+# ================================
+# PANEL DE PRESIDENTE
+# ================================
 def panel_presidente():
-    st.title("Panel de Presidente")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.title("📘 Panel de Presidente")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     tabs = st.tabs([
-        "👥 Registrar Grupo",
+        "📁 Registrar Grupo",
         "📜 Reglamentos",
         "👥 Miembros",
         "💰 Préstamos",
@@ -70,13 +160,24 @@ def panel_presidente():
     ])
 
     with tabs[0]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_grupos()
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with tabs[1]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_reglamentos()
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with tabs[2]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_miembro()
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with tabs[3]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_prestamo()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[4]:
         if st.button("Cerrar sesión"):
@@ -86,8 +187,13 @@ def panel_presidente():
             st.rerun()
 
 
+# ================================
+# PANEL DE PROMOTORA
+# ================================
 def panel_promotora(usuario):
-    st.title("Panel de Promotora")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.title("📊 Panel de Promotora")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     tabs = st.tabs([
         "📈 Dashboard",
@@ -97,14 +203,20 @@ def panel_promotora(usuario):
     ])
 
     with tabs[0]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.success(f"Bienvenida, {usuario}")
         st.info("Dashboard general de promotoras")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[1]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_promotora()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[2]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         mostrar_distrito()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[3]:
         if st.button("Cerrar sesión"):
@@ -114,8 +226,13 @@ def panel_promotora(usuario):
             st.rerun()
 
 
+# ================================
+# PANEL DE ADMINISTRADORA
+# ================================
 def panel_admin():
-    st.title("Panel de Administradora")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.title("🧑‍💻 Panel de Administradora")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     tabs = st.tabs([
         "📊 Consolidado Distritos",
@@ -124,10 +241,14 @@ def panel_admin():
     ])
 
     with tabs[0]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.info("Aquí irá el consolidado general por distrito")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[1]:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         registrar_usuario()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[2]:
         if st.button("Cerrar sesión"):
@@ -137,7 +258,9 @@ def panel_admin():
             st.rerun()
 
 
-# ----------- APP FLOW ----------
+# ================================
+# FLUJO DE LA APLICACIÓN
+# ================================
 if st.session_state["sesion_iniciada"]:
 
     usuario = st.session_state.get("usuario", "Usuario")
@@ -160,7 +283,9 @@ if st.session_state["sesion_iniciada"]:
         st.error("⚠️ Tipo de usuario no reconocido.")
 
 else:
-    # --- PANTALLA SIN SESIÓN ---
+    # ================
+    # PANTALLA SIN SESIÓN (BIENVENIDA)
+    # ================
     if st.session_state["pagina_actual"] == "sesion_cerrada":
         st.success("Sesión finalizada.")
         if st.button("Volver al inicio"):
@@ -168,8 +293,11 @@ else:
             st.rerun()
 
     elif st.session_state["pagina_actual"] == "inicio":
-        st.title("Sistema GAPCSV")
-        st.subheader("Grupos de Ahorro y Préstamo Comunitario")
+
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.title("💙 Sistema GAPCSV")
+        st.subheader("Plataforma oficial de Grupos de Ahorro y Préstamo Comunitario")
+        st.markdown('</div>', unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -182,7 +310,11 @@ else:
                 st.rerun()
 
     elif st.session_state["pagina_actual"] == "login":
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         login()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     elif st.session_state["pagina_actual"] == "registro":
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         registrar_usuario()
+        st.markdown('</div>', unsafe_allow_html=True)
