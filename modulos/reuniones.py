@@ -160,14 +160,12 @@ def mostrar_reuniones():
         fecha_def = datetime.now().date()
         hora_def = datetime.now().time().replace(second=0, microsecond=0)
         lugar_def = ""
-        pres_def = ""
         estado_def = 1
     else:
         fila = next((x for x in reuniones if x["ID_Reunion"] == id_reunion), {})
         fecha_def = fila.get("fecha") or datetime.now().date()
         hora_def = fila.get("Hora") or datetime.now().time().replace(second=0, microsecond=0)
         lugar_def = fila.get("lugar", "")
-        pres_def = fila.get("total_presentes", "")
         estado_def = fila.get("ID_Estado_reunion", 1)
 
     with st.form("form_reuniones"):
@@ -178,7 +176,8 @@ def mostrar_reuniones():
             hora = st.time_input("Hora", hora_def)
 
         lugar = st.text_input("Lugar", lugar_def)
-        total_presentes = st.text_area("Presentes", pres_def)
+        
+        # ✅ SE ELIMINÓ LA CAJA DE TEXTO "PRESENTES" QUE ESTABA AQUÍ
 
         estados = {"Programada": 1, "Realizada": 2, "Cancelada": 3}
         estado_texto_actual = [k for k, v in estados.items() if v == estado_def][0]
@@ -208,14 +207,14 @@ def mostrar_reuniones():
             if id_reunion:
                 cursor.execute("""
                     UPDATE Reunion
-                    SET fecha=%s, Hora=%s, lugar=%s, total_presentes=%s, ID_Estado_reunion=%s
+                    SET fecha=%s, Hora=%s, lugar=%s, ID_Estado_reunion=%s
                     WHERE ID_Reunion=%s
-                """, (fecha, hora_str_full, lugar, total_presentes, int(estado), id_reunion))
+                """, (fecha, hora_str_full, lugar, int(estado), id_reunion))
             else:
                 cursor.execute("""
-                    INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, total_presentes, ID_Estado_reunion)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (id_grupo, fecha, hora_str_full, lugar, total_presentes, int(estado)))
+                    INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (id_grupo, fecha, hora_str_full, lugar, int(estado)))
 
             con.commit()
             st.success("✅ Reunión guardada correctamente.")
