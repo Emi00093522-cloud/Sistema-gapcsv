@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime
 from modulos.config.conexion import obtener_conexion
 import pandas as pd
+from modulos.prestamo import mostrar_prestamo  # ✅ Importar el módulo de préstamos
 
 
 # ==========================================================
@@ -327,29 +328,26 @@ def mostrar_reuniones():
         with tab2:
             st.subheader("💰 Gestión de Préstamos")
             
-            # Aquí puedes agregar la funcionalidad específica para préstamos
-            st.info("Funcionalidad de préstamos en desarrollo...")
+            # ✅ HEREDAMOS AUTOMÁTICAMENTE LA REUNIÓN SELECCIONADA
+            st.success(f"📅 Reunión actual: {seleccion}")
+            st.info(f"👥 Grupo: {grupo_label}")
             
-            # Ejemplo básico de formulario para préstamos
-            with st.form("form_prestamo"):
-                st.write("Registrar nuevo préstamo:")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    monto = st.number_input("Monto del préstamo", min_value=0.0, step=0.01)
-                    fecha_prestamo = st.date_input("Fecha del préstamo", datetime.now().date())
-                
-                with col2:
-                    plazo = st.selectbox("Plazo (meses)", [1, 3, 6, 12, 24, 36])
-                    tasa_interes = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
-                
-                descripcion = st.text_area("Descripción del préstamo")
-                
-                guardar_prestamo = st.form_submit_button("💾 Guardar Préstamo")
-                
-                if guardar_prestamo:
-                    st.success(f"Préstamo de ${monto} registrado correctamente")
-                    # Aquí iría la lógica para guardar en la base de datos
+            # Obtener información adicional de la reunión
+            cursor.execute("""
+                SELECT fecha, lugar FROM Reunion WHERE ID_Reunion = %s
+            """, (id_reunion,))
+            reunion_info = cursor.fetchone()
+            
+            if reunion_info:
+                st.write(f"**Fecha:** {reunion_info['fecha']} | **Lugar:** {reunion_info.get('lugar', 'No especificado')}")
+            
+            # ✅ LLAMAR AL MÓDULO DE PRÉSTAMOS CON EL CONTEXTO DE LA REUNIÓN
+            mostrar_prestamo(
+                id_reunion=id_reunion,
+                id_grupo=id_grupo,
+                reunion_info=seleccion,
+                grupo_info=grupo_label
+            )
 
     # Cerrar conexión
     cursor.close()
