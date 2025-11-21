@@ -2,16 +2,43 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-def mostrar_prestamo():
-    st.header("💰 Registrar Préstamo")
+def mostrar_prestamo(id_reunion=None, id_grupo=None, reunion_info=None, grupo_info=None):
+    """
+    Versión modificada que puede recibir parámetros del contexto de reuniones
+    """
+    
+    # Si viene del contexto de reuniones, mostramos información heredada
+    if id_reunion and id_grupo:
+        st.header(f"💰 Préstamos - Reunión {reunion_info}")
+        st.success(f"📅 Reunión actual: {reunion_info}")
+        st.info(f"👥 Grupo: {grupo_info}")
+    else:
+        st.header("💰 Registrar Préstamo")
+        # Modo standalone (como antes)
 
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Cargar datos
-        cursor.execute("SELECT ID_Miembro, nombre FROM Miembro WHERE ID_Estado = 1")
-        miembros = cursor.fetchall()
+        # CARGAR DATOS DEPENDIENDO DEL CONTEXTO
+        if id_reunion and id_grupo:
+            # ✅ MODO CONTEXTO REUNIÓN: Solo miembros del grupo de esta reunión
+            cursor.execute("""
+                SELECT ID_Miembro, nombre, apellido 
+                FROM Miembro 
+                WHERE ID_Grupo = %s AND ID_Estado = 1
+                ORDER BY nombre, apellido
+            """, (id_grupo,))
+            miembros = cursor.fetchall()
+            
+            if not miembros:
+                st.warning("⚠️ No hay miembros activos en este grupo.")
+                return
+                
+        else:
+            # 🔄 MODO STANDALONE: Todos los miembros (comportamiento original)
+            cursor.execute("SELECT ID_Miembro, nombre FROM Miembro WHERE ID_Estado = 1")
+            miembros = cursor.fetchall()
 
         cursor.execute("SELECT ID_Estado_prestamo, estado_prestamo FROM Estado_prestamo")
         estados_prestamo = cursor.fetchall()
@@ -19,26 +46,32 @@ def mostrar_prestamo():
         with st.form("form_prestamo"):
             st.subheader("Datos del Préstamo")
 
-            # Miembro
+            # MIEMBRO - Diferente según el contexto
             if miembros:
-                miembro_options = {f"{m['nombre']} (ID: {m['ID_Miembro']})": m['ID_Miembro'] for m in miembros}
+                if id_reunion and id_grupo:
+                    # En contexto reunión: mostrar nombre completo
+                    miembro_options = {f"{m['nombre']} {m.get('apellido', '')}".strip(): m['ID_Miembro'] for m in miembros}
+                else:
+                    # Modo standalone: formato original
+                    miembro_options = {f"{m['nombre']} (ID: {m['ID_Miembro']})": m['ID_Miembro'] for m in miembros}
+                
                 miembro_seleccionado = st.selectbox("Miembro *", list(miembro_options.keys()))
                 ID_Miembro = miembro_options[miembro_seleccionado]
             else:
                 st.error("❌ No hay miembros disponibles")
                 ID_Miembro = None
 
-            # Fecha
+            # FECHA
             fecha_desembolso = st.date_input("Fecha de desembolso *", value=datetime.now().date())
 
-            # Monto
+            # MONTO
             monto = st.number_input("Monto del préstamo ($) *",
                                     min_value=0.01,
                                     value=1000.00,
                                     step=100.00,
                                     format="%.2f")
 
-            # 🔵 Tasa de interés MENSUAL (real)
+            # TASA DE INTERÉS MENSUAL
             tasa_mensual = st.number_input("Tasa de interés MENSUAL (%) *",
                                            min_value=0.00,
                                            max_value=100.00,
@@ -46,7 +79,7 @@ def mostrar_prestamo():
                                            step=0.10,
                                            format="%.2f")
 
-            # Estado préstamo
+            # ESTADO PRÉSTAMO
             if estados_prestamo:
                 estado_options = {e["estado_prestamo"]: e["ID_Estado_prestamo"] for e in estados_prestamo}
                 estado_seleccionado = st.selectbox("Estado del préstamo *", list(estado_options.keys()))
@@ -55,10 +88,10 @@ def mostrar_prestamo():
                 st.error("❌ No hay estados de préstamo disponibles")
                 ID_Estado_prestamo = None
 
-            # Plazo
+            # PLAZO
             plazo = st.number_input("Plazo (meses) *", min_value=1, max_value=120, value=6, step=1)
 
-            # Propósito
+            # PROPÓSITO
             proposito = st.text_area("Propósito del préstamo (opcional)",
                                      placeholder="Ej: Compra de materiales, gastos médicos…",
                                      max_chars=200,
@@ -68,7 +101,6 @@ def mostrar_prestamo():
             # 🔵 CÁLCULOS DE INTERÉS MENSUAL SIMPLE
             # ================================
             if monto > 0 and plazo > 0:
-
                 # Convertir tasa mensual a decimal
                 tasa_decimal = tasa_mensual / 100
 
@@ -94,7 +126,6 @@ def mostrar_prestamo():
             enviar = st.form_submit_button("✅ Registrar Préstamo")
 
             if enviar:
-
                 errores = []
 
                 if ID_Miembro is None:
@@ -115,13 +146,23 @@ def mostrar_prestamo():
                     try:
                         proposito_val = proposito.strip() if proposito.strip() else None
 
-                        cursor.execute("""
-                            INSERT INTO Prestamo
-                            (ID_Miembro, fecha_desembolso, monto, total_interes,
-                             ID_Estado_prestamo, plazo, proposito)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """, (ID_Miembro, fecha_desembolso, monto, tasa_mensual,
-                              ID_Estado_prestamo, plazo, proposito_val))
+                        # ✅ GUARDAR TAMBIÉN LA REUNIÓN SI VIENE DEL CONTEXTO
+                        if id_reunion:
+                            cursor.execute("""
+                                INSERT INTO Prestamo
+                                (ID_Miembro, ID_Reunion, fecha_desembolso, monto, total_interes,
+                                 ID_Estado_prestamo, plazo, proposito)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (ID_Miembro, id_reunion, fecha_desembolso, monto, tasa_mensual,
+                                  ID_Estado_prestamo, plazo, proposito_val))
+                        else:
+                            cursor.execute("""
+                                INSERT INTO Prestamo
+                                (ID_Miembro, fecha_desembolso, monto, total_interes,
+                                 ID_Estado_prestamo, plazo, proposito)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """, (ID_Miembro, fecha_desembolso, monto, tasa_mensual,
+                                  ID_Estado_prestamo, plazo, proposito_val))
 
                         con.commit()
 
