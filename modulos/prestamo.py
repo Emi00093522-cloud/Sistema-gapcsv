@@ -9,84 +9,23 @@ def mostrar_prestamo():
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # ======================================================
-        # 1. CARGAR REUNIONES DISPONIBLES
-        # ======================================================
-        cursor.execute("""
-            SELECT r.ID_Reunion, r.fecha, r.lugar, g.ID_Grupo, g.nombre as grupo_nombre
-            FROM Reunion r
-            JOIN Grupo g ON r.ID_Grupo = g.ID_Grupo
-            ORDER BY r.fecha DESC, g.nombre
-        """)
-        reuniones = cursor.fetchall()
-
-        if not reuniones:
-            st.warning("⚠️ No hay reuniones registradas en el sistema.")
-            return
-
-        # Crear opciones para el selectbox de reuniones
-        reunion_options = {}
-        for reunion in reuniones:
-            fecha_str = reunion['fecha'].strftime("%Y-%m-%d") if hasattr(reunion['fecha'], 'strftime') else str(reunion['fecha'])
-            label = f"Reunión {reunion['ID_Reunion']} - {fecha_str} - {reunion['grupo_nombre']}"
-            if reunion['lugar']:
-                label += f" - {reunion['lugar']}"
-            reunion_options[label] = {
-                'id_reunion': reunion['ID_Reunion'],
-                'id_grupo': reunion['ID_Grupo'],
-                'grupo_nombre': reunion['grupo_nombre']
-            }
-
-        # Seleccionar reunión
-        reunion_seleccionada_label = st.selectbox(
-            "Selecciona una reunión *",
-            options=list(reunion_options.keys())
-        )
-        
-        reunion_info = reunion_options[reunion_seleccionada_label]
-        id_reunion = reunion_info['id_reunion']
-        id_grupo = reunion_info['id_grupo']
-        grupo_nombre = reunion_info['grupo_nombre']
-
-        # Mostrar información de la reunión seleccionada
-        st.success(f"📅 Reunión seleccionada: {reunion_seleccionada_label}")
-        
-        # ======================================================
-        # 2. CARGAR MIEMBROS DEL GRUPO DE LA REUNIÓN SELECCIONADA
-        # ======================================================
-        cursor.execute("""
-            SELECT ID_Miembro, nombre, apellido 
-            FROM Miembro 
-            WHERE ID_Grupo = %s AND ID_Estado = 1
-            ORDER BY nombre, apellido
-        """, (id_grupo,))
+        # Cargar datos
+        cursor.execute("SELECT ID_Miembro, nombre FROM Miembro WHERE ID_Estado = 1")
         miembros = cursor.fetchall()
 
-        if not miembros:
-            st.warning(f"⚠️ No hay miembros activos en el grupo '{grupo_nombre}'.")
-            return
-
-        st.info(f"👥 Grupo: {grupo_nombre} - {len(miembros)} miembros activos")
-
-        # ======================================================
-        # 3. CARGAR ESTADOS DE PRÉSTAMO
-        # ======================================================
         cursor.execute("SELECT ID_Estado_prestamo, estado_prestamo FROM Estado_prestamo")
         estados_prestamo = cursor.fetchall()
 
-        # ======================================================
-        # 4. FORMULARIO DE PRÉSTAMO
-        # ======================================================
         with st.form("form_prestamo"):
             st.subheader("Datos del Préstamo")
 
-            # Miembro - Solo miembros del grupo de la reunión seleccionada
+            # Miembro
             if miembros:
-                miembro_options = {f"{m['nombre']} {m.get('apellido', '')} (ID: {m['ID_Miembro']})": m['ID_Miembro'] for m in miembros}
+                miembro_options = {f"{m['nombre']} (ID: {m['ID_Miembro']})": m['ID_Miembro'] for m in miembros}
                 miembro_seleccionado = st.selectbox("Miembro *", list(miembro_options.keys()))
                 ID_Miembro = miembro_options[miembro_seleccionado]
             else:
-                st.error("❌ No hay miembros disponibles en este grupo")
+                st.error("❌ No hay miembros disponibles")
                 ID_Miembro = None
 
             # Fecha
@@ -99,7 +38,7 @@ def mostrar_prestamo():
                                     step=100.00,
                                     format="%.2f")
 
-            # Tasa de interés MENSUAL
+            # 🔵 Tasa de interés MENSUAL (real)
             tasa_mensual = st.number_input("Tasa de interés MENSUAL (%) *",
                                            min_value=0.00,
                                            max_value=100.00,
@@ -126,9 +65,10 @@ def mostrar_prestamo():
                                      height=80)
 
             # ================================
-            # CÁLCULOS DE INTERÉS MENSUAL SIMPLE
+            # 🔵 CÁLCULOS DE INTERÉS MENSUAL SIMPLE
             # ================================
             if monto > 0 and plazo > 0:
+
                 # Convertir tasa mensual a decimal
                 tasa_decimal = tasa_mensual / 100
 
@@ -154,6 +94,7 @@ def mostrar_prestamo():
             enviar = st.form_submit_button("✅ Registrar Préstamo")
 
             if enviar:
+
                 errores = []
 
                 if ID_Miembro is None:
@@ -174,19 +115,17 @@ def mostrar_prestamo():
                     try:
                         proposito_val = proposito.strip() if proposito.strip() else None
 
-                        # ✅ GUARDAR CON LA REUNIÓN SELECCIONADA
                         cursor.execute("""
                             INSERT INTO Prestamo
-                            (ID_Miembro, ID_Reunion, fecha_desembolso, monto, total_interes,
+                            (ID_Miembro, fecha_desembolso, monto, total_interes,
                              ID_Estado_prestamo, plazo, proposito)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (ID_Miembro, id_reunion, fecha_desembolso, monto, tasa_mensual,
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, (ID_Miembro, fecha_desembolso, monto, tasa_mensual,
                               ID_Estado_prestamo, plazo, proposito_val))
 
                         con.commit()
 
                         st.success("✅ Préstamo registrado correctamente!")
-                        st.success(f"📅 Vinculado a la reunión: {reunion_seleccionada_label}")
                         st.success(f"- Interés total: ${interes_total:,.2f}")
                         st.success(f"- Cuota mensual: ${cuota_mensual:,.2f}")
 
