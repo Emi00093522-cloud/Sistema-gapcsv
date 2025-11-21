@@ -4,7 +4,7 @@ from modulos.config.conexion import obtener_conexion
 from datetime import date
 
 def mostrar_ahorros():
-    st.header("💰 Registro de Ahorros del Grupo - Formato Oficial")
+    st.header("💰 Registro de Ahorros del Grupo")
 
     try:
         con = obtener_conexion()
@@ -35,121 +35,83 @@ def mostrar_ahorros():
         reuniones_dict = {f"Reunión {r[0]} - {r[1]}": r[0] for r in reuniones}
 
         # -------------------------------------
-        # FORMULARIO DE REGISTRO DE AHORRO CON FORMATO PDF
+        # FORMULARIO DE REGISTRO DE AHORRO EN COLUMNAS
         # -------------------------------------
-        st.subheader("📊 Formulario de Ahorros - Formato Oficial")
-
         with st.form("form_ahorro"):
-            col1, col2 = st.columns(2)
+            st.subheader("📝 Datos del ahorro")
+            
+            # PRIMERA FILA DE COLUMNAS
+            col1, col2, col3 = st.columns(3)
             
             with col1:
                 miembro_sel = st.selectbox(
                     "Selecciona el miembro:",
                     list(miembros_dict.keys())
                 )
-
-                fecha_ahorro = st.date_input(
-                    "Fecha del ahorro:",
-                    value=date.today()
-                )
-
+            
             with col2:
                 reunion_sel = st.selectbox(
                     "Selecciona la reunión:",
                     list(reuniones_dict.keys())
                 )
-
-            # SECCIÓN PRINCIPAL CON FORMATO SIMILAR AL PDF
-            st.markdown("---")
-            st.markdown("### 📋 Registro de Movimientos de Ahorro")
             
-            # Crear estructura de tabla similar al PDF
-            col1, col2, col3, col4, col5 = st.columns([0.5, 2, 3, 3, 3])
-            
-            with col1:
-                st.markdown("**#**")
-                for i in range(1, 26):
-                    st.write(f"{i}")
-            
-            with col2:
-                st.markdown("**Socios/as**")
-                # Mostrar solo el miembro seleccionado en formato simplificado
-                nombre_miembro = miembro_sel.split('(')[0].strip()
-                st.write(nombre_miembro)
-                for i in range(24):
-                    st.write("")
-            
-            # Columnas para movimientos (similar al PDF)
             with col3:
-                st.markdown("**Ahorros**")
-                monto_ahorro = st.number_input(
-                    "Monto ahorro:",
-                    min_value=0.00,
-                    format="%.2f",
-                    key="ahorro_input",
-                    label_visibility="collapsed"
+                fecha_ahorro = st.date_input(
+                    "Fecha del ahorro:",
+                    value=date.today()
                 )
-                for i in range(24):
-                    st.write("")
+
+            # SEGUNDA FILA DE COLUMNAS PARA MONTOS
+            col4, col5, col6 = st.columns(3)
             
             with col4:
-                st.markdown("**Otras Actividades**")
-                monto_otros = st.number_input(
-                    "Monto otros:",
+                monto_ahorro = st.number_input(
+                    "Monto de ahorro:",
                     min_value=0.00,
-                    format="%.2f",
-                    key="otros_input",
-                    label_visibility="collapsed"
+                    format="%.2f"
                 )
-                for i in range(24):
-                    st.write("")
             
             with col5:
-                st.markdown("**Retiros**")
-                monto_retiros = st.number_input(
-                    "Monto retiros:",
+                monto_otros = st.number_input(
+                    "Monto otros ingresos:",
                     min_value=0.00,
-                    format="%.2f",
-                    key="retiros_input",
-                    label_visibility="collapsed"
+                    format="%.2f"
                 )
-                for i in range(24):
-                    st.write("")
+            
+            with col6:
+                monto_retiros = st.number_input(
+                    "Monto de retiros:",
+                    min_value=0.00,
+                    format="%.2f"
+                )
 
-            # SECCIÓN DE SALDOS (como en el PDF)
+            # TERCERA FILA PARA SALDOS
             st.markdown("---")
-            st.markdown("### 💰 Cálculo de Saldos")
+            st.subheader("💰 Saldos")
             
-            saldo_col1, saldo_col2, saldo_col3, saldo_col4, saldo_col5 = st.columns(5)
+            col7, col8, col9, col10, col11 = st.columns(5)
             
-            with saldo_col1:
-                st.markdown("**Saldo Inicial**")
+            with col7:
                 saldo_inicial = st.number_input(
                     "Saldo inicial:",
                     min_value=0.00,
-                    format="%.2f",
-                    key="saldo_inicial",
-                    label_visibility="collapsed"
+                    format="%.2f"
                 )
             
-            with saldo_col2:
-                st.markdown("**Ahorros**")
-                st.info(f"${monto_ahorro:,.2f}")
+            with col8:
+                st.metric("Ahorros", f"${monto_ahorro:,.2f}")
             
-            with saldo_col3:
-                st.markdown("**Otras Actividades**")
-                st.info(f"${monto_otros:,.2f}")
+            with col9:
+                st.metric("Otros ingresos", f"${monto_otros:,.2f}")
             
-            with saldo_col4:
-                st.markdown("**Retiros**")
-                st.warning(f"${monto_retiros:,.2f}")
+            with col10:
+                st.metric("Retiros", f"-${monto_retiros:,.2f}")
             
-            with saldo_col5:
-                st.markdown("**Saldo Final**")
+            with col11:
                 saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
-                st.success(f"${saldo_final:,.2f}")
+                st.metric("Saldo final", f"${saldo_final:,.2f}", delta=f"${saldo_final - saldo_inicial:,.2f}")
 
-            enviar = st.form_submit_button("💾 Guardar Registro de Ahorro")
+            enviar = st.form_submit_button("💾 Guardar Ahorro")
 
             if enviar:
                 id_m = miembros_dict[miembro_sel]
@@ -157,7 +119,7 @@ def mostrar_ahorros():
 
                 # Validación
                 if monto_ahorro == 0 and monto_otros == 0 and monto_retiros == 0:
-                    st.warning("⚠️ Debes ingresar al menos un movimiento (ahorro, otros ingresos o retiros).")
+                    st.warning("⚠️ Debes ingresar al menos un monto de ahorro, otros ingresos o retiros.")
                 else:
                     try:
                         cursor.execute("""
@@ -166,7 +128,7 @@ def mostrar_ahorros():
                         """, (id_m, id_r, fecha_ahorro, monto_ahorro, monto_otros, monto_retiros, saldo_inicial, saldo_final))
 
                         con.commit()
-                        st.success("✅ Registro de ahorro guardado correctamente.")
+                        st.success("✅ Ahorro registrado correctamente.")
                         st.rerun()
 
                     except Exception as e:
@@ -177,7 +139,7 @@ def mostrar_ahorros():
         # HISTORIAL DE AHORROS REGISTRADOS
         # -------------------------------------
         st.markdown("---")
-        st.subheader("📋 Historial de Ahorros Registrados")
+        st.subheader("📋 Historial de Ahorros")
         
         cursor.execute("""
             SELECT a.ID_Ahorro, m.nombre, r.fecha, a.fecha, a.monto_ahorro, a.monto_otros, a.monto_retiros, a.saldo_inicial, a.saldo_final
