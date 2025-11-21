@@ -3,49 +3,63 @@ from modulos.config.conexion import obtener_conexion
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-def calcular_cuotas_prestamo(id_prestamo, con):
-    """Calcula y genera las cuotas programadas para un préstamo"""
+def obtener_datos_prestamo(id_prestamo, con):
+    """Obtiene todos los datos del préstamo ya calculados"""
+    cursor = con.cursor()
+    cursor.execute("""
+        SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
+               p.plazo, p.fecha_desembolso, m.nombre, p.proposito
+        FROM Prestamo p
+        JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+        WHERE p.ID_Prestamo = %s
+    """, (id_prestamo,))
+    return cursor.fetchone()
+
+def calcular_cuotas_desde_prestamo(id_prestamo, con):
+    """Genera las cuotas basándose en los datos ya calculados del préstamo"""
     cursor = con.cursor()
     
     # Obtener datos del préstamo
-    cursor.execute("""
-        SELECT monto, total_interes, plazo, fecha_desembolso
-        FROM Prestamo WHERE ID_Prestamo = %s
-    """, (id_prestamo,))
-    
-    prestamo = cursor.fetchone()
+    prestamo = obtener_datos_prestamo(id_prestamo, con)
     if not prestamo:
         return False
     
-    monto, tasa_interes, plazo, fecha_desembolso = prestamo
+    id_prestamo, id_miembro, monto, total_interes, plazo, fecha_desembolso, nombre, proposito = prestamo
     
-    # Configurar fechas automáticamente
-    fecha_primer_pago = fecha_desembolso + timedelta(days=30)  # Primer pago a 30 días
-    dia_pago = fecha_primer_pago.day  # Usar el día del primer pago
+    # CALCULAR CUOTA MENSUAL DIRECTAMENTE
+    # Cuota = (Monto + Interés Total) / Plazo
+    monto_total = Decimal(str(monto)) + Decimal(str(total_interes))
+    cuota_mensual = monto_total / Decimal(str(plazo))
+    cuota_mensual = round(cuota_mensual, 2)
+    
+    # Calcular distribución mensual capital/interés
+    capital_mensual = Decimal(str(monto)) / Decimal(str(plazo))
+    capital_mensual = round(capital_mensual, 2)
+    
+    interes_mensual = Decimal(str(total_interes)) / Decimal(str(plazo))
+    interes_mensual = round(interes_mensual, 2)
+    
+    # Configurar fechas
+    fecha_primer_pago = fecha_desembolso + timedelta(days=30)
     
     # Eliminar cuotas existentes
     cursor.execute("DELETE FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
     
-    # Calcular cuota usando fórmula de cuota fija
-    tasa_mensual_decimal = Decimal(str(tasa_interes))
-    factor = (1 + tasa_mensual_decimal) ** plazo
-    cuota_mensual = (Decimal(str(monto)) * tasa_mensual_decimal * factor) / (factor - 1)
-    cuota_mensual = round(cuota_mensual, 2)
-    
+    # Generar cuotas
     saldo_capital = Decimal(str(monto))
     
-    # Generar cuotas
     for i in range(1, plazo + 1):
-        # Calcular interés y capital para esta cuota
-        interes_cuota = round(saldo_capital * tasa_mensual_decimal, 2)
-        capital_cuota = round(cuota_mensual - interes_cuota, 2)
-        
-        # Ajustar última cuota por redondeo
+        # Para la última cuota, ajustar por redondeo
         if i == plazo:
             capital_cuota = saldo_capital
-            cuota_mensual = capital_cuota + interes_cuota
+            interes_cuota = Decimal(str(total_interes)) - (interes_mensual * (plazo - 1))
+            total_cuota = capital_cuota + interes_cuota
+        else:
+            capital_cuota = capital_mensual
+            interes_cuota = interes_mensual
+            total_cuota = cuota_mensual
         
-        # Calcular fecha de pago (cada 30 días desde la fecha de primer pago)
+        # Calcular fecha de pago
         fecha_pago = fecha_primer_pago + timedelta(days=30*(i-1))
         
         # Insertar cuota
@@ -55,7 +69,7 @@ def calcular_cuotas_prestamo(id_prestamo, con):
              interes_programado, total_programado, estado)
             VALUES (%s, %s, %s, %s, %s, %s, 'pendiente')
         """, (id_prestamo, i, fecha_pago, float(capital_cuota), 
-              float(interes_cuota), float(cuota_mensual)))
+              float(interes_cuota), float(total_cuota)))
         
         saldo_capital -= capital_cuota
     
@@ -63,7 +77,7 @@ def calcular_cuotas_prestamo(id_prestamo, con):
     return True
 
 def aplicar_pago_cuotas(id_prestamo, monto_capital, monto_interes, fecha_pago, con):
-    """Aplica el pago a las cuotas correspondientes"""
+    """Aplica el pago a las cuotas correspondientes - Mismo que antes"""
     cursor = con.cursor()
     
     # Obtener cuotas pendientes ordenadas por fecha
@@ -119,33 +133,38 @@ def aplicar_pago_cuotas(id_prestamo, monto_capital, monto_interes, fecha_pago, c
     con.commit()
     return capital_restante, interes_restante
 
-def recalcular_cuotas_restantes(id_prestamo, con):
-    """Recalcula las cuotas pendientes después de un pago"""
+def recalcular_cuotas_por_pago_parcial(id_prestamo, con):
+    """Recalcula cuotas después de un pago parcial - SIMPLIFICADO"""
     cursor = con.cursor()
     
-    # Obtener datos del préstamo
-    cursor.execute("""
-        SELECT p.monto, p.total_interes, p.plazo, p.fecha_desembolso
-        FROM Prestamo p WHERE p.ID_Prestamo = %s
-    """, (id_prestamo,))
-    
-    prestamo = cursor.fetchone()
+    # Obtener datos originales del préstamo
+    prestamo = obtener_datos_prestamo(id_prestamo, con)
     if not prestamo:
         return False
     
-    monto_total, tasa_interes, plazo_total, fecha_desembolso = prestamo
+    id_prestamo, id_miembro, monto_original, total_interes_original, plazo_original, fecha_desembolso, nombre, proposito = prestamo
     
-    # Obtener capital total pagado
+    # Obtener capital total pagado hasta ahora
     cursor.execute("""
         SELECT COALESCE(SUM(capital_pagado), 0) 
         FROM CuotaPrestamo 
         WHERE ID_Prestamo = %s
     """, (id_prestamo,))
     
-    capital_pagado_total = cursor.fetchone()[0]
-    saldo_capital = Decimal(str(monto_total)) - Decimal(str(capital_pagado_total))
+    capital_pagado_total = Decimal(str(cursor.fetchone()[0]))
+    saldo_capital = Decimal(str(monto_original)) - capital_pagado_total
     
-    # Obtener cuotas pagadas y última cuota
+    # Obtener interés total pagado hasta ahora
+    cursor.execute("""
+        SELECT COALESCE(SUM(interes_pagado), 0) 
+        FROM CuotaPrestamo 
+        WHERE ID_Prestamo = %s
+    """, (id_prestamo,))
+    
+    interes_pagado_total = Decimal(str(cursor.fetchone()[0]))
+    saldo_interes = Decimal(str(total_interes_original)) - interes_pagado_total
+    
+    # Obtener última cuota pagada completamente
     cursor.execute("""
         SELECT MAX(numero_cuota) 
         FROM CuotaPrestamo 
@@ -153,12 +172,12 @@ def recalcular_cuotas_restantes(id_prestamo, con):
     """, (id_prestamo,))
     
     ultima_cuota_pagada = cursor.fetchone()[0] or 0
-    cuotas_restantes = plazo_total - ultima_cuota_pagada
+    cuotas_restantes = plazo_original - ultima_cuota_pagada
     
     if cuotas_restantes <= 0:
         return True
     
-    # Obtener última fecha de pago de cuotas pagadas
+    # Obtener última fecha de pago
     cursor.execute("""
         SELECT MAX(fecha_programada) 
         FROM CuotaPrestamo 
@@ -169,7 +188,6 @@ def recalcular_cuotas_restantes(id_prestamo, con):
     if ultima_fecha_result:
         ultima_fecha_pago = ultima_fecha_result
     else:
-        # Si no hay cuotas pagadas, usar fecha actual
         ultima_fecha_pago = date.today()
     
     # Eliminar cuotas futuras no pagadas
@@ -178,30 +196,36 @@ def recalcular_cuotas_restantes(id_prestamo, con):
         WHERE ID_Prestamo = %s AND numero_cuota > %s AND estado != 'pagado'
     """, (id_prestamo, ultima_cuota_pagada))
     
-    # Recalcular nuevas cuotas
-    tasa_mensual_decimal = Decimal(str(tasa_interes))
-    
+    # Recalcular nuevas cuotas proporcionales
     if cuotas_restantes > 0:
-        factor = (1 + tasa_mensual_decimal) ** cuotas_restantes
-        nueva_cuota = (saldo_capital * tasa_mensual_decimal * factor) / (factor - 1)
-        nueva_cuota = round(nueva_cuota, 2)
+        nueva_cuota_capital = saldo_capital / Decimal(str(cuotas_restantes))
+        nueva_cuota_interes = saldo_interes / Decimal(str(cuotas_restantes))
+        nueva_cuota_total = nueva_cuota_capital + nueva_cuota_interes
+        
+        nueva_cuota_capital = round(nueva_cuota_capital, 2)
+        nueva_cuota_interes = round(nueva_cuota_interes, 2)
+        nueva_cuota_total = round(nueva_cuota_total, 2)
     else:
-        nueva_cuota = Decimal('0')
+        return True
     
     # Generar nuevas cuotas
+    saldo_capital_temp = saldo_capital
+    saldo_interes_temp = saldo_interes
+    
     for i in range(1, cuotas_restantes + 1):
         numero_cuota = ultima_cuota_pagada + i
         
-        # Calcular interés y capital
-        interes_cuota = round(saldo_capital * tasa_mensual_decimal, 2)
-        capital_cuota = round(nueva_cuota - interes_cuota, 2)
-        
-        # Ajustar última cuota por redondeo
+        # Ajustar última cuota
         if i == cuotas_restantes:
-            capital_cuota = saldo_capital
-            nueva_cuota = capital_cuota + interes_cuota
+            capital_cuota = saldo_capital_temp
+            interes_cuota = saldo_interes_temp
+            total_cuota = capital_cuota + interes_cuota
+        else:
+            capital_cuota = nueva_cuota_capital
+            interes_cuota = nueva_cuota_interes
+            total_cuota = nueva_cuota_total
         
-        # Calcular nueva fecha (30 días después de la última fecha)
+        # Calcular nueva fecha
         nueva_fecha = ultima_fecha_pago + timedelta(days=30*i)
         
         # Insertar nueva cuota
@@ -211,9 +235,10 @@ def recalcular_cuotas_restantes(id_prestamo, con):
              interes_programado, total_programado, estado)
             VALUES (%s, %s, %s, %s, %s, %s, 'pendiente')
         """, (id_prestamo, numero_cuota, nueva_fecha, float(capital_cuota), 
-              float(interes_cuota), float(nueva_cuota)))
+              float(interes_cuota), float(total_cuota)))
         
-        saldo_capital -= capital_cuota
+        saldo_capital_temp -= capital_cuota
+        saldo_interes_temp -= interes_cuota
     
     con.commit()
     return True
@@ -231,7 +256,7 @@ def mostrar_pago_prestamo():
                    p.plazo, p.fecha_desembolso, m.nombre, p.proposito
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
-            WHERE p.ID_Estado_prestamo != 3  -- Excluir préstamos cancelados
+            WHERE p.ID_Estado_prestamo != 3
         """)
         
         prestamos = cursor.fetchall()
@@ -240,8 +265,9 @@ def mostrar_pago_prestamo():
             st.warning("⚠️ No hay préstamos activos registrados.")
             return
         
+        # Mostrar préstamos sin recalcular tasas
         prestamos_dict = {
-            f"Préstamo {p[0]} - {p[6]} - ${p[2]:,.2f} - {p[4]} meses - {p[3]*100:.2f}% mensual": p[0]
+            f"Préstamo {p[0]} - {p[6]} - ${p[2]:,.2f} - {p[4]} meses - Interés total: ${p[3]:,.2f}": p[0]
             for p in prestamos
         }
         
@@ -261,20 +287,23 @@ def mostrar_pago_prestamo():
         )
         
         id_prestamo = prestamos_dict[prestamo_sel]
-        
-        # Mostrar información del préstamo
         prestamo_info = [p for p in prestamos if p[0] == id_prestamo][0]
         
+        # Mostrar información del préstamo SIN CALCULAR TASAS
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Monto del Préstamo", f"${prestamo_info[2]:,.2f}")
         with col2:
-            st.metric("Tasa de Interés", f"{prestamo_info[3]*100:.2f}% mensual")
+            # Calcular tasa aproximada para mostrar (pero no para cálculos)
+            if prestamo_info[2] > 0 and prestamo_info[4] > 0:
+                tasa_aprox = (prestamo_info[3] / (prestamo_info[2] * prestamo_info[4])) * 100
+                st.metric("Tasa Aproximada", f"{tasa_aprox:.2f}% mensual")
+            else:
+                st.metric("Tasa", "N/A")
         with col3:
             st.metric("Plazo", f"{prestamo_info[4]} meses")
         
-        # Mostrar propósito y fecha de desembolso
-        st.info(f"**Propósito:** {prestamo_info[7]} | **Fecha desembolso:** {prestamo_info[5]}")
+        st.info(f"**Propósito:** {prestamo_info[7]} | **Interés total:** ${prestamo_info[3]:,.2f}")
         
         # Mostrar cuotas programadas
         st.subheader("📅 Cuotas Programadas")
@@ -290,18 +319,19 @@ def mostrar_pago_prestamo():
         cuotas = cursor.fetchall()
         
         if not cuotas:
-            st.info("ℹ️ No hay cuotas programadas. El sistema calculará automáticamente las cuotas basándose en:")
-            st.write(f"- **Monto:** ${prestamo_info[2]:,.2f}")
-            st.write(f"- **Tasa:** {prestamo_info[3]*100:.2f}% mensual")
+            st.info("ℹ️ No hay cuotas programadas. Generar plan de pagos:")
+            st.write(f"- **Monto a financiar:** ${prestamo_info[2]:,.2f}")
+            st.write(f"- **Interés total:** ${prestamo_info[3]:,.2f}")
+            st.write(f"- **Total a pagar:** ${prestamo_info[2] + prestamo_info[3]:,.2f}")
             st.write(f"- **Plazo:** {prestamo_info[4]} meses")
-            st.write(f"- **Primer pago:** Aproximadamente 30 días después del desembolso ({prestamo_info[5]})")
+            st.write(f"- **Cuota mensual aproximada:** ${(prestamo_info[2] + prestamo_info[3]) / prestamo_info[4]:,.2f}")
             
-            if st.button("🎯 Generar Cuotas Automáticamente", type="primary"):
-                if calcular_cuotas_prestamo(id_prestamo, con):
-                    st.success("✅ Cuotas generadas correctamente!")
+            if st.button("🎯 Generar Plan de Pagos", type="primary"):
+                if calcular_cuotas_desde_prestamo(id_prestamo, con):
+                    st.success("✅ Plan de pagos generado correctamente!")
                     st.rerun()
                 else:
-                    st.error("❌ Error al generar cuotas")
+                    st.error("❌ Error al generar plan de pagos")
             return
         
         # Mostrar tabla de cuotas
@@ -314,7 +344,6 @@ def mostrar_pago_prestamo():
             interes_pag = interes_pag or 0
             total_pag = total_pag or 0
             
-            # Determinar color según estado
             estado_color = {
                 'pendiente': '⚪',
                 'parcial': '🟡', 
@@ -411,7 +440,6 @@ def mostrar_pago_prestamo():
                     st.warning("⚠️ Debes ingresar un monto mayor a cero.")
                 else:
                     try:
-                        # Iniciar transacción
                         con.start_transaction()
                         
                         # Registrar pago en PagoPrestamo
@@ -426,9 +454,9 @@ def mostrar_pago_prestamo():
                             id_prestamo, monto_capital, monto_interes, fecha_pago, con
                         )
                         
-                        # Recalcular cuotas si hubo pago a capital
+                        # Recalcular cuotas si hubo pago a capital (pago parcial)
                         if monto_capital > 0:
-                            recalcular_cuotas_restantes(id_prestamo, con)
+                            recalcular_cuotas_por_pago_parcial(id_prestamo, con)
                         
                         # Verificar si el préstamo está completamente pagado
                         cursor.execute("""
@@ -442,14 +470,13 @@ def mostrar_pago_prestamo():
                         if cuotas_pendientes == 0:
                             cursor.execute("""
                                 UPDATE Prestamo 
-                                SET ID_Estado_prestamo = 3  -- Estado: Cancelado
+                                SET ID_Estado_prestamo = 3
                                 WHERE ID_Prestamo = %s
                             """, (id_prestamo,))
                             st.balloons()
                             st.success("🎉 ¡PRÉSTAMO COMPLETAMENTE PAGADO!")
                         
                         con.commit()
-                        
                         st.success("✅ Pago registrado y cuotas recalculadas correctamente!")
                         
                         if capital_sobrante > 0 or interes_sobrante > 0:
@@ -460,15 +487,6 @@ def mostrar_pago_prestamo():
                     except Exception as e:
                         con.rollback()
                         st.error(f"❌ Error al procesar el pago: {e}")
-        
-        # Opción para regenerar cuotas
-        st.subheader("🔄 Regenerar Cuotas")
-        if st.button("🔄 Regenerar Todas las Cuotas", type="secondary"):
-            if calcular_cuotas_prestamo(id_prestamo, con):
-                st.success("✅ Cuotas regeneradas correctamente!")
-                st.rerun()
-            else:
-                st.error("❌ Error al regenerar cuotas")
     
     except Exception as e:
         st.error(f"❌ Error general: {e}")
