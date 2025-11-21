@@ -2,7 +2,6 @@ import streamlit as st
 from datetime import datetime
 from modulos.config.conexion import obtener_conexion
 import pandas as pd
-from modulos.prestamo import mostrar_prestamo  # ✅ Importar el módulo de préstamos
 
 
 # ==========================================================
@@ -14,16 +13,6 @@ def _get_cargo_detectado():
 
 def _tiene_rol_secretaria():
     return _get_cargo_detectado() == "SECRETARIA"
-
-def _guardar_contexto_reunion(id_reunion, id_grupo, reunion_label, grupo_label, distrito_label):
-    """Guarda el contexto de la reunión seleccionada en session_state"""
-    st.session_state.reunion_contexto = {
-        'id_reunion': id_reunion,
-        'id_grupo': id_grupo,
-        'reunion_label': reunion_label,
-        'grupo_label': grupo_label,
-        'distrito_label': distrito_label
-    }
 
 # ==========================================================
 #   MÓDULO PRINCIPAL
@@ -166,31 +155,19 @@ def mostrar_reuniones():
     seleccion = st.selectbox("Seleccione una reunión", opciones)
     id_reunion = mapa_reuniones[seleccion]
 
-    # ✅ GUARDAR CONTEXTO DE LA REUNIÓN SELECCIONADA
-    if seleccion != "➕ Nueva reunión" and id_reunion:
-        _guardar_contexto_reunion(
-            id_reunion=id_reunion,
-            id_grupo=id_grupo,
-            reunion_label=seleccion,
-            grupo_label=grupo_label,
-            distrito_label=distrito_label
-        )
-        
-        # Mostrar información del contexto actual
-        st.success(f"✅ Reunión activa: {seleccion}")
-        st.info(f"📋 Esta reunión está disponible en las otras pestañas de Gestión Integrada")
-
     # Valores por defecto para el form de creación/edición
     if id_reunion is None:
         fecha_def = datetime.now().date()
         hora_def = datetime.now().time().replace(second=0, microsecond=0)
         lugar_def = ""
+        pres_def = ""
         estado_def = 1
     else:
         fila = next((x for x in reuniones if x["ID_Reunion"] == id_reunion), {})
         fecha_def = fila.get("fecha") or datetime.now().date()
         hora_def = fila.get("Hora") or datetime.now().time().replace(second=0, microsecond=0)
         lugar_def = fila.get("lugar", "")
+        pres_def = fila.get("total_presentes", "")
         estado_def = fila.get("ID_Estado_reunion", 1)
 
     with st.form("form_reuniones"):
@@ -201,8 +178,7 @@ def mostrar_reuniones():
             hora = st.time_input("Hora", hora_def)
 
         lugar = st.text_input("Lugar", lugar_def)
-        
-        # ✅ SE ELIMINÓ LA CAJA DE TEXTO "PRESENTES" QUE ESTABA AQUÍ
+        total_presentes = st.text_area("Presentes", pres_def)
 
         estados = {"Programada": 1, "Realizada": 2, "Cancelada": 3}
         estado_texto_actual = [k for k, v in estados.items() if v == estado_def][0]
@@ -232,42 +208,17 @@ def mostrar_reuniones():
             if id_reunion:
                 cursor.execute("""
                     UPDATE Reunion
-                    SET fecha=%s, Hora=%s, lugar=%s, ID_Estado_reunion=%s
+                    SET fecha=%s, Hora=%s, lugar=%s, total_presentes=%s, ID_Estado_reunion=%s
                     WHERE ID_Reunion=%s
-                """, (fecha, hora_str_full, lugar, int(estado), id_reunion))
+                """, (fecha, hora_str_full, lugar, total_presentes, int(estado), id_reunion))
             else:
                 cursor.execute("""
-                    INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (id_grupo, fecha, hora_str_full, lugar, int(estado)))
+                    INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, total_presentes, ID_Estado_reunion)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (id_grupo, fecha, hora_str_full, lugar, total_presentes, int(estado)))
 
             con.commit()
             st.success("✅ Reunión guardada correctamente.")
-            
-            # ✅ ACTUALIZAR CONTEXTO SI ES UNA NUEVA REUNIÓN
-            if id_reunion is None:
-                # Recargar reuniones para obtener el nuevo ID
-                cursor.execute("""
-                    SELECT ID_Reunion, fecha, Hora, lugar 
-                    FROM Reunion 
-                    WHERE ID_Grupo = %s 
-                    ORDER BY ID_Reunion DESC 
-                    LIMIT 1
-                """, (id_grupo,))
-                nueva_reunion = cursor.fetchone()
-                if nueva_reunion:
-                    fecha_str = nueva_reunion['fecha'].strftime("%Y-%m-%d") if hasattr(nueva_reunion['fecha'], 'strftime') else str(nueva_reunion['fecha'])
-                    hora_str = nueva_reunion['Hora'].strftime("%H:%M") if hasattr(nueva_reunion['Hora'], 'strftime') else str(nueva_reunion['Hora'])
-                    nueva_etiqueta = f"{nueva_reunion['ID_Reunion']} — {fecha_str} {hora_str}"
-                    
-                    _guardar_contexto_reunion(
-                        id_reunion=nueva_reunion['ID_Reunion'],
-                        id_grupo=id_grupo,
-                        reunion_label=nueva_etiqueta,
-                        grupo_label=grupo_label,
-                        distrito_label=distrito_label
-                    )
-            
             st.rerun()
 
         except Exception as e:
@@ -282,12 +233,6 @@ def mostrar_reuniones():
             cursor.execute("DELETE FROM Reunion WHERE ID_Reunion=%s", (id_reunion,))
             con.commit()
             st.success("🗑️ Reunión eliminada.")
-            
-            # ✅ LIMPIAR CONTEXTO SI SE ELIMINA LA REUNIÓN ACTIVA
-            if (st.session_state.get('reunion_contexto') and 
-                st.session_state.reunion_contexto.get('id_reunion') == id_reunion):
-                st.session_state.reunion_contexto = None
-            
             st.rerun()
         except Exception as e:
             con.rollback()
@@ -383,26 +328,29 @@ def mostrar_reuniones():
         with tab2:
             st.subheader("💰 Gestión de Préstamos")
             
-            # ✅ HEREDAMOS AUTOMÁTICAMENTE LA REUNIÓN SELECCIONADA
-            st.success(f"📅 Reunión actual: {seleccion}")
-            st.info(f"👥 Grupo: {grupo_label}")
+            # Aquí puedes agregar la funcionalidad específica para préstamos
+            st.info("Funcionalidad de préstamos en desarrollo...")
             
-            # Obtener información adicional de la reunión
-            cursor.execute("""
-                SELECT fecha, lugar FROM Reunion WHERE ID_Reunion = %s
-            """, (id_reunion,))
-            reunion_info = cursor.fetchone()
-            
-            if reunion_info:
-                st.write(f"**Fecha:** {reunion_info['fecha']} | **Lugar:** {reunion_info.get('lugar', 'No especificado')}")
-            
-            # ✅ LLAMAR AL MÓDULO DE PRÉSTAMOS CON EL CONTEXTO DE LA REUNIÓN
-            mostrar_prestamo(
-                id_reunion=id_reunion,
-                id_grupo=id_grupo,
-                reunion_info=seleccion,
-                grupo_info=grupo_label
-            )
+            # Ejemplo básico de formulario para préstamos
+            with st.form("form_prestamo"):
+                st.write("Registrar nuevo préstamo:")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    monto = st.number_input("Monto del préstamo", min_value=0.0, step=0.01)
+                    fecha_prestamo = st.date_input("Fecha del préstamo", datetime.now().date())
+                
+                with col2:
+                    plazo = st.selectbox("Plazo (meses)", [1, 3, 6, 12, 24, 36])
+                    tasa_interes = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
+                
+                descripcion = st.text_area("Descripción del préstamo")
+                
+                guardar_prestamo = st.form_submit_button("💾 Guardar Préstamo")
+                
+                if guardar_prestamo:
+                    st.success(f"Préstamo de ${monto} registrado correctamente")
+                    # Aquí iría la lógica para guardar en la base de datos
 
     # Cerrar conexión
     cursor.close()
