@@ -1,462 +1,374 @@
-# modulos/pagoprestamo.py
+# pagoprestamo.py
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
-from datetime import date, datetime
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta  # pip install python-dateutil
+import pandas as pd
 
-# ----------------------
-# UTILIDADES FINANCIERAS
-# ----------------------
-def add_months(dt: date, months: int) -> date:
-    """Suma 'months' meses manteniendo día en lo posible (evita 29-31 tomando 28 como tope)."""
-    year = dt.year + (dt.month - 1 + months) // 12
-    month = (dt.month - 1 + months) % 12 + 1
-    day = min(dt.day, 28)
-    return date(year, month, day)
+st.set_page_config(layout="wide")
 
-def mensual_payment(principal: float, monthly_rate: float, n_months: int) -> float:
-    """
-    Calcula la cuota mensual por fórmula de amortización (método francés).
-    Si monthly_rate == 0 => simple división.
-    Resultados redondeados a 2 decimales.
-    """
-    principal = float(principal)
-    if n_months <= 0:
-        return round(principal, 2)
-    if monthly_rate == 0:
-        # dividir capital entre meses restantes
-        return round(principal / n_months, 2)
-    r = float(monthly_rate)
-    # A = P * r / (1 - (1+r)^-n)
-    A = principal * r / (1 - (1 + r) ** (-n_months))
-    return round(A, 2)
-
-# ----------------------
-# CONSULTAS / HELPERS
-# ----------------------
-def fetch_prestamos(cursor):
-    """
-    Trae préstamos con campos esperados:
-    ID_Prestamo, ID_Miembro, fecha_desembolso, monto, total_interes, ID_Estado_prestamo, plazo, proposito
-    """
-    cursor.execute("""
-        SELECT ID_Prestamo, ID_Miembro, fecha_desembolso, monto, total_interes, ID_Estado_prestamo, plazo, proposito
-        FROM Prestamo
-        ORDER BY ID_Prestamo DESC
-    """)
-    return cursor.fetchall()
-
-def fetch_cuotas(cursor, id_prestamo):
-    cursor.execute("""
-        SELECT ID_Cuota, numero_cuota, fecha_programada, capital_programado, interes_programado, total_programado,
-               capital_pagado, interes_pagado, total_pagado, estado
-        FROM CuotaPrestamo
-        WHERE ID_Prestamo = %s
-        ORDER BY numero_cuota
-    """, (id_prestamo,))
-    return cursor.fetchall()
-
-def fetch_pagos(cursor, id_prestamo):
-    cursor.execute("""
-        SELECT ID_Pago, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado
-        FROM PagoPrestamo
-        WHERE ID_Prestamo = %s
-        ORDER BY fecha_pago
-    """, (id_prestamo,))
-    return cursor.fetchall()
-
-def saldo_actual_desde_pagos(cursor, id_prestamo, monto_original):
-    """
-    Calcula el saldo actual (principal restante) como monto_original - suma(monto_capital pagado).
-    """
-    cursor.execute("SELECT IFNULL(SUM(monto_capital),0) FROM PagoPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
-    suma_capital = cursor.fetchone()[0] or 0.0
-    saldo = round(float(monto_original) - float(suma_capital), 2)
-    return max(0.0, saldo)
-
-def obtener_tasa_mensual_aproximada(cursor, id_prestamo):
-    """
-    Calcula una tasa mensual aproximada a partir del campo total_interes almacenado en Prestamo,
-    asumiendo total_interes = suma de intereses por mes = tasa_mensual * monto * plazo.
-    Si el campo 'total_interes' representa una tasa en vez de monto, intentamos interpretarlo también.
-    """
-    cursor.execute("SELECT total_interes, monto, plazo FROM Prestamo WHERE ID_Prestamo = %s", (id_prestamo,))
-    row = cursor.fetchone()
-    if not row:
-        return 0.0
-    total_interes, monto, plazo = row
+def fecha_siguiente_mes(fecha, dia_original):
+    """Devuelve fecha un mes después intentando mantener dia_original; si no posible, último día del mes."""
+    sig = fecha + relativedelta(months=1)
     try:
-        monto = float(monto)
-        plazo = int(plazo) if plazo else 1
-        # si total_interes parece una tasa (valor entre 0 y 1 usualmente), interpretarlo como tasa anual/periodo
-        total_interes_f = float(total_interes) if total_interes is not None else 0.0
+        return sig.replace(day=dia_original)
     except Exception:
+        # último día del mes
+        ultimo = (sig.replace(day=1) + relativedelta(months=1) - timedelta(days=1)).day
+        return sig.replace(day=ultimo)
+
+def calcular_cuota_simple(principal: float, tasa_mensual_pct: float, meses: int) -> float:
+    """Usa el método simple que tienes: interés mensual fijo = principal * tasa, interés_total = interes_mensual * meses,
+       cuota = (principal + interes_total) / meses."""
+    if meses <= 0:
         return 0.0
+    tasa_decimal = tasa_mensual_pct / 100.0
+    interes_mensual = principal * tasa_decimal
+    interes_total = interes_mensual * meses
+    cuota = (principal + interes_total) / meses
+    return round(cuota, 2)
 
-    # Heurística:
-    # Si total_interes <= 1.5 asumimos que es tasa (ej 0.05) -> esa es la tasa mensual
-    # Si total_interes > 1.5 asumimos que es monto total de intereses -> tasa_mensual = total_interes / (monto * plazo)
-    if total_interes_f <= 1.5:
-        # ya es tasa mensual o fraccional; aseguremos no negativa
-        return max(0.0, total_interes_f)
-    else:
-        # tasa aproximada por periodo
-        if monto <= 0 or plazo <= 0:
-            return 0.0
-        tasa = total_interes_f / (monto * plazo)
-        return max(0.0, round(tasa, 8))
-
-# ----------------------
-# GENERAR CRONOGRAMA (CuotaPrestamo)
-# ----------------------
-def generar_cronograma_si_no_existe(cursor, con, id_prestamo, monto, tasa_mensual, plazo_meses, fecha_inicio, cuota_guardada=None, dia_mantener=10):
-    """
-    Genera filas en CuotaPrestamo si NO existen ya cuotas para ese préstamo.
-    - cuota_guardada: si Prestamo contiene una cuota fija, se usa.
-    - dia_mantener: si quieres mantener día específico (p.ej. 10), se procura usarlo.
-    """
-    cursor.execute("SELECT COUNT(*) FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
-    existe = cursor.fetchone()[0] or 0
-    if existe > 0:
-        return  # ya hay cronograma
-
-    # Determinar fecha base: si fecha_inicio tiene día, usamos ese día; si no, usamos dia_mantener
-    if fecha_inicio:
-        base = fecha_inicio
-    else:
-        base = date.today()
-
-    # preferir mantener día especificado (por ejemplo 10)
-    base_day = base.day if base.day <= 28 else min(28, base.day)
-    # crear cuotas 1..plazo_meses
-    saldo_temp = float(monto)
-    # cuota inicial: si cuota_guardada no es None y >0, usarla; sino calcular a partir de principal y tasa
-    cuota_inicial = cuota_guardada if cuota_guardada and cuota_guardada > 0 else mensual_payment(saldo_temp, tasa_mensual, plazo_meses)
-
-    for n in range(1, int(plazo_meses) + 1):
-        fecha_prog = add_months(base, n)
-        # ajustar día para mantener día_base si es posible
-        try:
-            fecha_prog = fecha_prog.replace(day=base_day)
-        except Exception:
-            fecha_prog = fecha_prog  # si falla, ya es segura (día <=28)
-        interes_prog = round(saldo_temp * tasa_mensual, 2)
-        capital_prog = round(cuota_inicial - interes_prog, 2)
-        if capital_prog < 0:
-            capital_prog = 0.0
-        total_prog = round(capital_prog + interes_prog, 2)
-
-        cursor.execute("""
-            INSERT INTO CuotaPrestamo
-            (ID_Prestamo, numero_cuota, fecha_programada, capital_programado, interes_programado, total_programado)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id_prestamo, n, fecha_prog, capital_prog, interes_prog, total_prog))
-
-        saldo_temp = round(max(0.0, saldo_temp - capital_prog), 2)
-
-    con.commit()
-
-# ----------------------
-# RECALCULAR CUOTAS RESTANTES
-# ----------------------
-def recalcular_cuotas_desde(cursor, con, id_prestamo, saldo_actual, proximo_numero, cuotas_restantes, fecha_base):
-    """
-    Re-genera (elimina y vuelve a insertar) cuotas a partir de 'proximo_numero' por 'cuotas_restantes'
-    usando 'saldo_actual' como principal. Mantiene el mismo día de fecha_base.
-    """
-    if cuotas_restantes <= 0:
-        return
-    # eliminar cuotas pendientes a partir de proximo_numero
-    cursor.execute("DELETE FROM CuotaPrestamo WHERE ID_Prestamo = %s AND numero_cuota >= %s", (id_prestamo, proximo_numero))
-    con.commit()
-
-    tasa_mensual = obtener_tasa_mensual_aproximada(cursor, id_prestamo)
-    nueva_cuota = mensual_payment(saldo_actual, tasa_mensual, cuotas_restantes)
-
-    saldo_temp = saldo_actual
-    for i in range(cuotas_restantes):
-        numero = proximo_numero + i
-        fecha_prog = add_months(date.today(), numero - 1)  # generamos fechas relativas a hoy; esto lo puedes ajustar
-        interes_prog = round(saldo_temp * tasa_mensual, 2)
-        capital_prog = round(nueva_cuota - interes_prog, 2)
-        if capital_prog < 0:
-            capital_prog = 0.0
-        total_prog = round(capital_prog + interes_prog, 2)
-
-        cursor.execute("""
-            INSERT INTO CuotaPrestamo
-            (ID_Prestamo, numero_cuota, fecha_programada, capital_programado, interes_programado, total_programado)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id_prestamo, numero, fecha_prog, capital_prog, interes_prog, total_prog))
-        saldo_temp = round(max(0.0, saldo_temp - capital_prog), 2)
-
-    con.commit()
-
-# ----------------------
-# LÓGICA DE APLICAR PAGO A CUOTA
-# ----------------------
-def aplicar_abono_a_cuota(cursor, con, id_prestamo, id_cuota, monto_abono, fecha_pago, id_reunion=None):
-    """
-    Aplica monto_abono a la cuota identificada por id_cuota:
-    - Primero cubre interes pendiente (interes_programado - interes_pagado)
-    - Luego cubre capital pendiente (capital_programado - capital_pagado)
-    - Actualiza CuotaPrestamo (capital_pagado, interes_pagado, total_pagado, estado)
-    - Inserta registro en PagoPrestamo
-    - Devuelve dict con info del resultado {'capital_pagado_now', 'interes_pagado_now', 'interes_no_cubierto', 'nuevo_estado', 'nuevo_saldo'}
-    """
-    # traer cuota
-    cursor.execute("""
-        SELECT ID_Cuota, numero_cuota, fecha_programada, capital_programado, interes_programado, total_programado,
-               capital_pagado, interes_pagado, total_pagado, estado
-        FROM CuotaPrestamo
-        WHERE ID_Cuota = %s AND ID_Prestamo = %s
-        LIMIT 1
-    """, (id_cuota, id_prestamo))
-    fila = cursor.fetchone()
-    if not fila:
-        raise ValueError("Cuota no encontrada.")
-
-    # desempaquetar
-    (_, numero_cuota, fecha_programada, capital_prog, interes_prog, total_prog,
-     capital_pagado_prev, interes_pagado_prev, total_pagado_prev, estado_prev) = fila
-
-    capital_prog = float(capital_prog)
-    interes_prog = float(interes_prog)
-    capital_pagado_prev = float(capital_pagado_prev or 0.0)
-    interes_pagado_prev = float(interes_pagado_prev or 0.0)
-
-    # pendientes
-    interes_pendiente = round(max(0.0, interes_prog - interes_pagado_prev), 2)
-    capital_pendiente = round(max(0.0, capital_prog - capital_pagado_prev), 2)
-
-    restante = round(float(monto_abono), 2)
-    interes_pagado_now = 0.0
-    capital_pagado_now = 0.0
-    interes_no_cubierto = 0.0
-
-    # cubrir interés pendiente primero
-    if restante <= 0:
-        pass
-    else:
-        if restante >= interes_pendiente:
-            interes_pagado_now = interes_pendiente
-            restante = round(restante - interes_pendiente, 2)
-        else:
-            # paga parcialmente interés -> capital no se toca, interés no cubierto será capitalizado
-            interes_pagado_now = restante
-            interes_no_cubierto = round(interes_pendiente - interes_pagado_now, 2)
-            restante = 0.0
-
-    # cubrir capital pendiente con lo que quede
-    if restante > 0:
-        if restante >= capital_pendiente:
-            capital_pagado_now = capital_pendiente
-            restante = round(restante - capital_pendiente, 2)
-        else:
-            capital_pagado_now = restante
-            restante = 0.0
-
-    # insertar en PagoPrestamo (registro del abono)
-    try:
-        cursor.execute("""
-            INSERT INTO PagoPrestamo
-            (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id_prestamo, id_reunion, fecha_pago, capital_pagado_now, interes_pagado_now, monto_abono))
-        con.commit()
-    except Exception as e:
-        con.rollback()
-        raise
-
-    # actualizar la cuota con los nuevos pagos
-    nuevo_capital_pagado = round(capital_pagado_prev + capital_pagado_now, 2)
-    nuevo_interes_pagado = round(interes_pagado_prev + interes_pagado_now, 2)
-    nuevo_total_pagado = round((total_pagado_prev or 0.0) + monto_abono, 2)
-
-    # determinar nuevo estado
-    nuevo_estado = 'pendiente'
-    if round(nuevo_capital_pagado, 2) >= round(capital_prog, 2) and round(nuevo_interes_pagado, 2) >= round(interes_prog, 2):
-        nuevo_estado = 'pagado'
-    elif (round(nuevo_capital_pagado, 2) > 0) or (round(nuevo_interes_pagado, 2) > 0):
-        nuevo_estado = 'parcial'
-
-    cursor.execute("""
-        UPDATE CuotaPrestamo
-        SET capital_pagado = %s, interes_pagado = %s, total_pagado = %s, estado = %s, total_programado = %s
-        WHERE ID_Cuota = %s
-    """, (nuevo_capital_pagado, nuevo_interes_pagado, nuevo_total_pagado, nuevo_estado, total_prog, id_cuota))
-    con.commit()
-
-    # calcular nuevo saldo del préstamo (principal restante)
-    cursor.execute("SELECT monto FROM Prestamo WHERE ID_Prestamo = %s", (id_prestamo,))
-    monto_original = float(cursor.fetchone()[0] or 0.0)
-    cursor.execute("SELECT IFNULL(SUM(monto_capital),0) FROM PagoPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
-    suma_capital_pagado = float(cursor.fetchone()[0] or 0.0)
-    nuevo_saldo = round(max(0.0, monto_original - suma_capital_pagado), 2)
-
-    return {
-        "capital_pagado_now": capital_pagado_now,
-        "interes_pagado_now": interes_pagado_now,
-        "interes_no_cubierto": interes_no_cubierto,
-        "nuevo_estado": nuevo_estado,
-        "nuevo_saldo": nuevo_saldo,
-        "restante_abono_no_aplicado": restante
-    }
-
-# ----------------------
-# INTERFAZ STREAMLIT
-# ----------------------
 def mostrar_pago_prestamo():
-    st.header("💵 Registro de Pago de Préstamo")
+    st.header("💵 Registro Inteligente de Pago de Préstamo (recalcula cuota)")
 
     try:
         con = obtener_conexion()
-        cursor = con.cursor()
+        cursor = con.cursor(dictionary=True)
 
-        prestamos = fetch_prestamos(cursor)
+        # CARGAR PRÉSTAMOS (con datos necesarios)
+        cursor.execute("""
+            SELECT ID_Prestamo, ID_Miembro, fecha_desembolso, monto, total_interes AS tasa_mensual, plazo
+            FROM Prestamo
+        """)
+        prestamos = cursor.fetchall()
+
         if not prestamos:
-            st.warning("No hay préstamos registrados.")
+            st.warning("⚠️ No hay préstamos registrados.")
             return
 
-        # selector de préstamo
-        opciones = { f"ID {p[0]} - Miembro {p[1]} - ${float(p[3]):,.2f}" : p for p in prestamos }
-        seleccionado_lbl = st.selectbox("Selecciona un préstamo:", list(opciones.keys()))
-        prestamo = opciones[seleccionado_lbl]
+        prestamos_dict = {
+            f"Préstamo {p['ID_Prestamo']} - Miembro {p['ID_Miembro']} - ${float(p['monto']):.2f}": p['ID_Prestamo']
+            for p in prestamos
+        }
 
-        ID_Prestamo = prestamo[0]
-        ID_Miembro = prestamo[1]
-        fecha_desembolso = prestamo[2] or date.today()
-        monto_original = float(prestamo[3])
-        total_interes = float(prestamo[4]) if prestamo[4] is not None else 0.0
-        plazo = int(prestamo[6]) if prestamo[6] is not None else 0
+        prestamo_sel = st.selectbox("Selecciona el préstamo:", list(prestamos_dict.keys()))
+        id_prestamo = prestamos_dict[prestamo_sel]
 
-        # tasa aproximada
-        tasa_mensual = obtener_tasa_mensual_aproximada(cursor, ID_Prestamo)
+        # obtener detalles del préstamo seleccionado
+        cursor.execute("""
+            SELECT ID_Prestamo, ID_Miembro, fecha_desembolso, monto, total_interes AS tasa_mensual, plazo
+            FROM Prestamo WHERE ID_Prestamo = %s
+        """, (id_prestamo,))
+        prestamo = cursor.fetchone()
+        if not prestamo:
+            st.error("Prestamo no encontrado.")
+            return
 
-        # generar cronograma si no existe
-        generar_cronograma_si_no_existe(cursor, con, ID_Prestamo, monto_original, tasa_mensual, plazo, fecha_desembolso)
+        monto = float(prestamo['monto'])
+        tasa_mensual = float(prestamo['tasa_mensual'])  # en % según tu esquema
+        plazo = int(prestamo['plazo'])
+        fecha_desembolso = prestamo['fecha_desembolso']
+        dia_pago = fecha_desembolso.day if hasattr(fecha_desembolso, 'day') else int(str(fecha_desembolso).split('-')[-1])
 
-        # mostrar resumen
+        # calcular cuota original (tal como en tu módulo de registro)
+        cuota_original = calcular_cuota_simple(monto, tasa_mensual, plazo)
         st.subheader("Resumen del préstamo")
-        st.markdown(f"- **Monto original:** ${monto_original:,.2f}")
-        st.markdown(f"- **Plazo (meses):** {plazo}")
-        st.markdown(f"- **Tasa mensual (aprox):** {tasa_mensual*100:.3f}%")
+        st.write(f"- Monto: **${monto:,.2f}**")
+        st.write(f"- Tasa mensual: **{tasa_mensual:.2f}%**")
+        st.write(f"- Plazo: **{plazo} meses**")
+        st.write(f"- Cuota original (aprox): **${cuota_original:,.2f}**")
 
-        # saldo actual
-        saldo = saldo_actual_desde_pagos(cursor, ID_Prestamo, monto_original)
-        st.markdown(f"- **Saldo actual (principal):** ${saldo:,.2f}")
+        # CARGAR CRONOGRAMA desde CuotaPrestamo
+        cursor.execute("""
+            SELECT ID_Cuota, numero_cuota, fecha_programada, capital_programado, interes_programado,
+                   total_programado, capital_pagado, interes_pagado, total_pagado, estado
+            FROM CuotaPrestamo
+            WHERE ID_Prestamo = %s
+            ORDER BY numero_cuota
+        """, (id_prestamo,))
+        filas = cursor.fetchall()
 
-        # mostrar pagos previos
-        pagos_prev = fetch_pagos(cursor, ID_Prestamo)
-        if pagos_prev:
-            st.markdown("#### Pagos registrados")
-            for p in pagos_prev:
-                idp, id_reu, fecha_pago, monto_cap, monto_int, total = p
-                st.write(f"- {fecha_pago} — Capital: ${float(monto_cap):.2f} — Interés: ${float(monto_int):.2f} — Total: ${float(total):.2f}")
-
-        st.markdown("---")
-
-        # mostrar cronograma
-        st.subheader("Cronograma (Cuotas)")
-        cuotas = fetch_cuotas(cursor, ID_Prestamo)
-        if not cuotas:
-            st.info("No se encontraron cuotas para este préstamo.")
-        else:
-            # encabezados
-            c0, c1, c2, c3, c4, c5, c6 = st.columns([1,2,2,2,2,2,1])
-            c0.markdown("**N**")
-            c1.markdown("**Fecha**")
-            c2.markdown("**Cuota (T)**")
-            c3.markdown("**Interés prog.**")
-            c4.markdown("**Capital prog.**")
-            c5.markdown("**Pagado (cap/int)**")
-            c6.markdown("**Estado**")
-            for row in cuotas:
-                idc, numero, fecha_prog, cap_prog, int_prog, tot_prog, cap_pag, int_pag, tot_pag, estado = row
-                r0, r1, r2, r3, r4, r5, r6 = st.columns([1,2,2,2,2,2,1])
-                r0.write(numero)
-                r1.write(str(fecha_prog))
-                r2.write(f"${float(tot_prog):.2f}")
-                r3.write(f"${float(int_prog):.2f}")
-                r4.write(f"${float(cap_prog):.2f}")
-                r5.write(f"${float(cap_pag):.2f} / ${float(int_pag):.2f}")
-                r6.write(estado)
-
-        st.markdown("---")
-
-        # Registrar abono
-        st.subheader("Registrar abono / pago parcial")
-        # cuote pendientes para seleccionar
-        pendientes = [c for c in cuotas if c[9] != 'pagado']
-        opciones_venc = { f"#{c[1]} • {c[2]} • ${float(c[5]):.2f} • {c[9]}": c for c in pendientes }
-
-        if not opciones_venc:
-            st.info("No hay cuotas pendientes para este préstamo.")
+        if not filas:
+            st.info("No hay cuotas generadas para este préstamo. (Si acabas de registrar el préstamo, revisa que la generación automática de cuotas se ejecutó.)")
             return
 
-        venc_label = st.selectbox("Selecciona cuota pendiente:", list(opciones_venc.keys()))
-        cuota_obj = opciones_venc[venc_label]
-        id_cuota_sel = cuota_obj[0]
-        numero_cuota_sel = cuota_obj[1]
-        fecha_cuota_sel = cuota_obj[2]
-        total_prog_sel = float(cuota_obj[5])
+        # Mostrar cronograma en tabla
+        df = pd.DataFrame(filas)
+        # asegurarse de tipos
+        df['fecha_programada'] = pd.to_datetime(df['fecha_programada']).dt.date
+        df_display = df.rename(columns={
+            "ID_Cuota":"ID",
+            "numero_cuota":"N°",
+            "fecha_programada":"Fecha",
+            "capital_programado":"Capital prog.",
+            "interes_programado":"Interés prog.",
+            "total_programado":"Total prog.",
+            "capital_pagado":"Capital pagado",
+            "interes_pagado":"Interés pagado",
+            "total_pagado":"Total pagado",
+            "estado":"Estado"
+        })[["ID","N°","Fecha","Capital prog.","Interés prog.","Total prog.","Capital pagado","Interés pagado","Total pagado","Estado"]]
 
-        st.write(f"Cuota #{numero_cuota_sel} — Fecha: {fecha_cuota_sel} — Total programado: ${total_prog_sel:.2f}")
+        st.subheader("Cronograma de cuotas (tabla)")
+        st.dataframe(df_display.style.format({
+            "Capital prog.": "${:,.2f}",
+            "Interés prog.": "${:,.2f}",
+            "Total prog.": "${:,.2f}",
+            "Capital pagado": "${:,.2f}",
+            "Interés pagado": "${:,.2f}",
+            "Total pagado": "${:,.2f}"
+        }), height=350)
 
-        monto_abono = st.number_input("Monto a abonar ahora:", min_value=0.0, value=0.0, format="%.2f")
-        fecha_pago = st.date_input("Fecha del pago:", value=date.today())
-        # lista de reuniones opcional
-        cursor.execute("SELECT ID_Reunion, fecha FROM Reunion ORDER BY fecha DESC")
-        reuniones = cursor.fetchall()
-        reuniones_opts = ["Ninguna"] + [f"{r[0]} - {r[1]}" for r in reuniones]
-        id_reunion_sel = st.selectbox("Reunión asociada (opcional):", reuniones_opts)
+        # Mostrar resumen de saldos
+        total_pagado_capital = float(df["capital_pagado"].sum())
+        total_pagado_interes = float(df["interes_pagado"].sum())
+        capital_programado_total = float(df["capital_programado"].sum())
+        interes_programado_total = float(df["interes_programado"].sum())
+        total_pagado = float(df["total_pagado"].sum())
+        capital_restante = round(monto - total_pagado_capital, 2)
+        meses_restantes = int((df[df['estado'] != 'pagado'].shape[0]))
 
-        if st.button("Registrar abono"):
-            if monto_abono <= 0:
-                st.warning("Ingresa un monto mayor a 0.")
-            else:
-                id_reu_val = None
-                if isinstance(id_reunion_sel, str) and id_reunion_sel != "Ninguna":
-                    try:
-                        id_reu_val = int(id_reunion_sel.split(" - ")[0])
-                    except:
-                        id_reu_val = None
+        st.markdown("---")
+        st.subheader("Saldos actuales")
+        st.write(f"- Capital pagado: **${total_pagado_capital:,.2f}**")
+        st.write(f"- Interés pagado: **${total_pagado_interes:,.2f}**")
+        st.write(f"- Capital restante: **${capital_restante:,.2f}**")
+        st.write(f"- Cuotas pendientes: **{meses_restantes}**")
 
-                try:
-                    resultado = aplicar_abono_a_cuota(cursor, con, ID_Prestamo, id_cuota_sel, monto_abono, fecha_pago, id_reu_val)
-                except Exception as e:
-                    st.error(f"Error registrando abono: {e}")
-                    return
+        if meses_restantes > 0:
+            nueva_cuota_sugerida = calcular_cuota_simple(capital_restante, tasa_mensual, meses_restantes)
+            st.write(f"- Nueva cuota sugerida (si recalculamos ahora): **${nueva_cuota_sugerida:,.2f}**")
+        else:
+            st.write("- El préstamo parece estar completamente pagado.")
 
-                # después de aplicar el abono, recalcular cuotas restantes si necesario
-                nuevo_saldo = resultado["nuevo_saldo"]
-                # contar cuotas pagadas y totales
-                cursor.execute("SELECT COUNT(*) FROM CuotaPrestamo WHERE ID_Prestamo = %s AND estado = 'pagado'", (ID_Prestamo,))
-                cuotas_pagadas = int(cursor.fetchone()[0] or 0)
-                cuotas_totales = int(plazo) if plazo else 0
-                cuotas_restantes = max(cuotas_totales - cuotas_pagadas, 0)
+        st.markdown("---")
+        st.subheader("Registrar abono / pago (se aplicará automáticamente a interés y capital)")
 
-                # proximo numero: primer cuota pendiente
-                cursor.execute("SELECT MIN(numero_cuota) FROM CuotaPrestamo WHERE ID_Prestamo = %s AND estado != 'pagado'", (ID_Prestamo,))
-                res = cursor.fetchone()
-                proximo_num = int(res[0]) if res and res[0] is not None else (cuotas_pagadas + 1)
+        with st.form("form_pago"):
+            st.write("Puedes seleccionar una cuota para aplicar el pago manualmente; si no, el sistema aplicará al primer pendiente.")
+            # construir options con id y descripción
+            opciones_cuotas = []
+            for r in filas:
+                estado = r['estado']
+                total_prog = float(r['total_programado'])
+                total_pag = float(r['total_pagado'])
+                pendiente = round(total_prog - total_pag, 2)
+                opciones_cuotas.append((r['ID_Cuota'], f"N°{r['numero_cuota']} - {r['fecha_programada']} - Pendiente ${pendiente:.2f} - {estado}"))
 
-                if cuotas_restantes > 0 and nuevo_saldo > 0:
-                    # recalcular desde proximo_num usando nuevo_saldo y cuotas_restantes
-                    recalcular_cuotas_desde(cursor, con, ID_Prestamo, nuevo_saldo, proximo_num, cuotas_restantes, fecha_desembolso)
-                    st.success("Abono registrado y cuotas restantes recalculadas.")
+            opciones_map = {desc: idx for idx, (_, desc) in enumerate(opciones_cuotas)}
+            opcion_selec = st.selectbox("Aplicar a cuota (opcional):", ["(Aplicar al primer pendiente)"] + [desc for _, desc in opciones_cuotas])
+            monto_abono = st.number_input("Monto a abonar ahora ($):", min_value=0.00, format="%.2f")
+            fecha_abono = st.date_input("Fecha de pago:", value=date.today())
+
+            enviar = st.form_submit_button("Registrar abono inteligente")
+
+            if enviar:
+                if monto_abono <= 0:
+                    st.warning("⚠️ Ingresa monto mayor que 0.")
                 else:
-                    st.success("Abono registrado.")
+                    try:
+                        monto_disp = float(monto_abono)
+                        total_capital_pagado_en_abono = 0.0
+                        total_interes_pagado_en_abono = 0.0
 
-                st.experimental_rerun()
+                        # definir lista de cuotas pendientes en orden (a partir de la cuota seleccionada o primer pendiente)
+                        # obtener filas actuales (refrescar por seguridad)
+                        cursor.execute("""
+                            SELECT ID_Cuota, numero_cuota, fecha_programada, capital_programado, interes_programado,
+                                   total_programado, capital_pagado, interes_pagado, total_pagado, estado
+                            FROM CuotaPrestamo
+                            WHERE ID_Prestamo = %s
+                            ORDER BY numero_cuota
+                        """, (id_prestamo,))
+                        filas_actual = cursor.fetchall()
+
+                        # elegir índice de inicio
+                        start_idx = 0
+                        if opcion_selec != "(Aplicar al primer pendiente)":
+                            # encontrar el ID a partir de la descripción seleccionada
+                            selected_desc = opcion_selec
+                            # localizar índice
+                            for idx, f in enumerate(filas_actual):
+                                estado = f['estado']
+                                pendiente = round(float(f['total_programado']) - float(f['total_pagado']), 2)
+                                desc = f"N°{f['numero_cuota']} - {f['fecha_programada']} - Pendiente ${pendiente:.2f} - {estado}"
+                                if desc == selected_desc:
+                                    start_idx = idx
+                                    break
+                        else:
+                            # primer pendiente
+                            for idx, f in enumerate(filas_actual):
+                                if f['estado'] != 'pagado':
+                                    start_idx = idx
+                                    break
+
+                        # aplicar pago secuencialmente sobre cuotas desde start_idx
+                        idx = start_idx
+                        any_update = False
+                        while monto_disp > 0 and idx < len(filas_actual):
+                            fila = filas_actual[idx]
+                            id_cuota = fila['ID_Cuota']
+                            estado = fila['estado']
+                            total_prog = float(fila['total_programado'])
+                            capital_prog = float(fila['capital_programado'])
+                            interes_prog = float(fila['interes_programado'])
+                            capital_pag = float(fila['capital_pagado'])
+                            interes_pag = float(fila['interes_pagado'])
+                            total_pag = float(fila['total_pagado'])
+
+                            pendiente_total = round(total_prog - total_pag, 10)
+                            if pendiente_total <= 0:
+                                idx += 1
+                                continue
+
+                            # interés pendiente en esta cuota
+                            interes_pend = round(interes_prog - interes_pag, 10)
+                            if interes_pend < 0:
+                                interes_pend = 0.0
+
+                            # primero pagar interés pendiente
+                            pagar_interes = min(monto_disp, interes_pend)
+                            interes_pag_n = round(interes_pag + pagar_interes, 2)
+                            monto_disp = round(monto_disp - pagar_interes, 2)
+                            total_interes_pagado_en_abono += pagar_interes
+
+                            # luego pagar capital pendiente
+                            capital_pend = round(capital_prog - capital_pag, 10)
+                            pagar_capital = min(monto_disp, capital_pend)
+                            capital_pag_n = round(capital_pag + pagar_capital, 2)
+                            monto_disp = round(monto_disp - pagar_capital, 2)
+                            total_capital_pagado_en_abono += pagar_capital
+
+                            total_pag_n = round(float(total_pag) + pagar_interes + pagar_capital, 2)
+
+                            # determinar nuevo estado
+                            if round(total_pag_n,2) >= round(total_prog,2):
+                                nuevo_estado = 'pagado'
+                            elif round(total_pag_n,2) > 0:
+                                nuevo_estado = 'parcial'
+                            else:
+                                nuevo_estado = 'pendiente'
+
+                            # actualizar esta cuota
+                            cursor.execute("""
+                                UPDATE CuotaPrestamo
+                                SET capital_pagado = %s, interes_pagado = %s, total_pagado = %s, estado = %s
+                                WHERE ID_Cuota = %s
+                            """, (capital_pag_n, interes_pag_n, total_pag_n, nuevo_estado, id_cuota))
+                            any_update = True
+
+                            # si quedó parcial, mover fecha_programada de esta cuota al siguiente mes desde fecha_abono
+                            if nuevo_estado == 'parcial':
+                                # conservar dia original si es posible
+                                dia_original = fila['fecha_programada'].day if hasattr(fila['fecha_programada'], 'day') else int(str(fila['fecha_programada']).split('-')[-1])
+                                nueva_fecha = fecha_siguiente_mes(fecha_abono, dia_original)
+                                cursor.execute("""
+                                    UPDATE CuotaPrestamo SET fecha_programada = %s WHERE ID_Cuota = %s
+                                """, (nueva_fecha, id_cuota))
+                                # reprogramaremos las siguientes cuotas en cadena más abajo
+
+                            idx += 1
+
+                        # registrar en PagoPrestamo (registro general del abono)
+                        cursor.execute("""
+                            INSERT INTO PagoPrestamo
+                            (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (id_prestamo, None, fecha_abono, round(total_capital_pagado_en_abono,2), round(total_interes_pagado_en_abono,2), float(monto_abono) - monto_disp))
+                        # nota: puse ID_Reunion = NULL; si quieres vincular añade selector de reuniones arriba
+
+                        # Si actualizamos alguna cuota y hay cuotas pendientes, recalcular nueva cuota para las pendientes
+                        # Recalcular capital pendiente actual (sum de capital_programado - capital_pagado)
+                        cursor.execute("""
+                            SELECT SUM(capital_programado - capital_pagado) AS capital_restante
+                            FROM CuotaPrestamo
+                            WHERE ID_Prestamo = %s
+                        """, (id_prestamo,))
+                        res = cursor.fetchone()
+                        capital_restante_db = float(res['capital_restante'] or 0.0)
+
+                        # contar cuotas pendientes
+                        cursor.execute("""
+                            SELECT COUNT(*) AS cnt FROM CuotaPrestamo
+                            WHERE ID_Prestamo = %s AND estado != 'pagado'
+                        """, (id_prestamo,))
+                        cnt_res = cursor.fetchone()
+                        cuotas_pendientes = int(cnt_res['cnt'] or 0)
+
+                        if cuotas_pendientes > 0 and capital_restante_db > 0:
+                            # nueva cuota con método simple
+                            nueva_cuota = calcular_cuota_simple(capital_restante_db, tasa_mensual, cuotas_pendientes)
+                            interes_mensual_n = round(capital_restante_db * (tasa_mensual/100.0), 2)
+                            # actualizar las cuotas pendientes en orden:
+                            # buscamos la primer cuota pendiente (por numero_cuota)
+                            cursor.execute("""
+                                SELECT ID_Cuota, numero_cuota, fecha_programada
+                                FROM CuotaPrestamo
+                                WHERE ID_Prestamo = %s AND estado != 'pagado'
+                                ORDER BY numero_cuota
+                            """, (id_prestamo,))
+                            pendientes = cursor.fetchall()
+
+                            # reprogramar fechas en cadena: si existe una cuota parcial que fue movida, iniciamos desde su fecha_programada; si no, iniciamos desde la fecha_programada original de la primer pendiente
+                            fecha_inicio_programacion = None
+                            # verificar si hay alguna cuota parcial (podría haber sido movida)
+                            for p in pendientes:
+                                cursor.execute("SELECT estado, fecha_programada FROM CuotaPrestamo WHERE ID_Cuota = %s", (p['ID_Cuota'],))
+                                check = cursor.fetchone()
+                                if check and check['estado'] == 'parcial':
+                                    fecha_inicio_programacion = check['fecha_programada']
+                                    break
+                            if fecha_inicio_programacion is None:
+                                # usar la fecha_programada de la primer pendiente
+                                fecha_inicio_programacion = pendientes[0]['fecha_programada']
+
+                            # aplicar nueva programación
+                            cap_rest = capital_restante_db
+                            fecha_p = fecha_inicio_programacion
+                            for idx_p, p in enumerate(pendientes, start=1):
+                                idc = p['ID_Cuota']
+                                # para cada cuota calculamos interes mensual (fijo) y capital por cuota
+                                interes_prog_n = round(capital_restante_db * (tasa_mensual/100.0), 2)
+                                capital_prog_n = round(nueva_cuota - interes_prog_n, 2)
+                                # en la última cuota ajustar para evitar residuo por redondeo
+                                if idx_p == len(pendientes):
+                                    capital_prog_n = round(cap_rest, 2)
+                                    total_prog_n = round(capital_prog_n + interes_prog_n, 2)
+                                else:
+                                    total_prog_n = round(capital_prog_n + interes_prog_n, 2)
+
+                                nuevo_cap_rest = round(cap_rest - capital_prog_n, 2)
+
+                                cursor.execute("""
+                                    UPDATE CuotaPrestamo
+                                    SET cuota_programada = %s, -- si tu tabla no tiene cuota_programada puedes ignorar este campo
+                                        capital_programado = %s, interes_programado = %s, total_programado = %s,
+                                        fecha_programada = %s
+                                    WHERE ID_Cuota = %s
+                                """, (nueva_cuota, capital_prog_n, interes_prog_n, total_prog_n, fecha_p, idc))
+
+                                cap_rest = nuevo_cap_rest
+                                # siguiente fecha: un mes después manteniendo día
+                                dia_or = fecha_p.day if hasattr(fecha_p, 'day') else int(str(fecha_p).split('-')[-1])
+                                fecha_p = fecha_siguiente_mes(fecha_p, dia_or)
+
+                        # commit de todas las operaciones
+                        con.commit()
+                        st.success("✅ Abono registrado y cuotas recalculadas correctamente.")
+                        st.experimental_rerun()
+
+                    except Exception as e:
+                        con.rollback()
+                        st.error(f"❌ Error al registrar el abono: {e}")
 
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ Error general: {e}")
 
     finally:
-        try:
-            if 'cursor' in locals() and cursor:
-                cursor.close()
-            if 'con' in locals() and con:
-                con.close()
-        except:
-            pass
+        if "cursor" in locals():
+            cursor.close()
+        if "con" in locals():
+            con.close()
+
+if __name__ == "__main__":
+    mostrar_pago_prestamo()
