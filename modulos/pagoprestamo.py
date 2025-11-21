@@ -4,10 +4,10 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 def generar_cronograma_pagos(id_prestamo, con):
-    """Genera el cronograma de pagos basado en los datos EXACTOS del préstamo"""
+    """Genera el cronograma de pagos basado en los datos del préstamo"""
     cursor = con.cursor()
     
-    # Obtener datos EXACTOS del préstamo
+    # Obtener datos del préstamo YA CALCULADOS
     cursor.execute("""
         SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
                p.plazo, p.fecha_desembolso, m.nombre, p.proposito
@@ -22,8 +22,17 @@ def generar_cronograma_pagos(id_prestamo, con):
     
     id_prestamo, id_miembro, monto, total_interes, plazo, fecha_desembolso, nombre, proposito = prestamo
     
-    # Usar los cálculos EXACTOS que ya hizo el módulo préstamo
-    monto_total = monto + total_interes
+    # Calcular cuota mensual (debería ser igual a la del módulo préstamo)
+    monto_total = Decimal(str(monto)) + Decimal(str(total_interes))
+    cuota_mensual = monto_total / Decimal(str(plazo))
+    cuota_mensual = round(cuota_mensual, 2)
+    
+    # Distribución mensual
+    capital_mensual = Decimal(str(monto)) / Decimal(str(plazo))
+    capital_mensual = round(capital_mensual, 2)
+    
+    interes_mensual = Decimal(str(total_interes)) / Decimal(str(plazo))
+    interes_mensual = round(interes_mensual, 2)
     
     # Fechas - primer pago a 30 días del desembolso
     fecha_primer_pago = fecha_desembolso + timedelta(days=30)
@@ -31,26 +40,33 @@ def generar_cronograma_pagos(id_prestamo, con):
     # Eliminar cronograma existente
     cursor.execute("DELETE FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
     
-    # Calcular distribución EXACTA por cuota
-    capital_por_cuota = monto / plazo
-    interes_por_cuota = total_interes / plazo
-    total_por_cuota = capital_por_cuota + interes_por_cuota
-    
     # Generar cronograma
+    saldo_capital = Decimal(str(monto))
+    
     for i in range(1, plazo + 1):
+        # Ajustar última cuota por redondeo
+        if i == plazo:
+            capital_cuota = saldo_capital
+            interes_cuota = Decimal(str(total_interes)) - (interes_mensual * (plazo - 1))
+            total_cuota = capital_cuota + interes_cuota
+        else:
+            capital_cuota = capital_mensual
+            interes_cuota = interes_mensual
+            total_cuota = cuota_mensual
+        
         # Fecha de pago - cada 30 días
         fecha_pago = fecha_primer_pago + timedelta(days=30*(i-1))
         
-        # Insertar en cronograma con distribución EXACTA
+        # Insertar en cronograma
         cursor.execute("""
             INSERT INTO CuotaPrestamo 
             (ID_Prestamo, numero_cuota, fecha_programada, capital_programado, 
              interes_programado, total_programado, estado)
             VALUES (%s, %s, %s, %s, %s, %s, 'pendiente')
-        """, (id_prestamo, i, fecha_pago, 
-              round(capital_por_cuota, 2), 
-              round(interes_por_cuota, 2), 
-              round(total_por_cuota, 2)))
+        """, (id_prestamo, i, fecha_pago, float(capital_cuota), 
+              float(interes_cuota), float(total_cuota)))
+        
+        saldo_capital -= capital_cuota
     
     con.commit()
     return True
@@ -231,33 +247,31 @@ def mostrar_pago_prestamo():
         id_prestamo = prestamos_dict[prestamo_sel]
         prestamo_info = [p for p in prestamos if p[0] == id_prestamo][0]
         
-        # Obtener datos EXACTOS del préstamo
+        # Calcular información del préstamo
         monto = prestamo_info[2]
         total_interes = prestamo_info[3]
         plazo = prestamo_info[4]
-        fecha_desembolso = prestamo_info[5]
-        proposito = prestamo_info[7]
-        nombre_miembro = prestamo_info[6]
-        
-        # Calcular información EXACTA
         monto_total = monto + total_interes
         cuota_mensual = monto_total / plazo
         
-        # Mostrar información EXACTA del préstamo
+        # Calcular tasa aproximada
+        tasa_aprox = (total_interes / (monto * plazo)) * 100 if monto > 0 and plazo > 0 else 0
+        
+        # Mostrar información del préstamo en un layout más organizado
         st.subheader("📋 RESUMEN DEL PRÉSTAMO")
         st.markdown("---")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**Información del Préstamo**")
-            st.write(f"• **Miembro:** {nombre_miembro}")
-            st.write(f"• **Fecha desembolso:** {fecha_desembolso}")
+            st.markdown("**Información Básica**")
+            st.write(f"• **Fecha inicio:** {prestamo_info[5]}")
+            st.write(f"• **Tasa interés:** {tasa_aprox:.1f}%")
             st.write(f"• **Plazo:** {plazo} meses")
-            st.write(f"• **Propósito:** {proposito}")
+            st.write(f"• **Propósito:** {prestamo_info[7]}")
         
         with col2:
-            st.markdown("**Montos Exactos**")
+            st.markdown("**Montos**")
             st.write(f"• **Monto préstamo:** ${monto:,.2f}")
             st.write(f"• **Interés total:** ${total_interes:,.2f}")
             st.write(f"• **Total a pagar:** ${monto_total:,.2f}")
@@ -294,11 +308,11 @@ def mostrar_pago_prestamo():
         
         cuotas = cursor.fetchall()
         
-        # Mostrar plan de pagos EXACTO
+        # Mostrar plan de pagos en formato tabla simple
         st.subheader("📅 PLAN DE PAGOS")
         st.markdown("---")
         
-        # Crear tabla con datos EXACTOS de la base de datos
+        # Crear tabla usando st.dataframe en lugar de HTML
         tabla_data = []
         for cuota in cuotas:
             numero, fecha_prog, capital_prog, interes_prog, total_prog, \
@@ -315,7 +329,7 @@ def mostrar_pago_prestamo():
                 'pagado': '🟢'
             }
             
-            # Mostrar montos EXACTOS de la base de datos
+            # Mostrar montos pagados si hay pago, sino los programados
             if estado == 'pagado':
                 capital_mostrar = f"${capital_pag:,.2f}"
                 interes_mostrar = f"${interes_pag:,.2f}"
@@ -330,7 +344,6 @@ def mostrar_pago_prestamo():
                 total_mostrar = f"${total_prog:,.2f}"
             
             tabla_data.append({
-                "Cuota": numero,
                 "Fecha": fecha_prog,
                 "Estado": f"{estado_emoji.get(estado, '⚪')} {estado.upper()}",
                 "Capital": capital_mostrar,
@@ -338,25 +351,18 @@ def mostrar_pago_prestamo():
                 "Total": total_mostrar
             })
         
-        # Mostrar la tabla
+        # Mostrar la tabla usando st.dataframe
         st.dataframe(tabla_data, use_container_width=True)
         
-        # Calcular totales EXACTOS desde la base de datos
-        total_capital_programado = sum(c[2] for c in cuotas)
-        total_interes_programado = sum(c[3] for c in cuotas)
-        total_programado = sum(c[4] for c in cuotas)
-        
+        # Calcular totales
         total_capital_pagado = sum(c[5] or 0 for c in cuotas)
         total_interes_pagado = sum(c[6] or 0 for c in cuotas)
         total_pagado = sum(c[7] or 0 for c in cuotas)
         
-        saldo_pendiente = total_programado - total_pagado
-        
         st.markdown("---")
-        st.markdown(f"**TOTALES EXACTOS:**")
-        st.markdown(f"• **Programado:** ${total_programado:,.2f} (Capital: ${total_capital_programado:,.2f} + Interés: ${total_interes_programado:,.2f})")
-        st.markdown(f"• **Pagado:** ${total_pagado:,.2f} (Capital: ${total_capital_pagado:,.2f} + Interés: ${total_interes_pagado:,.2f})")
+        st.markdown(f"**TOTAL:** ${monto:,.2f} (capital) + ${total_interes:,.2f} (interés) = **${monto_total:,.2f}**")
         
+        saldo_pendiente = monto_total - total_pagado
         if saldo_pendiente <= 0:
             st.success(f"**SALDO: $0 (COMPLETAMENTE PAGADO)** 🎉")
         else:
@@ -490,6 +496,36 @@ def mostrar_pago_prestamo():
                                 st.error(f"❌ Error al procesar el pago parcial: {e}")
                 else:
                     st.info("🎉 No hay cuotas pendientes para pago parcial")
+        
+        # Estadísticas rápidas
+        st.subheader("📊 RESUMEN DE PAGOS")
+        st.markdown("---")
+        
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_cuotas,
+                SUM(total_programado) as total_programado,
+                SUM(total_pagado) as total_pagado,
+                SUM(CASE WHEN estado = 'pagado' THEN 1 ELSE 0 END) as cuotas_pagadas,
+                SUM(CASE WHEN estado = 'parcial' THEN 1 ELSE 0 END) as cuotas_parciales,
+                SUM(CASE WHEN estado = 'pendiente' THEN 1 ELSE 0 END) as cuotas_pendientes
+            FROM CuotaPrestamo 
+            WHERE ID_Prestamo = %s
+        """, (id_prestamo,))
+        
+        stats = cursor.fetchone()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Programado", f"${stats[1]:,.2f}")
+            st.metric("Cuotas Pagadas", stats[3])
+        with col2:
+            st.metric("Total Pagado", f"${stats[2] or 0:,.2f}")
+            st.metric("Cuotas Parciales", stats[4])
+        with col3:
+            pendiente = stats[1] - (stats[2] or 0)
+            st.metric("Total Pendiente", f"${pendiente:,.2f}")
+            st.metric("Cuotas Pendientes", stats[5])
     
     except Exception as e:
         st.error(f"❌ Error general: {e}")
