@@ -312,37 +312,8 @@ def mostrar_pago_prestamo():
         st.subheader("📅 PLAN DE PAGOS")
         st.markdown("---")
         
-        # Crear tabla simple
-        tabla_html = """
-        <style>
-        .plan-pagos {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-        }
-        .plan-pagos th, .plan-pagos td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .plan-pagos th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        .estado-pendiente { color: #ff6b35; font-weight: bold; }
-        .estado-parcial { color: #ffa500; font-weight: bold; }
-        .estado-pagado { color: #28a745; font-weight: bold; }
-        </style>
-        <table class="plan-pagos">
-            <tr>
-                <th>Fecha</th>
-                <th>Estado</th>
-                <th>Capital</th>
-                <th>Interés</th>
-                <th>Total</th>
-            </tr>
-        """
-        
+        # Crear tabla usando st.dataframe en lugar de HTML
+        tabla_data = []
         for cuota in cuotas:
             numero, fecha_prog, capital_prog, interes_prog, total_prog, \
             capital_pag, interes_pag, total_pag, estado = cuota
@@ -351,35 +322,37 @@ def mostrar_pago_prestamo():
             interes_pag = interes_pag or 0
             total_pag = total_pag or 0
             
-            # Determinar clase CSS para el estado
-            estado_class = f"estado-{estado}"
+            # Determinar emoji para el estado
+            estado_emoji = {
+                'pendiente': '⚪',
+                'parcial': '🟡', 
+                'pagado': '🟢'
+            }
             
             # Mostrar montos pagados si hay pago, sino los programados
             if estado == 'pagado':
-                capital_mostrar = capital_pag
-                interes_mostrar = interes_pag
-                total_mostrar = total_pag
+                capital_mostrar = f"${capital_pag:,.2f}"
+                interes_mostrar = f"${interes_pag:,.2f}"
+                total_mostrar = f"${total_pag:,.2f}"
             elif estado == 'parcial':
-                capital_mostrar = f"{capital_pag} de {capital_prog}"
-                interes_mostrar = f"{interes_pag} de {interes_prog}"
-                total_mostrar = f"{total_pag} de {total_prog}"
+                capital_mostrar = f"${capital_pag:,.2f} de ${capital_prog:,.2f}"
+                interes_mostrar = f"${interes_pag:,.2f} de ${interes_prog:,.2f}"
+                total_mostrar = f"${total_pag:,.2f} de ${total_prog:,.2f}"
             else:
-                capital_mostrar = capital_prog
-                interes_mostrar = interes_prog
-                total_mostrar = total_prog
+                capital_mostrar = f"${capital_prog:,.2f}"
+                interes_mostrar = f"${interes_prog:,.2f}"
+                total_mostrar = f"${total_prog:,.2f}"
             
-            tabla_html += f"""
-            <tr>
-                <td>{fecha_prog}</td>
-                <td class="{estado_class}">{estado.upper()}</td>
-                <td>${capital_mostrar:,.2f}</td>
-                <td>${interes_mostrar:,.2f}</td>
-                <td>${total_mostrar:,.2f}</td>
-            </tr>
-            """
+            tabla_data.append({
+                "Fecha": fecha_prog,
+                "Estado": f"{estado_emoji.get(estado, '⚪')} {estado.upper()}",
+                "Capital": capital_mostrar,
+                "Interés": interes_mostrar,
+                "Total": total_mostrar
+            })
         
-        tabla_html += "</table>"
-        st.markdown(tabla_html, unsafe_allow_html=True)
+        # Mostrar la tabla usando st.dataframe
+        st.dataframe(tabla_data, use_container_width=True)
         
         # Calcular totales
         total_capital_pagado = sum(c[5] or 0 for c in cuotas)
