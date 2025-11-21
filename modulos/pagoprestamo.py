@@ -9,7 +9,7 @@ def calcular_cuotas_prestamo(id_prestamo, con):
     
     # Obtener datos del préstamo
     cursor.execute("""
-        SELECT monto, tasa_interes_mensual, plazo, fecha_primer_pago, dia_pago
+        SELECT monto, total_interes, plazo, fecha_desembolso
         FROM Prestamo WHERE ID_Prestamo = %s
     """, (id_prestamo,))
     
@@ -17,7 +17,11 @@ def calcular_cuotas_prestamo(id_prestamo, con):
     if not prestamo:
         return False
     
-    monto, tasa_interes, plazo, fecha_primer_pago, dia_pago = prestamo
+    monto, tasa_interes, plazo, fecha_desembolso = prestamo
+    
+    # Configurar fechas automáticamente
+    fecha_primer_pago = fecha_desembolso + timedelta(days=30)  # Primer pago a 30 días
+    dia_pago = fecha_primer_pago.day  # Usar el día del primer pago
     
     # Eliminar cuotas existentes
     cursor.execute("DELETE FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
@@ -25,7 +29,7 @@ def calcular_cuotas_prestamo(id_prestamo, con):
     # Calcular cuota usando fórmula de cuota fija
     tasa_mensual_decimal = Decimal(str(tasa_interes))
     factor = (1 + tasa_mensual_decimal) ** plazo
-    cuota_mensual = (monto * tasa_mensual_decimal * factor) / (factor - 1)
+    cuota_mensual = (Decimal(str(monto)) * tasa_mensual_decimal * factor) / (factor - 1)
     cuota_mensual = round(cuota_mensual, 2)
     
     saldo_capital = Decimal(str(monto))
@@ -36,28 +40,13 @@ def calcular_cuotas_prestamo(id_prestamo, con):
         interes_cuota = round(saldo_capital * tasa_mensual_decimal, 2)
         capital_cuota = round(cuota_mensual - interes_cuota, 2)
         
-        # Ajustar última cuota
+        # Ajustar última cuota por redondeo
         if i == plazo:
             capital_cuota = saldo_capital
             cuota_mensual = capital_cuota + interes_cuota
         
-        # Calcular fecha de pago
-        if i == 1:
-            fecha_pago = fecha_primer_pago
-        else:
-            # Calcular siguiente mes manteniendo el día de pago
-            año = fecha_primer_pago.year
-            mes = fecha_primer_pago.month + (i - 1)
-            if mes > 12:
-                año += (mes - 1) // 12
-                mes = ((mes - 1) % 12) + 1
-            
-            # Ajustar día si el mes no tiene ese día
-            dia_ajustado = min(dia_pago, 28)  # Usar 28 como seguro
-            try:
-                fecha_pago = date(año, mes, dia_ajustado)
-            except:
-                fecha_pago = date(año, mes, 28)
+        # Calcular fecha de pago (cada 30 días desde la fecha de primer pago)
+        fecha_pago = fecha_primer_pago + timedelta(days=30*(i-1))
         
         # Insertar cuota
         cursor.execute("""
@@ -134,9 +123,9 @@ def recalcular_cuotas_restantes(id_prestamo, con):
     """Recalcula las cuotas pendientes después de un pago"""
     cursor = con.cursor()
     
-    # Obtener datos del préstamo y cuotas
+    # Obtener datos del préstamo
     cursor.execute("""
-        SELECT p.monto, p.tasa_interes_mensual, p.plazo, p.fecha_primer_pago, p.dia_pago
+        SELECT p.monto, p.total_interes, p.plazo, p.fecha_desembolso
         FROM Prestamo p WHERE p.ID_Prestamo = %s
     """, (id_prestamo,))
     
@@ -144,7 +133,7 @@ def recalcular_cuotas_restantes(id_prestamo, con):
     if not prestamo:
         return False
     
-    monto_total, tasa_interes, plazo_total, fecha_primer_pago, dia_pago = prestamo
+    monto_total, tasa_interes, plazo_total, fecha_desembolso = prestamo
     
     # Obtener capital total pagado
     cursor.execute("""
@@ -169,14 +158,19 @@ def recalcular_cuotas_restantes(id_prestamo, con):
     if cuotas_restantes <= 0:
         return True
     
-    # Obtener última fecha de pago
+    # Obtener última fecha de pago de cuotas pagadas
     cursor.execute("""
         SELECT MAX(fecha_programada) 
         FROM CuotaPrestamo 
         WHERE ID_Prestamo = %s AND estado = 'pagado'
     """, (id_prestamo,))
     
-    ultima_fecha_pago = cursor.fetchone()[0] or fecha_primer_pago
+    ultima_fecha_result = cursor.fetchone()[0]
+    if ultima_fecha_result:
+        ultima_fecha_pago = ultima_fecha_result
+    else:
+        # Si no hay cuotas pagadas, usar fecha actual
+        ultima_fecha_pago = date.today()
     
     # Eliminar cuotas futuras no pagadas
     cursor.execute("""
@@ -186,9 +180,13 @@ def recalcular_cuotas_restantes(id_prestamo, con):
     
     # Recalcular nuevas cuotas
     tasa_mensual_decimal = Decimal(str(tasa_interes))
-    factor = (1 + tasa_mensual_decimal) ** cuotas_restantes
-    nueva_cuota = (saldo_capital * tasa_mensual_decimal * factor) / (factor - 1)
-    nueva_cuota = round(nueva_cuota, 2)
+    
+    if cuotas_restantes > 0:
+        factor = (1 + tasa_mensual_decimal) ** cuotas_restantes
+        nueva_cuota = (saldo_capital * tasa_mensual_decimal * factor) / (factor - 1)
+        nueva_cuota = round(nueva_cuota, 2)
+    else:
+        nueva_cuota = Decimal('0')
     
     # Generar nuevas cuotas
     for i in range(1, cuotas_restantes + 1):
@@ -198,27 +196,13 @@ def recalcular_cuotas_restantes(id_prestamo, con):
         interes_cuota = round(saldo_capital * tasa_mensual_decimal, 2)
         capital_cuota = round(nueva_cuota - interes_cuota, 2)
         
-        # Ajustar última cuota
+        # Ajustar última cuota por redondeo
         if i == cuotas_restantes:
             capital_cuota = saldo_capital
             nueva_cuota = capital_cuota + interes_cuota
         
-        # Calcular nueva fecha (1 mes después de la última fecha)
-        if i == 1:
-            nueva_fecha = ultima_fecha_pago
-        else:
-            # Calcular siguiente mes
-            año = ultima_fecha_pago.year
-            mes = ultima_fecha_pago.month + i
-            if mes > 12:
-                año += (mes - 1) // 12
-                mes = ((mes - 1) % 12) + 1
-            
-            dia_ajustado = min(dia_pago, 28)
-            try:
-                nueva_fecha = date(año, mes, dia_ajustado)
-            except:
-                nueva_fecha = date(año, mes, 28)
+        # Calcular nueva fecha (30 días después de la última fecha)
+        nueva_fecha = ultima_fecha_pago + timedelta(days=30*i)
         
         # Insertar nueva cuota
         cursor.execute("""
@@ -243,8 +227,8 @@ def mostrar_pago_prestamo():
         
         # Cargar préstamos
         cursor.execute("""
-            SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.tasa_interes_mensual, 
-                   p.plazo, p.fecha_primer_pago, m.nombre
+            SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
+                   p.plazo, p.fecha_desembolso, m.nombre, p.proposito
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE p.ID_Estado_prestamo != 3  -- Excluir préstamos cancelados
@@ -257,7 +241,7 @@ def mostrar_pago_prestamo():
             return
         
         prestamos_dict = {
-            f"Préstamo {p[0]} - {p[6]} - ${p[2]} - {p[4]} meses - {p[3]*100}% mensual": p[0]
+            f"Préstamo {p[0]} - {p[6]} - ${p[2]:,.2f} - {p[4]} meses - {p[3]*100:.2f}% mensual": p[0]
             for p in prestamos
         }
         
@@ -268,7 +252,7 @@ def mostrar_pago_prestamo():
         reuniones_dict = {
             f"Reunión {r[0]} - {r[1]}": r[0]
             for r in reuniones
-        }
+        } if reuniones else {"No hay reuniones": 0}
         
         # Selección de préstamo
         prestamo_sel = st.selectbox(
@@ -289,6 +273,9 @@ def mostrar_pago_prestamo():
         with col3:
             st.metric("Plazo", f"{prestamo_info[4]} meses")
         
+        # Mostrar propósito y fecha de desembolso
+        st.info(f"**Propósito:** {prestamo_info[7]} | **Fecha desembolso:** {prestamo_info[5]}")
+        
         # Mostrar cuotas programadas
         st.subheader("📅 Cuotas Programadas")
         cursor.execute("""
@@ -303,12 +290,19 @@ def mostrar_pago_prestamo():
         cuotas = cursor.fetchall()
         
         if not cuotas:
-            st.info("ℹ️ No hay cuotas programadas. Generando cuotas...")
-            if calcular_cuotas_prestamo(id_prestamo, con):
-                st.rerun()
-            else:
-                st.error("❌ Error al generar cuotas")
-                return
+            st.info("ℹ️ No hay cuotas programadas. El sistema calculará automáticamente las cuotas basándose en:")
+            st.write(f"- **Monto:** ${prestamo_info[2]:,.2f}")
+            st.write(f"- **Tasa:** {prestamo_info[3]*100:.2f}% mensual")
+            st.write(f"- **Plazo:** {prestamo_info[4]} meses")
+            st.write(f"- **Primer pago:** Aproximadamente 30 días después del desembolso ({prestamo_info[5]})")
+            
+            if st.button("🎯 Generar Cuotas Automáticamente", type="primary"):
+                if calcular_cuotas_prestamo(id_prestamo, con):
+                    st.success("✅ Cuotas generadas correctamente!")
+                    st.rerun()
+                else:
+                    st.error("❌ Error al generar cuotas")
+            return
         
         # Mostrar tabla de cuotas
         cuotas_data = []
@@ -320,6 +314,13 @@ def mostrar_pago_prestamo():
             interes_pag = interes_pag or 0
             total_pag = total_pag or 0
             
+            # Determinar color según estado
+            estado_color = {
+                'pendiente': '⚪',
+                'parcial': '🟡', 
+                'pagado': '🟢'
+            }
+            
             cuotas_data.append({
                 "Cuota": numero,
                 "Fecha Programada": fecha_prog,
@@ -329,7 +330,7 @@ def mostrar_pago_prestamo():
                 "Capital Pagado": f"${capital_pag:,.2f}",
                 "Interés Pagado": f"${interes_pag:,.2f}",
                 "Total Pagado": f"${total_pag:,.2f}",
-                "Estado": estado.upper()
+                "Estado": f"{estado_color.get(estado, '⚪')} {estado.upper()}"
             })
         
         st.dataframe(cuotas_data, use_container_width=True)
@@ -351,25 +352,34 @@ def mostrar_pago_prestamo():
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Programado", f"${totales[0]:,.2f}")
-            st.metric("Capital Programado", f"${totales[2]:,.2f}")
-            st.metric("Interés Programado", f"${totales[4]:,.2f}")
+            st.metric("Total Programado", f"${totales[0]:,.2f}" if totales[0] else "$0.00")
+            st.metric("Capital Programado", f"${totales[2]:,.2f}" if totales[2] else "$0.00")
+            st.metric("Interés Programado", f"${totales[4]:,.2f}" if totales[4] else "$0.00")
         with col2:
-            st.metric("Total Pagado", f"${totales[1] or 0:,.2f}")
-            st.metric("Capital Pagado", f"${totales[3] or 0:,.2f}")
-            st.metric("Interés Pagado", f"${totales[5] or 0:,.2f}")
+            total_pagado = totales[1] or 0
+            capital_pagado = totales[3] or 0
+            interes_pagado = totales[5] or 0
+            st.metric("Total Pagado", f"${total_pagado:,.2f}")
+            st.metric("Capital Pagado", f"${capital_pagado:,.2f}")
+            st.metric("Interés Pagado", f"${interes_pagado:,.2f}")
         with col3:
-            pendiente = (totales[0] or 0) - (totales[1] or 0)
+            total_programado = totales[0] or 0
+            pendiente = total_programado - total_pagado
             st.metric("Total Pendiente", f"${pendiente:,.2f}", delta=f"-${pendiente:,.2f}")
         
         # Formulario de pago
         st.subheader("💰 Registrar Pago")
         
         with st.form("form_pago_prestamo"):
-            reunion_sel = st.selectbox(
-                "Selecciona la reunión:",
-                list(reuniones_dict.keys())
-            )
+            if reuniones_dict:
+                reunion_sel = st.selectbox(
+                    "Selecciona la reunión:",
+                    list(reuniones_dict.keys())
+                )
+                id_reunion = reuniones_dict[reunion_sel]
+            else:
+                st.warning("No hay reuniones disponibles")
+                id_reunion = None
             
             fecha_pago = st.date_input(
                 "Fecha del pago:",
@@ -380,12 +390,12 @@ def mostrar_pago_prestamo():
             with col1:
                 monto_capital = st.number_input(
                     "Monto a capital:",
-                    min_value=0.00, format="%.2f"
+                    min_value=0.00, format="%.2f", step=10.0
                 )
             with col2:
                 monto_interes = st.number_input(
                     "Monto a interés:",
-                    min_value=0.00, format="%.2f"
+                    min_value=0.00, format="%.2f", step=10.0
                 )
             
             total_cancelado = monto_capital + monto_interes
@@ -403,8 +413,6 @@ def mostrar_pago_prestamo():
                     try:
                         # Iniciar transacción
                         con.start_transaction()
-                        
-                        id_reunion = reuniones_dict[reunion_sel]
                         
                         # Registrar pago en PagoPrestamo
                         cursor.execute("""
@@ -437,6 +445,8 @@ def mostrar_pago_prestamo():
                                 SET ID_Estado_prestamo = 3  -- Estado: Cancelado
                                 WHERE ID_Prestamo = %s
                             """, (id_prestamo,))
+                            st.balloons()
+                            st.success("🎉 ¡PRÉSTAMO COMPLETAMENTE PAGADO!")
                         
                         con.commit()
                         
