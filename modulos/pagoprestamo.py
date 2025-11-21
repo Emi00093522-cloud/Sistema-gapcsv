@@ -71,7 +71,7 @@ def generar_cronograma_pagos(id_prestamo, con):
     con.commit()
     return True
 
-def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, numero_cuota=None, con):
+def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, numero_cuota=None):
     """Aplica un pago (completo o parcial) a una cuota específica"""
     cursor = con.cursor()
     
@@ -435,7 +435,7 @@ def mostrar_pago_prestamo():
                             cuota_info = [c for c in cuotas_pendientes if c[0] == numero_cuota][0]
                             monto_cuota = cuota_info[1]
                             
-                            success, mensaje = aplicar_pago_cuota(id_prestamo, monto_cuota, fecha_pago_completo, "completo", numero_cuota, con)
+                            success, mensaje = aplicar_pago_cuota(id_prestamo, monto_cuota, fecha_pago_completo, "completo", con, numero_cuota)
                             
                             if success:
                                 # Registrar en tabla PagoPrestamo
@@ -502,7 +502,7 @@ def mostrar_pago_prestamo():
                             st.warning("⚠️ El monto debe ser mayor a cero.")
                         else:
                             try:
-                                success, mensaje = aplicar_pago_cuota(id_prestamo, monto_parcial, fecha_pago_parcial, "parcial", None, con)
+                                success, mensaje = aplicar_pago_cuota(id_prestamo, monto_parcial, fecha_pago_parcial, "parcial", con)
                                 
                                 if success:
                                     # Registrar en tabla PagoPrestamo
