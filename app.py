@@ -9,6 +9,7 @@ from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.integrada import mostrar_gestion_integrada
 from modulos.pagoprestamo import mostrar_pago_prestamo
+from modulos.ahorros import mostrar_ahorros  # ✅ Nuevo módulo agregado
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
@@ -45,6 +46,7 @@ def panel_secretaria():
     tabs = st.tabs([
         "👥 Registrar Grupo",
         "👥 Miembros",
+        "💰 Ahorros",  # ✅ Nueva pestaña agregada
         "📜 Reglamentos",
         "📅 Reuniones",
         "💵 Pago de Préstamos",
@@ -53,11 +55,12 @@ def panel_secretaria():
 
     with tabs[0]: mostrar_grupos()
     with tabs[1]: mostrar_miembro()
-    with tabs[2]: mostrar_reglamentos()
-    with tabs[3]: mostrar_gestion_integrada()
-    with tabs[4]: mostrar_pago_prestamo()
+    with tabs[2]: mostrar_ahorros()  # ✅ Nueva función llamada
+    with tabs[3]: mostrar_reglamentos()
+    with tabs[4]: mostrar_gestion_integrada()
+    with tabs[5]: mostrar_pago_prestamo()
 
-    with tabs[5]:
+    with tabs[6]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
