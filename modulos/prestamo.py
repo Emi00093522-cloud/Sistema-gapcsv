@@ -163,7 +163,7 @@ def _mostrar_formulario_prestamo(id_reunion=None, id_grupo=None, id_miembro_pred
                     st.error("Miembro no encontrado")
                     ID_Miembro = None
             elif miembros:
-                if id_grupo:
+                if id_grupo or id_grupo_predefinido:
                     # En contexto reunión: mostrar nombre completo
                     miembro_options = {f"{m['nombre']} {m.get('apellido', '')}".strip(): m['ID_Miembro'] for m in miembros}
                 else:
