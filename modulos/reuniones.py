@@ -15,6 +15,16 @@ def _get_cargo_detectado():
 def _tiene_rol_secretaria():
     return _get_cargo_detectado() == "SECRETARIA"
 
+def _guardar_contexto_reunion(id_reunion, id_grupo, reunion_label, grupo_label, distrito_label):
+    """Guarda el contexto de la reunión seleccionada en session_state"""
+    st.session_state.reunion_contexto = {
+        'id_reunion': id_reunion,
+        'id_grupo': id_grupo,
+        'reunion_label': reunion_label,
+        'grupo_label': grupo_label,
+        'distrito_label': distrito_label
+    }
+
 # ==========================================================
 #   MÓDULO PRINCIPAL
 # ==========================================================
@@ -156,6 +166,20 @@ def mostrar_reuniones():
     seleccion = st.selectbox("Seleccione una reunión", opciones)
     id_reunion = mapa_reuniones[seleccion]
 
+    # ✅ GUARDAR CONTEXTO DE LA REUNIÓN SELECCIONADA
+    if seleccion != "➕ Nueva reunión" and id_reunion:
+        _guardar_contexto_reunion(
+            id_reunion=id_reunion,
+            id_grupo=id_grupo,
+            reunion_label=seleccion,
+            grupo_label=grupo_label,
+            distrito_label=distrito_label
+        )
+        
+        # Mostrar información del contexto actual
+        st.success(f"✅ Reunión activa: {seleccion}")
+        st.info(f"📋 Esta reunión está disponible en las otras pestañas de Gestión Integrada")
+
     # Valores por defecto para el form de creación/edición
     if id_reunion is None:
         fecha_def = datetime.now().date()
@@ -219,6 +243,31 @@ def mostrar_reuniones():
 
             con.commit()
             st.success("✅ Reunión guardada correctamente.")
+            
+            # ✅ ACTUALIZAR CONTEXTO SI ES UNA NUEVA REUNIÓN
+            if id_reunion is None:
+                # Recargar reuniones para obtener el nuevo ID
+                cursor.execute("""
+                    SELECT ID_Reunion, fecha, Hora, lugar 
+                    FROM Reunion 
+                    WHERE ID_Grupo = %s 
+                    ORDER BY ID_Reunion DESC 
+                    LIMIT 1
+                """, (id_grupo,))
+                nueva_reunion = cursor.fetchone()
+                if nueva_reunion:
+                    fecha_str = nueva_reunion['fecha'].strftime("%Y-%m-%d") if hasattr(nueva_reunion['fecha'], 'strftime') else str(nueva_reunion['fecha'])
+                    hora_str = nueva_reunion['Hora'].strftime("%H:%M") if hasattr(nueva_reunion['Hora'], 'strftime') else str(nueva_reunion['Hora'])
+                    nueva_etiqueta = f"{nueva_reunion['ID_Reunion']} — {fecha_str} {hora_str}"
+                    
+                    _guardar_contexto_reunion(
+                        id_reunion=nueva_reunion['ID_Reunion'],
+                        id_grupo=id_grupo,
+                        reunion_label=nueva_etiqueta,
+                        grupo_label=grupo_label,
+                        distrito_label=distrito_label
+                    )
+            
             st.rerun()
 
         except Exception as e:
@@ -233,6 +282,12 @@ def mostrar_reuniones():
             cursor.execute("DELETE FROM Reunion WHERE ID_Reunion=%s", (id_reunion,))
             con.commit()
             st.success("🗑️ Reunión eliminada.")
+            
+            # ✅ LIMPIAR CONTEXTO SI SE ELIMINA LA REUNIÓN ACTIVA
+            if (st.session_state.get('reunion_contexto') and 
+                st.session_state.reunion_contexto.get('id_reunion') == id_reunion):
+                st.session_state.reunion_contexto = None
+            
             st.rerun()
         except Exception as e:
             con.rollback()
