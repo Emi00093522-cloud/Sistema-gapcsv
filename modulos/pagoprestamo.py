@@ -265,51 +265,6 @@ def mostrar_pago_prestamo():
                     st.error("❌ Error al generar cronograma")
             return
         
-        # Mostrar cronograma de pagos
-        st.subheader("📅 Cronograma de Pagos")
-        cursor.execute("""
-            SELECT numero_cuota, fecha_programada, capital_programado, 
-                   interes_programado, total_programado, capital_pagado, 
-                   interes_pagado, total_pagado, estado
-            FROM CuotaPrestamo
-            WHERE ID_Prestamo = %s
-            ORDER BY numero_cuota
-        """, (id_prestamo,))
-        
-        cuotas = cursor.fetchall()
-        
-        # Mostrar tabla de cuotas
-        cuotas_data = []
-        for cuota in cuotas:
-            numero, fecha_prog, capital_prog, interes_prog, total_prog, \
-            capital_pag, interes_pag, total_pag, estado = cuota
-            
-            capital_pag = capital_pag or 0
-            interes_pag = interes_pag or 0
-            total_pag = total_pag or 0
-            pendiente = total_prog - total_pag
-            
-            estado_color = {
-                'pendiente': '⚪',
-                'parcial': '🟡', 
-                'pagado': '🟢'
-            }
-            
-            cuotas_data.append({
-                "Cuota": numero,
-                "Fecha Programada": fecha_prog,
-                "Capital Programado": f"${capital_prog:,.2f}",
-                "Interés Programado": f"${interes_prog:,.2f}",
-                "Total Programado": f"${total_prog:,.2f}",
-                "Capital Pagado": f"${capital_pag:,.2f}",
-                "Interés Pagado": f"${interes_pag:,.2f}",
-                "Total Pagado": f"${total_pag:,.2f}",
-                "Pendiente": f"${pendiente:,.2f}",
-                "Estado": f"{estado_color.get(estado, '⚪')} {estado.upper()}"
-            })
-        
-        st.dataframe(cuotas_data, use_container_width=True)
-        
         # Formulario para pago parcial
         st.subheader("💰 Registrar Pago Parcial")
         
