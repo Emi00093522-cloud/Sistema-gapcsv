@@ -33,6 +33,13 @@ def mostrar_asistencia():
         # Obtener ID_Grupo asociado
         id_grupo = next((r[3] for r in reuniones if r[0] == id_reunion), None)
 
+        # GUARDAR EN SESSION_STATE PARA COMPARTIR CON OTROS MÓDULOS
+        st.session_state.reunion_actual = {
+            'id_reunion': id_reunion,
+            'id_grupo': id_grupo,
+            'nombre_reunion': reuniones_dict[id_reunion]
+        }
+
         # 2. Cargar miembros
         cursor.execute("""
             SELECT ID_Miembro, nombre
