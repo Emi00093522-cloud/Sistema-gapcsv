@@ -56,21 +56,21 @@ def mostrar_ahorros():
 
             # TABLA DE AHORROS CON FORMATO ESPECÍFICO
             st.markdown("---")
-            st.subheader("💰 Control de Ahorros")
+            st.markdown("### 💰 Control de Ahorros")
             
-            # Encabezado de la tabla
-            cols = st.columns([2, 1, 1, 1, 1, 1])
-            with cols[0]:
+            # ENCABEZADO DE LA TABLA - UNA SOLA FILA PARA LOS TÍTULOS
+            cols_titulos = st.columns([2, 1, 1, 1, 1, 1])
+            with cols_titulos[0]:
                 st.markdown("**Socios/as**")
-            with cols[1]:
+            with cols_titulos[1]:
                 st.markdown("**Saldo mín inicial**")
-            with cols[2]:
+            with cols_titulos[2]:
                 st.markdown("**Ahorro**")
-            with cols[3]:
+            with cols_titulos[3]:
                 st.markdown("**Otras actividades**")
-            with cols[4]:
+            with cols_titulos[4]:
                 st.markdown("**Retiros**")
-            with cols[5]:
+            with cols_titulos[5]:
                 st.markdown("**Saldos ahorros**")
 
             # Diccionarios para almacenar los datos de cada miembro
@@ -79,13 +79,13 @@ def mostrar_ahorros():
             retiros_data = {}
             saldos_iniciales = {}
 
-            # Filas para cada miembro
+            # FILAS PARA CADA MIEMBRO - UNA FILA POR MIEMBRO
             for id_miembro, nombre_miembro in miembros_presentes:
                 cols = st.columns([2, 1, 1, 1, 1, 1])
                 
                 with cols[0]:
                     # Mostrar nombre del miembro
-                    st.write(nombre_miembro)
+                    st.write(f"**{nombre_miembro}**")
                 
                 with cols[1]:
                     # OBTENER EL SALDO FINAL DEL ÚLTIMO REGISTRO ANTERIOR DEL MISMO MIEMBRO
@@ -103,7 +103,7 @@ def mostrar_ahorros():
                     saldo_inicial = float(saldo_final_anterior_result[0]) if saldo_final_anterior_result else 0.00
                     
                     # Mostrar saldo inicial (saldo final del registro anterior)
-                    st.metric("", f"${saldo_inicial:,.2f}", label_visibility="collapsed")
+                    st.write(f"${saldo_inicial:,.2f}")
                     saldos_iniciales[id_miembro] = saldo_inicial
                 
                 with cols[2]:
@@ -140,11 +140,11 @@ def mostrar_ahorros():
                     
                     if retiro_activado:
                         monto_retiros = ahorros_data[id_miembro] + otros_data[id_miembro]
-                        st.error(f"-${monto_retiros:,.2f}")
+                        st.error(f"**-${monto_retiros:,.2f}**")
                         retiros_data[id_miembro] = monto_retiros
                     else:
                         monto_retiros = 0.00
-                        st.info("$0.00")
+                        st.info("**$0.00**")
                         retiros_data[id_miembro] = 0.00
                 
                 with cols[5]:
@@ -153,13 +153,16 @@ def mostrar_ahorros():
                     
                     # Mostrar con color según si hay ganancia o pérdida
                     if saldo_final > saldos_iniciales[id_miembro]:
-                        st.success(f"${saldo_final:,.2f}")
+                        st.success(f"**${saldo_final:,.2f}**")
                     elif saldo_final < saldos_iniciales[id_miembro]:
-                        st.error(f"${saldo_final:,.2f}")
+                        st.error(f"**${saldo_final:,.2f}**")
                     else:
-                        st.info(f"${saldo_final:,.2f}")
+                        st.info(f"**${saldo_final:,.2f}**")
+                
+                # Línea separadora entre miembros
+                st.markdown("---")
 
-            # Botón de envío
+            # Botón de envío FUERA de las columnas
             enviar = st.form_submit_button("💾 Guardar Ahorros")
 
             if enviar:
