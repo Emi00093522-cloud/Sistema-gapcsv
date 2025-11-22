@@ -78,6 +78,7 @@ def mostrar_ahorros():
             otros_data = {}
             retiros_data = {}
             saldos_iniciales = {}
+            saldos_finales = {}
 
             # FILAS PARA CADA MIEMBRO - UNA FILA POR MIEMBRO
             for id_miembro, nombre_miembro in miembros_presentes:
@@ -91,10 +92,10 @@ def mostrar_ahorros():
                     # OBTENER EL SALDO FINAL DEL ÚLTIMO REGISTRO ANTERIOR DEL MISMO MIEMBRO
                     cursor.execute("""
                         SELECT COALESCE(
-                            (SELECT (monto_ahorro + monto_otros - monto_retiros) 
+                            (SELECT saldos_ahorros 
                              FROM Ahorro 
-                             WHERE ID_Miembro = %s 
-                             AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
+                             WHERE ID_Membro = %s 
+                             AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Membro = %s AND fecha = %s)))
                              ORDER BY fecha DESC, ID_Ahorro DESC 
                              LIMIT 1), 0) as saldo_final_anterior
                     """, (id_miembro, fecha_ahorro, fecha_ahorro, id_miembro, fecha_ahorro))
@@ -150,6 +151,7 @@ def mostrar_ahorros():
                 with cols[5]:
                     # Calcular saldo final
                     saldo_final = saldos_iniciales[id_miembro] + ahorros_data[id_miembro] + otros_data[id_miembro] - retiros_data[id_miembro]
+                    saldos_finales[id_miembro] = saldo_final
                     
                     # Mostrar con color según si hay ganancia o pérdida
                     if saldo_final > saldos_iniciales[id_miembro]:
@@ -173,29 +175,43 @@ def mostrar_ahorros():
                         monto_ahorro = ahorros_data.get(id_miembro, 0)
                         monto_otros = otros_data.get(id_miembro, 0)
                         monto_retiros = retiros_data.get(id_miembro, 0)
+                        saldo_inicial = saldos_iniciales.get(id_miembro, 0)
+                        saldo_final = saldos_finales.get(id_miembro, 0)
                         
                         # Solo guardar si hay al menos un monto ingresado o retiro activado
                         if monto_ahorro > 0 or monto_otros > 0 or monto_retiros > 0:
                             # Verificar si ya existe un registro para este miembro en esta reunión
                             cursor.execute("""
                                 SELECT COUNT(*) FROM Ahorro 
-                                WHERE ID_Miembro = %s AND ID_Reunion = %s
+                                WHERE ID_Membro = %s AND ID_Reunion = %s
                             """, (id_miembro, id_reunion))
                             
                             if cursor.fetchone()[0] == 0:
-                                # Insertar el nuevo registro INCLUYENDO monto_retiros
+                                # Insertar el nuevo registro con TODAS las columnas
                                 cursor.execute("""
-                                    INSERT INTO Ahorro (ID_Miembro, ID_Reunion, fecha, monto_ahorro, monto_otros, monto_retiros)
-                                    VALUES (%s, %s, %s, %s, %s, %s)
-                                """, (id_miembro, id_reunion, fecha_ahorro, monto_ahorro, monto_otros, monto_retiros))
+                                    INSERT INTO Ahorro (
+                                        ID_Membro, ID_Reunion, fecha, 
+                                        monto_ahorro, monto_otros, monto_retiros,
+                                        saldos_ahorros, saldo_inicial
+                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (
+                                    id_miembro, id_reunion, fecha_ahorro, 
+                                    monto_ahorro, monto_otros, monto_retiros,
+                                    saldo_final, saldo_inicial
+                                ))
                                 registros_guardados += 1
                             else:
                                 # Actualizar registro existente
                                 cursor.execute("""
                                     UPDATE Ahorro 
-                                    SET monto_ahorro = %s, monto_otros = %s, monto_retiros = %s, fecha = %s
-                                    WHERE ID_Miembro = %s AND ID_Reunion = %s
-                                """, (monto_ahorro, monto_otros, monto_retiros, fecha_ahorro, id_miembro, id_reunion))
+                                    SET monto_ahorro = %s, monto_otros = %s, monto_retiros = %s, 
+                                        fecha = %s, saldos_ahorros = %s, saldo_inicial = %s
+                                    WHERE ID_Membro = %s AND ID_Reunion = %s
+                                """, (
+                                    monto_ahorro, monto_otros, monto_retiros, 
+                                    fecha_ahorro, saldo_final, saldo_inicial,
+                                    id_miembro, id_reunion
+                                ))
                                 registros_guardados += 1
 
                     con.commit()
@@ -218,40 +234,21 @@ def mostrar_ahorros():
         st.subheader("📋 Historial de Ahorros")
         
         cursor.execute("""
-            WITH SaldosAcumulados AS (
-                SELECT 
-                    a.ID_Ahorro,
-                    a.ID_Miembro,
-                    a.ID_Reunion,
-                    a.fecha,
-                    a.monto_ahorro,
-                    a.monto_otros,
-                    a.monto_retiros,
-                    COALESCE((
-                        SELECT (a2.monto_ahorro + a2.monto_otros - a2.monto_retiros)
-                        FROM Ahorro a2
-                        WHERE a2.ID_Miembro = a.ID_Miembro 
-                        AND (a2.fecha < a.fecha OR (a2.fecha = a.fecha AND a2.ID_Ahorro < a.ID_Ahorro))
-                        ORDER BY a2.fecha DESC, a2.ID_Ahorro DESC
-                        LIMIT 1
-                    ), 0) as saldo_inicial
-                FROM Ahorro a
-            )
             SELECT 
-                sa.ID_Ahorro,
+                a.ID_Ahorro,
                 m.nombre,
                 r.fecha as fecha_reunion,
-                sa.fecha as fecha_ahorro,
-                sa.monto_ahorro,
-                sa.monto_otros,
-                sa.monto_retiros,
-                sa.saldo_inicial,
-                sa.saldo_inicial + sa.monto_ahorro + sa.monto_otros - sa.monto_retiros as saldo_final
-            FROM SaldosAcumulados sa
-            JOIN Miembro m ON sa.ID_Miembro = m.ID_Miembro
-            JOIN Reunion r ON sa.ID_Reunion = r.ID_Reunion
+                a.fecha as fecha_ahorro,
+                a.monto_ahorro,
+                a.monto_otros,
+                a.monto_retiros,
+                a.saldo_inicial,
+                a.saldos_ahorros as saldo_final
+            FROM Ahorro a
+            JOIN Miembro m ON a.ID_Membro = m.ID_Miembro
+            JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
             WHERE r.ID_Reunion = %s
-            ORDER BY m.nombre, sa.fecha, sa.ID_Ahorro
+            ORDER BY m.nombre, a.fecha, a.ID_Ahorro
         """, (id_reunion,))
         
         historial = cursor.fetchall()
