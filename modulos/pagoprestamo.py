@@ -216,23 +216,70 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, nu
 def mostrar_pago_prestamo():
     st.header("💵 Sistema de Pagos de Préstamo")
     
+    # Verificar si hay una reunión seleccionada
+    if 'reunion_actual' not in st.session_state:
+        st.warning("⚠️ Primero debes seleccionar una reunión en el módulo de Asistencia.")
+        return
+    
     try:
         con = obtener_conexion()
         cursor = con.cursor()
-        
-        # Cargar préstamos activos
+
+        # Obtener la reunión del session_state
+        reunion_info = st.session_state.reunion_actual
+        id_reunion = reunion_info['id_reunion']
+        id_grupo = reunion_info['id_grupo']
+        nombre_reunion = reunion_info['nombre_reunion']
+
+        # Mostrar información de la reunión actual
+        st.info(f"📅 **Reunión actual:** {nombre_reunion}")
+
+        # -----------------------------
+        # CARGAR MIEMBROS QUE ASISTIERON A ESTA REUNIÓN (SOLO LOS QUE MARCARON SI)
+        # -----------------------------
         cursor.execute("""
-            SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
-                   p.plazo, p.fecha_desembolso, m.nombre, p.proposito
-            FROM Prestamo p
-            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
-            WHERE p.ID_Estado_prestamo != 3  -- Excluir cancelados
-        """)
+            SELECT m.ID_Miembro, m.nombre 
+            FROM Miembro m
+            JOIN Miembroxreunion mr ON m.ID_Miembro = mr.ID_Miembro
+            WHERE mr.ID_Reunion = %s AND mr.asistio = 1
+            ORDER BY m.nombre
+        """, (id_reunion,))
+        
+        miembros_presentes = cursor.fetchall()
+
+        if not miembros_presentes:
+            st.warning(f"⚠️ No hay miembros registrados como presentes en esta reunión.")
+            st.info("Por favor, registra la asistencia primero en el módulo correspondiente.")
+            return
+
+        # Obtener IDs de miembros presentes para filtrar préstamos
+        ids_miembros_presentes = [m[0] for m in miembros_presentes]
+        
+        # Cargar préstamos activos SOLO de miembros presentes
+        if ids_miembros_presentes:
+            placeholders = ','.join(['%s'] * len(ids_miembros_presentes))
+            cursor.execute(f"""
+                SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
+                       p.plazo, p.fecha_desembolso, m.nombre, p.proposito
+                FROM Prestamo p
+                JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+                WHERE p.ID_Estado_prestamo != 3  -- Excluir cancelados
+                AND p.ID_Miembro IN ({placeholders})
+            """, ids_miembros_presentes)
+        else:
+            cursor.execute("""
+                SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
+                       p.plazo, p.fecha_desembolso, m.nombre, p.proposito
+                FROM Prestamo p
+                JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+                WHERE p.ID_Estado_prestamo != 3
+                AND 1=0  -- No mostrar nada si no hay miembros presentes
+            """)
         
         prestamos = cursor.fetchall()
         
         if not prestamos:
-            st.warning("⚠️ No hay préstamos activos registrados.")
+            st.warning("⚠️ No hay préstamos activos para los miembros presentes en esta reunión.")
             return
         
         # Lista de préstamos
@@ -423,7 +470,7 @@ def mostrar_pago_prestamo():
                                     INSERT INTO Pago_prestamo 
                                     (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
                                     VALUES (%s, %s, %s, %s, %s, %s)
-                                """, (id_prestamo, None, fecha_pago_completo, 0, 0, float(monto_cuota)))
+                                """, (id_prestamo, id_reunion, fecha_pago_completo, 0, 0, float(monto_cuota)))
                                 
                                 con.commit()
                                 st.success(f"✅ {mensaje}")
@@ -490,7 +537,7 @@ def mostrar_pago_prestamo():
                                         INSERT INTO Pago_prestamo 
                                         (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
                                         VALUES (%s, %s, %s, %s, %s, %s)
-                                    """, (id_prestamo, None, fecha_pago_parcial, 0, 0, float(monto_parcial)))
+                                    """, (id_prestamo, id_reunion, fecha_pago_parcial, 0, 0, float(monto_parcial)))
                                     
                                     con.commit()
                                     st.success(f"✅ {mensaje}")
