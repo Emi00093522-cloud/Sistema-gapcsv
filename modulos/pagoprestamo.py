@@ -420,7 +420,7 @@ def mostrar_pago_prestamo():
                             if success:
                                 # Registrar en tabla PagoPrestamo
                                 cursor.execute("""
-                                    INSERT INTO PagoPrestamo 
+                                    INSERT INTO Pago_prestamo 
                                     (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
                                     VALUES (%s, %s, %s, %s, %s, %s)
                                 """, (id_prestamo, None, fecha_pago_completo, 0, 0, float(monto_cuota)))
@@ -487,7 +487,7 @@ def mostrar_pago_prestamo():
                                 if success:
                                     # Registrar en tabla PagoPrestamo
                                     cursor.execute("""
-                                        INSERT INTO PagoPrestamo 
+                                        INSERT INTO Pago_prestamo 
                                         (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
                                         VALUES (%s, %s, %s, %s, %s, %s)
                                     """, (id_prestamo, None, fecha_pago_parcial, 0, 0, float(monto_parcial)))
