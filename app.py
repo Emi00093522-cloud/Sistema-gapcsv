@@ -7,6 +7,7 @@ from modulos.grupos import mostrar_grupos
 from modulos.miembros import mostrar_miembro
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
+from modulos.pagoprestamo import mostrar_pago_prestamo
 from modulos.integrada import mostrar_gestion_integrada
 
 # ---------------------------------------------------------
@@ -46,6 +47,7 @@ def panel_secretaria():
         "👥 Miembros",
         "📜 Reglamentos",
         "📅 Reuniones",
+        "💵 Pago de Préstamos",
         "🚪 Cerrar sesión"
     ])
 
@@ -53,6 +55,7 @@ def panel_secretaria():
     with tabs[1]: mostrar_miembro()
     with tabs[2]: mostrar_reglamentos()
     with tabs[3]: mostrar_gestion_integrada()
+    with tabs[4]: mostrar_pago_prestamo()
 
     with tabs[5]:
         if st.button("Cerrar sesión"):
