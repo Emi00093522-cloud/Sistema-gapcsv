@@ -7,8 +7,8 @@ from modulos.grupos import mostrar_grupos
 from modulos.miembros import mostrar_miembro
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
-from modulos.integrada import mostrar_gestion_integrada
 from modulos.pagoprestamo import mostrar_pago_prestamo
+from modulos.integrada import mostrar_gestion_integrada
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
