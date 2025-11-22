@@ -142,7 +142,7 @@ def mostrar_ahorros():
         st.subheader("📋 Historial de Ahorros")
         
         cursor.execute("""
-            SELECT a.ID_Ahorro, m.nombre, r.fecha, a.fecha, a.monto_ahorro, a.monto_otros, a.monto_retiros, a.saldo_inicial, a.saldo_final
+            SELECT a.ID_Ahorro, m.nombre, r.fecha, a.fecha, a.monto_ahorro, a.monto_otros, a.saldo_inicial, a.saldo_final
             FROM Ahorro a
             JOIN Miembro m ON a.ID_Miembro = m.ID_Miembro
             JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
