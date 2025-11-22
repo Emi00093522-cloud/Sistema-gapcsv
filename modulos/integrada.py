@@ -36,6 +36,6 @@ def mostrar_gestion_integrada():
             st.error("Error temporal en préstamos - trabajando en la solución")
             st.info("Por ahora, usa el módulo individual de préstamos")
 
- with tab4:
+     with tab4:
         st.subheader("💵 Registro de Ahorros")
         mostrar_ahorros()
