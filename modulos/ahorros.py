@@ -82,7 +82,6 @@ def mostrar_ahorros():
             otros_data = {}
             retiros_data = {}
             saldos_iniciales = {}
-            saldos_finales = {}
 
             # FILAS PARA CADA MIEMBRO - UNA FILA POR MIEMBRO
             for id_miembro, nombre_miembro in miembros_presentes:
@@ -113,7 +112,7 @@ def mostrar_ahorros():
                     saldos_iniciales[id_miembro] = saldo_inicial
                 
                 with cols[2]:
-                    # Input para ahorro
+                    # Input para ahorro - INICIA EN 0
                     monto_ahorro = st.number_input(
                         "Ahorro",
                         min_value=0.00,
@@ -126,7 +125,7 @@ def mostrar_ahorros():
                     ahorros_data[id_miembro] = monto_ahorro
                 
                 with cols[3]:
-                    # Input para otras actividades
+                    # Input para otras actividades - INICIA EN 0
                     monto_otros = st.number_input(
                         "Otras actividades",
                         min_value=0.00,
@@ -147,7 +146,7 @@ def mostrar_ahorros():
                     )
                     
                     if retiro_activado:
-                        # Input para el monto de retiro
+                        # Input para el monto de retiro - INICIA EN 0
                         monto_retiros = st.number_input(
                             "Monto retiro",
                             min_value=0.00,
@@ -166,17 +165,8 @@ def mostrar_ahorros():
                         retiros_data[id_miembro] = 0.00
                 
                 with cols[5]:
-                    # CALCULO CORREGIDO: Solo sumar una vez
-                    saldo_final = saldos_iniciales[id_miembro] + ahorros_data[id_miembro] + otros_data[id_miembro] - retiros_data[id_miembro]
-                    saldos_finales[id_miembro] = saldo_final
-                    
-                    # Mostrar con color según si hay ganancia o pérdida
-                    if saldo_final > saldos_iniciales[id_miembro]:
-                        st.success(f"**${saldo_final:,.2f}**")
-                    elif saldo_final < saldos_iniciales[id_miembro]:
-                        st.error(f"**${saldo_final:,.2f}**")
-                    else:
-                        st.info(f"**${saldo_final:,.2f}**")
+                    # SOLO MOSTRAR EL SALDO INICIAL - NO CALCULAR AUTOMÁTICAMENTE
+                    st.info(f"**${saldo_inicial:,.2f}**")
                 
                 # Línea separadora entre miembros
                 st.markdown("---")
@@ -193,10 +183,9 @@ def mostrar_ahorros():
                         monto_otros = otros_data.get(id_miembro, 0)
                         monto_retiros = retiros_data.get(id_miembro, 0)
                         saldo_inicial = saldos_iniciales.get(id_miembro, 0)
-                        saldo_final = saldos_finales.get(id_miembro, 0)
                         
-                        # DEBUG: Mostrar los valores que se van a guardar
-                        st.write(f"DEBUG {nombre_miembro}: Inicial=${saldo_inicial}, Ahorro=${monto_ahorro}, Otros=${monto_otros}, Retiros=${monto_retiros}, Final=${saldo_final}")
+                        # CALCULAR EL SALDO FINAL SOLO AL GUARDAR
+                        saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
                         
                         # Solo guardar si hay al menos un monto ingresado o retiro
                         if monto_ahorro > 0 or monto_otros > 0 or monto_retiros > 0:
@@ -222,7 +211,7 @@ def mostrar_ahorros():
                                     saldo_final, saldo_inicial
                                 ))
                                 registros_guardados += 1
-                                st.success(f"✅ {nombre_miembro}: Saldo Inicial = ${saldo_inicial:,.2f}, Saldo Final = ${saldo_final:,.2f}")
+                                st.success(f"✅ {nombre_miembro}: ${saldo_inicial:,.2f} + ${monto_ahorro:,.2f} + ${monto_otros:,.2f} - ${monto_retiros:,.2f} = ${saldo_final:,.2f}")
                             else:
                                 # Actualizar registro existente
                                 cursor.execute("""
@@ -236,7 +225,7 @@ def mostrar_ahorros():
                                     id_miembro, id_reunion
                                 ))
                                 registros_guardados += 1
-                                st.success(f"✅ {nombre_miembro}: Registro actualizado")
+                                st.success(f"✅ {nombre_miembro}: Registro actualizado - ${saldo_final:,.2f}")
 
                     con.commit()
                     
