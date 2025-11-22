@@ -112,7 +112,7 @@ def mostrar_ahorros():
                     saldos_iniciales[id_miembro] = saldo_inicial
                 
                 with cols[2]:
-                    # Input para ahorro - INICIA EN 0
+                    # Input para ahorro - INICIA EN 0 (limpio)
                     monto_ahorro = st.number_input(
                         "Ahorro",
                         min_value=0.00,
@@ -125,7 +125,7 @@ def mostrar_ahorros():
                     ahorros_data[id_miembro] = monto_ahorro
                 
                 with cols[3]:
-                    # Input para otras actividades - INICIA EN 0
+                    # Input para otras actividades - INICIA EN 0 (limpio)
                     monto_otros = st.number_input(
                         "Otras actividades",
                         min_value=0.00,
@@ -165,8 +165,8 @@ def mostrar_ahorros():
                         retiros_data[id_miembro] = 0.00
                 
                 with cols[5]:
-                    # SOLO MOSTRAR EL SALDO INICIAL - NO CALCULAR AUTOMÁTICAMENTE
-                    st.info(f"**${saldo_inicial:,.2f}**")
+                    # CAMPO VACÍO - Solo muestra guiones hasta que se guarde
+                    st.write("**--**")
                 
                 # Línea separadora entre miembros
                 st.markdown("---")
@@ -241,7 +241,7 @@ def mostrar_ahorros():
                     st.error(f"❌ Error al registrar los ahorros: {e}")
 
         # -------------------------------------
-        # HISTORIAL DE AHORROS REGISTRADOS
+        # HISTORIAL DE AHORROS REGISTRADOS (ACTUALIZADO DESPUÉS DE GUARDAR)
         # -------------------------------------
         st.markdown("---")
         st.subheader("📋 Historial de Ahorros")
