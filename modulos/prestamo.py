@@ -5,23 +5,50 @@ from datetime import datetime
 def mostrar_prestamo():
     st.header("💰 Registrar Préstamo")
 
+    # Verificar si hay una reunión seleccionada
+    if 'reunion_actual' not in st.session_state:
+        st.warning("⚠️ Primero debes seleccionar una reunión en el módulo de Asistencia.")
+        return
+
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Cargar datos
-        cursor.execute("SELECT ID_Miembro, nombre FROM Miembro WHERE ID_Estado = 1")
-        miembros = cursor.fetchall()
+        # Obtener la reunión del session_state
+        reunion_info = st.session_state.reunion_actual
+        id_reunion = reunion_info['id_reunion']
+        id_grupo = reunion_info['id_grupo']
+        nombre_reunion = reunion_info['nombre_reunion']
 
+        # Mostrar información de la reunión actual
+        st.info(f"📅 **Reunión actual:** {nombre_reunion}")
+
+        # Cargar SOLO miembros que asistieron a esta reunión (marcaron SI)
+        cursor.execute("""
+            SELECT m.ID_Miembro, m.nombre 
+            FROM Miembro m
+            JOIN Miembroxreunion mr ON m.ID_Miembro = mr.ID_Miembro
+            WHERE mr.ID_Reunion = %s AND mr.asistio = 1
+            ORDER BY m.nombre
+        """, (id_reunion,))
+        
+        miembros_presentes = cursor.fetchall()
+
+        if not miembros_presentes:
+            st.warning(f"⚠️ No hay miembros registrados como presentes en esta reunión.")
+            st.info("Por favor, registra la asistencia primero en el módulo correspondiente.")
+            return
+
+        # Cargar estados de préstamo
         cursor.execute("SELECT ID_Estado_prestamo, estado_prestamo FROM Estado_prestamo")
         estados_prestamo = cursor.fetchall()
 
         with st.form("form_prestamo"):
             st.subheader("Datos del Préstamo")
 
-            # Miembro
-            if miembros:
-                miembro_options = {f"{m['nombre']} (ID: {m['ID_Miembro']})": m['ID_Miembro'] for m in miembros}
+            # Miembro (solo los presentes)
+            if miembros_presentes:
+                miembro_options = {f"{m['nombre']} (ID: {m['ID_Miembro']})": m['ID_Miembro'] for m in miembros_presentes}
                 miembro_seleccionado = st.selectbox("Miembro *", list(miembro_options.keys()))
                 ID_Miembro = miembro_options[miembro_seleccionado]
             else:
@@ -38,7 +65,7 @@ def mostrar_prestamo():
                                     step=100.00,
                                     format="%.2f")
 
-            # 🔵 Tasa de interés MENSUAL (real)
+            # Tasa de interés MENSUAL (real)
             tasa_mensual = st.number_input("Tasa de interés MENSUAL (%) *",
                                            min_value=0.00,
                                            max_value=100.00,
@@ -65,10 +92,9 @@ def mostrar_prestamo():
                                      height=80)
 
             # ================================
-            # 🔵 CÁLCULOS DE INTERÉS MENSUAL SIMPLE
+            # CÁLCULOS DE INTERÉS MENSUAL SIMPLE
             # ================================
             if monto > 0 and plazo > 0:
-
                 # Convertir tasa mensual a decimal
                 tasa_decimal = tasa_mensual / 100
 
@@ -94,7 +120,6 @@ def mostrar_prestamo():
             enviar = st.form_submit_button("✅ Registrar Préstamo")
 
             if enviar:
-
                 errores = []
 
                 if ID_Miembro is None:
