@@ -147,7 +147,7 @@ def mostrar_ahorros():
                     )
                     
                     if retiro_activado:
-                        # Permitir al usuario especificar el monto del retiro
+                        # Input para el monto de retiro
                         monto_retiros = st.number_input(
                             "Monto retiro",
                             min_value=0.00,
@@ -166,7 +166,7 @@ def mostrar_ahorros():
                         retiros_data[id_miembro] = 0.00
                 
                 with cols[5]:
-                    # Calcular saldo final: Saldo inicial + nuevos ahorros - retiros
+                    # CALCULO CORREGIDO: Solo sumar una vez
                     saldo_final = saldos_iniciales[id_miembro] + ahorros_data[id_miembro] + otros_data[id_miembro] - retiros_data[id_miembro]
                     saldos_finales[id_miembro] = saldo_final
                     
@@ -195,6 +195,9 @@ def mostrar_ahorros():
                         saldo_inicial = saldos_iniciales.get(id_miembro, 0)
                         saldo_final = saldos_finales.get(id_miembro, 0)
                         
+                        # DEBUG: Mostrar los valores que se van a guardar
+                        st.write(f"DEBUG {nombre_miembro}: Inicial=${saldo_inicial}, Ahorro=${monto_ahorro}, Otros=${monto_otros}, Retiros=${monto_retiros}, Final=${saldo_final}")
+                        
                         # Solo guardar si hay al menos un monto ingresado o retiro
                         if monto_ahorro > 0 or monto_otros > 0 or monto_retiros > 0:
                             # Verificar si ya existe un registro para este miembro en esta reunión
@@ -206,7 +209,7 @@ def mostrar_ahorros():
                             existe_registro = cursor.fetchone()[0] > 0
                             
                             if not existe_registro:
-                                # Insertar el nuevo registro con TODAS las columnas
+                                # Insertar el nuevo registro
                                 cursor.execute("""
                                     INSERT INTO Ahorro (
                                         ID_Miembro, ID_Reunion, fecha, 
