@@ -119,6 +119,7 @@ def mostrar_ahorros():
                         min_value=0.00,
                         value=0.00,
                         format="%.2f",
+                        step=0.01,
                         key=f"ahorro_{id_miembro}",
                         label_visibility="collapsed"
                     )
@@ -131,6 +132,7 @@ def mostrar_ahorros():
                         min_value=0.00,
                         value=0.00,
                         format="%.2f",
+                        step=0.01,
                         key=f"otros_{id_miembro}",
                         label_visibility="collapsed"
                     )
@@ -145,7 +147,17 @@ def mostrar_ahorros():
                     )
                     
                     if retiro_activado:
-                        monto_retiros = ahorros_data[id_miembro] + otros_data[id_miembro]
+                        # Permitir al usuario especificar el monto del retiro
+                        monto_retiros = st.number_input(
+                            "Monto retiro",
+                            min_value=0.00,
+                            max_value=float(saldos_iniciales[id_miembro] + ahorros_data[id_miembro] + otros_data[id_miembro]),
+                            value=0.00,
+                            format="%.2f",
+                            step=0.01,
+                            key=f"retiro_{id_miembro}",
+                            label_visibility="collapsed"
+                        )
                         st.error(f"**-${monto_retiros:,.2f}**")
                         retiros_data[id_miembro] = monto_retiros
                     else:
@@ -183,7 +195,7 @@ def mostrar_ahorros():
                         saldo_inicial = saldos_iniciales.get(id_miembro, 0)
                         saldo_final = saldos_finales.get(id_miembro, 0)
                         
-                        # Solo guardar si hay al menos un monto ingresado o retiro activado
+                        # Solo guardar si hay al menos un monto ingresado o retiro
                         if monto_ahorro > 0 or monto_otros > 0 or monto_retiros > 0:
                             # Verificar si ya existe un registro para este miembro en esta reunión
                             cursor.execute("""
