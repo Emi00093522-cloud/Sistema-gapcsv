@@ -165,6 +165,79 @@ def generar_cronograma_pagos(id_prestamo, con):
     
     return True
 
+def recalcular_cronograma_despues_pago_parcial(id_prestamo, con):
+    """Recalcula el cronograma después de un pago parcial que generó nueva cuota"""
+    cursor = con.cursor()
+    
+    # Obtener datos actuales del préstamo
+    cursor.execute("""
+        SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
+               p.plazo, p.fecha_desembolso, p.ID_Grupo
+        FROM Prestamo p
+        WHERE p.ID_Prestamo = %s
+    """, (id_prestamo,))
+    
+    prestamo = cursor.fetchone()
+    if not prestamo:
+        return False
+    
+    id_prestamo, id_miembro, monto_original, total_interes, plazo_original, fecha_desembolso, id_grupo = prestamo
+    
+    # Calcular saldos pendientes actuales
+    cursor.execute("""
+        SELECT 
+            COALESCE(SUM(capital_programado - capital_pagado), 0) as capital_pendiente,
+            COALESCE(SUM(interes_programado - interes_pagado), 0) as interes_pendiente,
+            COUNT(*) as cuotas_restantes
+        FROM CuotaPrestamo 
+        WHERE ID_Prestamo = %s AND estado != 'pagado'
+    """, (id_prestamo,))
+    
+    saldos = cursor.fetchone()
+    capital_pendiente, interes_pendiente, cuotas_restantes = saldos
+    
+    if capital_pendiente <= 0 and interes_pendiente <= 0:
+        return True  # No hay deuda pendiente
+    
+    # Recalcular cuotas pendientes
+    monto_total_pendiente = capital_pendiente + interes_pendiente
+    
+    # Distribuir equitativamente entre las cuotas restantes
+    capital_cuota = capital_pendiente / cuotas_restantes
+    interes_cuota = interes_pendiente / cuotas_restantes
+    total_cuota = capital_cuota + interes_cuota
+    
+    # Obtener cuotas pendientes actuales
+    cursor.execute("""
+        SELECT ID_Cuota, numero_cuota, fecha_programada
+        FROM CuotaPrestamo 
+        WHERE ID_Prestamo = %s AND estado != 'pagado'
+        ORDER BY fecha_programada ASC
+    """, (id_prestamo,))
+    
+    cuotas_pendientes = cursor.fetchall()
+    
+    # Actualizar cada cuota pendiente con los nuevos montos
+    for i, (id_cuota, numero_cuota, fecha_programada) in enumerate(cuotas_pendientes):
+        # Para la última cuota, ajustar por redondeo
+        if i == len(cuotas_pendientes) - 1:
+            capital_ajustado = capital_pendiente - (capital_cuota * (cuotas_restantes - 1))
+            interes_ajustado = interes_pendiente - (interes_cuota * (cuotas_restantes - 1))
+            total_ajustado = capital_ajustado + interes_ajustado
+        else:
+            capital_ajustado = capital_cuota
+            interes_ajustado = interes_cuota
+            total_ajustado = total_cuota
+        
+        cursor.execute("""
+            UPDATE CuotaPrestamo 
+            SET capital_programado = %s, interes_programado = %s, total_programado = %s
+            WHERE ID_Cuota = %s
+        """, (float(capital_ajustado), float(interes_ajustado), float(total_ajustado), id_cuota))
+    
+    con.commit()
+    return True
+
 def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, numero_cuota=None):
     """Aplica un pago (completo o parcial) a una cuota específica"""
     cursor = con.cursor()
@@ -315,6 +388,9 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, nu
                       float(capital_pendiente), float(interes_pendiente), 
                       float(capital_pendiente + interes_pendiente),
                       float(monto_sobrante), 0, float(monto_sobrante)))
+                
+                # Recalcular el cronograma completo después de crear nueva cuota
+                recalcular_cronograma_despues_pago_parcial(id_prestamo, con)
     
     con.commit()
     return True, f"Pago {tipo_pago} aplicado correctamente"
@@ -537,9 +613,176 @@ def mostrar_pago_prestamo():
         else:
             st.warning("No hay cuotas generadas para este préstamo")
         
-        # El resto del código se mantiene igual...
-        # [Aquí iría el resto del código de pagos completos, parciales y estadísticas]
+        # Calcular totales
+        total_capital_pagado = sum(c[5] or 0 for c in cuotas)
+        total_interes_pagado = sum(c[6] or 0 for c in cuotas)
+        total_pagado = sum(c[7] or 0 for c in cuotas)
         
+        st.markdown("---")
+        st.markdown(f"**TOTAL:** ${monto:,.2f} (capital) + ${interes_monetario:,.2f} (interés) = **${monto_total:,.2f}**")
+        
+        saldo_pendiente = monto_total - total_pagado
+        if saldo_pendiente <= 0:
+            st.success(f"**SALDO: $0 (COMPLETAMENTE PAGADO)** 🎉")
+        else:
+            st.warning(f"**SALDO PENDIENTE: ${saldo_pendiente:,.2f}**")
+        
+        # SECCIÓN DE PAGOS - COMPLETO Y PARCIAL
+        st.subheader("💰 REGISTRAR PAGO EN ESTA REUNIÓN")
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 💵 Pago Completo")
+            with st.form("form_pago_completo"):
+                # Seleccionar cuota para pago completo
+                cursor.execute("""
+                    SELECT numero_cuota, total_programado, total_pagado, fecha_programada
+                    FROM CuotaPrestamo 
+                    WHERE ID_Prestamo = %s AND estado != 'pagado'
+                    ORDER BY numero_cuota
+                """, (id_prestamo,))
+                
+                cuotas_pendientes = cursor.fetchall()
+                
+                if cuotas_pendientes:
+                    cuotas_opciones = [f"Cuota {c[0]} - ${c[1]:,.2f} - Vence: {c[3]}" for c in cuotas_pendientes]
+                    cuota_seleccionada = st.selectbox("Selecciona la cuota a pagar:", cuotas_opciones, key="completo")
+                    
+                    # Extraer número de cuota seleccionada
+                    numero_cuota = int(cuota_seleccionada.split(" ")[1])
+                    
+                    # La fecha de pago es la fecha de la reunión actual
+                    fecha_pago_completo = date.today()
+                    
+                    st.write(f"**Fecha de pago:** {fecha_pago_completo} (reunión actual)")
+                    
+                    enviar_completo = st.form_submit_button("✅ Pagar Cuota Completa")
+                    
+                    if enviar_completo:
+                        try:
+                            # Obtener el monto total de la cuota
+                            cuota_info = [c for c in cuotas_pendientes if c[0] == numero_cuota][0]
+                            monto_cuota = cuota_info[1]
+                            
+                            success, mensaje = aplicar_pago_cuota(id_prestamo, monto_cuota, fecha_pago_completo, "completo", con, numero_cuota)
+                            
+                            if success:
+                                # Registrar en tabla PagoPrestamo
+                                cursor.execute("""
+                                    INSERT INTO Pago_prestamo 
+                                    (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
+                                    VALUES (%s, %s, %s, %s, %s, %s)
+                                """, (id_prestamo, id_reunion, fecha_pago_completo, 0, 0, float(monto_cuota)))
+                                
+                                con.commit()
+                                st.success(f"✅ {mensaje}")
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {mensaje}")
+                                
+                        except Exception as e:
+                            con.rollback()
+                            st.error(f"❌ Error al procesar el pago completo: {e}")
+                else:
+                    st.info("🎉 No hay cuotas pendientes para pago completo")
+        
+        with col2:
+            st.markdown("### 💳 Pago Parcial")
+            with st.form("form_pago_parcial"):
+                # Obtener cuota actual pendiente para pago parcial
+                cursor.execute("""
+                    SELECT numero_cuota, total_programado, total_pagado, fecha_programada
+                    FROM CuotaPrestamo 
+                    WHERE ID_Prestamo = %s AND estado != 'pagado'
+                    ORDER BY fecha_programada ASC
+                    LIMIT 1
+                """, (id_prestamo,))
+                
+                cuota_actual = cursor.fetchone()
+                
+                if cuota_actual:
+                    numero_cuota, total_programado, total_pagado, fecha_programada = cuota_actual
+                    pendiente_actual = total_programado - (total_pagado or 0)
+                    
+                    st.write(f"**Próxima cuota:** #{numero_cuota}")
+                    st.write(f"**Vence:** {fecha_programada}")
+                    st.write(f"**Total pendiente:** ${pendiente_actual:,.2f}")
+                    
+                    # La fecha de pago es la fecha de la reunión actual
+                    fecha_pago_parcial = date.today()
+                    st.write(f"**Fecha de pago:** {fecha_pago_parcial} (reunión actual)")
+                    
+                    monto_parcial = st.number_input(
+                        "Monto a pagar:",
+                        min_value=0.01,
+                        max_value=float(pendiente_actual),
+                        value=float(min(pendiente_actual, 100)),
+                        step=10.0,
+                        format="%.2f"
+                    )
+                    
+                    enviar_parcial = st.form_submit_button("💰 Registrar Pago Parcial")
+                    
+                    if enviar_parcial:
+                        if monto_parcial <= 0:
+                            st.warning("⚠️ El monto debe ser mayor a cero.")
+                        else:
+                            try:
+                                success, mensaje = aplicar_pago_cuota(id_prestamo, monto_parcial, fecha_pago_parcial, "parcial", con)
+                                
+                                if success:
+                                    # Registrar en tabla PagoPrestamo
+                                    cursor.execute("""
+                                        INSERT INTO Pago_prestamo 
+                                        (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
+                                        VALUES (%s, %s, %s, %s, %s, %s)
+                                    """, (id_prestamo, id_reunion, fecha_pago_parcial, 0, 0, float(monto_parcial)))
+                                    
+                                    con.commit()
+                                    st.success(f"✅ {mensaje}")
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {mensaje}")
+                                    
+                            except Exception as e:
+                                con.rollback()
+                                st.error(f"❌ Error al procesar el pago parcial: {e}")
+                else:
+                    st.info("🎉 No hay cuotas pendientes para pago parcial")
+        
+        # Estadísticas rápidas
+        st.subheader("📊 RESUMEN DE PAGOS")
+        st.markdown("---")
+        
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_cuotas,
+                SUM(total_programado) as total_programado,
+                SUM(total_pagado) as total_pagado,
+                SUM(CASE WHEN estado = 'pagado' THEN 1 ELSE 0 END) as cuotas_pagadas,
+                SUM(CASE WHEN estado = 'parcial' THEN 1 ELSE 0 END) as cuotas_parciales,
+                SUM(CASE WHEN estado = 'pendiente' THEN 1 ELSE 0 END) as cuotas_pendientes
+            FROM CuotaPrestamo 
+            WHERE ID_Prestamo = %s
+        """, (id_prestamo,))
+        
+        stats = cursor.fetchone()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Programado", f"${stats[1]:,.2f}")
+            st.metric("Cuotas Pagadas", stats[3])
+        with col2:
+            st.metric("Total Pagado", f"${stats[2] or 0:,.2f}")
+            st.metric("Cuotas Parciales", stats[4])
+        with col3:
+            pendiente = stats[1] - (stats[2] or 0)
+            st.metric("Total Pendiente", f"${pendiente:,.2f}")
+            st.metric("Cuotas Pendientes", stats[5])
+    
     except Exception as e:
         st.error(f"❌ Error general: {e}")
     
