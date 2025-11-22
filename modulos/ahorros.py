@@ -91,7 +91,7 @@ def mostrar_ahorros():
                     # OBTENER EL SALDO FINAL DEL ÚLTIMO REGISTRO ANTERIOR DEL MISMO MIEMBRO
                     cursor.execute("""
                         SELECT COALESCE(
-                            (SELECT (monto_ahorro + monto_otros) 
+                            (SELECT (monto_ahorro + monto_otros - monto_retiros) 
                              FROM Ahorro 
                              WHERE ID_Miembro = %s 
                              AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
@@ -172,9 +172,10 @@ def mostrar_ahorros():
                     for id_miembro, nombre_miembro in miembros_presentes:
                         monto_ahorro = ahorros_data.get(id_miembro, 0)
                         monto_otros = otros_data.get(id_miembro, 0)
+                        monto_retiros = retiros_data.get(id_miembro, 0)
                         
-                        # Solo guardar si hay al menos un monto ingresado
-                        if monto_ahorro > 0 or monto_otros > 0:
+                        # Solo guardar si hay al menos un monto ingresado o retiro activado
+                        if monto_ahorro > 0 or monto_otros > 0 or monto_retiros > 0:
                             # Verificar si ya existe un registro para este miembro en esta reunión
                             cursor.execute("""
                                 SELECT COUNT(*) FROM Ahorro 
@@ -182,11 +183,19 @@ def mostrar_ahorros():
                             """, (id_miembro, id_reunion))
                             
                             if cursor.fetchone()[0] == 0:
-                                # Insertar el nuevo registro
+                                # Insertar el nuevo registro INCLUYENDO monto_retiros
                                 cursor.execute("""
-                                    INSERT INTO Ahorro (ID_Miembro, ID_Reunion, fecha, monto_ahorro, monto_otros)
-                                    VALUES (%s, %s, %s, %s, %s)
-                                """, (id_miembro, id_reunion, fecha_ahorro, monto_ahorro, monto_otros))
+                                    INSERT INTO Ahorro (ID_Miembro, ID_Reunion, fecha, monto_ahorro, monto_otros, monto_retiros)
+                                    VALUES (%s, %s, %s, %s, %s, %s)
+                                """, (id_miembro, id_reunion, fecha_ahorro, monto_ahorro, monto_otros, monto_retiros))
+                                registros_guardados += 1
+                            else:
+                                # Actualizar registro existente
+                                cursor.execute("""
+                                    UPDATE Ahorro 
+                                    SET monto_ahorro = %s, monto_otros = %s, monto_retiros = %s, fecha = %s
+                                    WHERE ID_Miembro = %s AND ID_Reunion = %s
+                                """, (monto_ahorro, monto_otros, monto_retiros, fecha_ahorro, id_miembro, id_reunion))
                                 registros_guardados += 1
 
                     con.commit()
@@ -194,7 +203,7 @@ def mostrar_ahorros():
                     if registros_guardados > 0:
                         st.success(f"✅ Se guardaron {registros_guardados} registros de ahorro correctamente.")
                     else:
-                        st.info("ℹ️ No se guardaron registros nuevos (todos los miembros ya tenían registro o no se ingresaron montos).")
+                        st.info("ℹ️ No se guardaron registros nuevos (no se ingresaron montos o retiros).")
                     
                     st.rerun()
 
@@ -217,8 +226,9 @@ def mostrar_ahorros():
                     a.fecha,
                     a.monto_ahorro,
                     a.monto_otros,
+                    a.monto_retiros,
                     COALESCE((
-                        SELECT (a2.monto_ahorro + a2.monto_otros)
+                        SELECT (a2.monto_ahorro + a2.monto_otros - a2.monto_retiros)
                         FROM Ahorro a2
                         WHERE a2.ID_Miembro = a.ID_Miembro 
                         AND (a2.fecha < a.fecha OR (a2.fecha = a.fecha AND a2.ID_Ahorro < a.ID_Ahorro))
@@ -234,8 +244,9 @@ def mostrar_ahorros():
                 sa.fecha as fecha_ahorro,
                 sa.monto_ahorro,
                 sa.monto_otros,
+                sa.monto_retiros,
                 sa.saldo_inicial,
-                sa.saldo_inicial + sa.monto_ahorro + sa.monto_otros as saldo_final
+                sa.saldo_inicial + sa.monto_ahorro + sa.monto_otros - sa.monto_retiros as saldo_final
             FROM SaldosAcumulados sa
             JOIN Miembro m ON sa.ID_Miembro = m.ID_Miembro
             JOIN Reunion r ON sa.ID_Reunion = r.ID_Reunion
@@ -248,11 +259,11 @@ def mostrar_ahorros():
         if historial:
             df = pd.DataFrame(historial, columns=[
                 "ID", "Miembro", "Reunión", "Fecha Ahorro", "Ahorros", 
-                "Otros", "Saldo Inicial", "Saldo Final"
+                "Otros", "Retiros", "Saldo Inicial", "Saldo Final"
             ])
             
             # Formatear columnas numéricas
-            numeric_cols = ["Ahorros", "Otros", "Saldo Inicial", "Saldo Final"]
+            numeric_cols = ["Ahorros", "Otros", "Retiros", "Saldo Inicial", "Saldo Final"]
             for col in numeric_cols:
                 df[col] = df[col].apply(lambda x: f"${x:,.2f}")
             
