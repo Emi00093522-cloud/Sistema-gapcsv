@@ -55,6 +55,7 @@ def panel_secretaria(usuario, dui):
     with menu[4]:
         st.header("Gestión de Préstamos")
         mostrar_prestamos()
+        
     with menu[5]: 
         st.header("Gestión de Ahorros")
         mostrar_ahorros()
