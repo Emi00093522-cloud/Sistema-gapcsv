@@ -61,56 +61,85 @@ def mostrar_ahorros():
                     value=date.today()
                 )
 
-            # SEGUNDA FILA DE COLUMNAS PARA MONTOS
-            col4, col5, col6 = st.columns(3)
-            
-            with col4:
-                monto_ahorro = st.number_input(
-                    "Monto de ahorro:",
-                    min_value=0.00,
-                    format="%.2f"
-                )
-            
-            with col5:
-                monto_otros = st.number_input(
-                    "Monto otros ingresos:",
-                    min_value=0.00,
-                    format="%.2f"
-                )
-            
-            with col6:
-                monto_retiros = st.number_input(
-                    "Monto de retiros:",
-                    min_value=0.00,
-                    format="%.2f"
-                )
-
-            # TERCERA FILA PARA SALDOS
+            # TABLA DE AHORROS CON FORMATO ESPECÍFICO
             st.markdown("---")
-            st.subheader("💰 Saldos")
+            st.subheader("💰 Control de Ahorros")
             
-            col7, col8, col9, col10, col11 = st.columns(5)
+            # Encabezado de la tabla
+            cols = st.columns([2, 1, 1, 1, 1, 1])
+            with cols[0]:
+                st.markdown("**Socios/as**")
+            with cols[1]:
+                st.markdown("**Saldo mín inicial**")
+            with cols[2]:
+                st.markdown("**Ahorro**")
+            with cols[3]:
+                st.markdown("**Otras actividades**")
+            with cols[4]:
+                st.markdown("**Retiros**")
+            with cols[5]:
+                st.markdown("**Saldos ahorros**")
             
-            with col7:
-                saldo_inicial = st.number_input(
-                    "Saldo inicial:",
+            # Fila de datos
+            cols = st.columns([2, 1, 1, 1, 1, 1])
+            
+            with cols[0]:
+                # Mostrar el miembro seleccionado
+                st.write(miembro_sel.split('(')[0].strip())
+            
+            with cols[1]:
+                # Saldo inicial (calculado automáticamente)
+                cursor.execute("""
+                    SELECT COALESCE(SUM(monto_ahorro + monto_otros), 0) as saldo_inicial 
+                    FROM Ahorro 
+                    WHERE ID_Miembro = %s
+                """, (miembros_dict[miembro_sel],))
+                saldo_inicial_result = cursor.fetchone()
+                saldo_inicial = float(saldo_inicial_result[0]) if saldo_inicial_result else 0.00
+                st.metric("", f"${saldo_inicial:,.2f}", label_visibility="collapsed")
+            
+            with cols[2]:
+                monto_ahorro = st.number_input(
+                    "Monto ahorro:",
                     min_value=0.00,
-                    format="%.2f"
+                    format="%.2f",
+                    key="ahorro_input",
+                    label_visibility="collapsed"
                 )
             
-            with col8:
-                st.metric("Ahorros", f"${monto_ahorro:,.2f}")
+            with cols[3]:
+                monto_otros = st.number_input(
+                    "Otras actividades:",
+                    min_value=0.00,
+                    format="%.2f",
+                    key="otros_input",
+                    label_visibility="collapsed"
+                )
             
-            with col9:
-                st.metric("Otros ingresos", f"${monto_otros:,.2f}")
+            with cols[4]:
+                # Checkbox para activar retiros
+                retiro_activado = st.checkbox("Activar retiro", key="retiro_checkbox")
+                
+                if retiro_activado:
+                    monto_retiros = monto_ahorro + monto_otros
+                    st.error(f"-${monto_retiros:,.2f}")
+                else:
+                    monto_retiros = 0.00
+                    st.info("$0.00")
             
-            with col10:
-                st.metric("Retiros", f"-${monto_retiros:,.2f}")
-            
-            with col11:
+            with cols[5]:
+                # Calcular saldo final
                 saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
-                st.metric("Saldo final", f"${saldo_final:,.2f}", delta=f"${saldo_final - saldo_inicial:,.2f}")
+                
+                # Mostrar con color según si hay ganancia o pérdida
+                if saldo_final > saldo_inicial:
+                    st.success(f"${saldo_final:,.2f}")
+                elif saldo_final < saldo_inicial:
+                    st.error(f"${saldo_final:,.2f}")
+                else:
+                    st.info(f"${saldo_final:,.2f}")
 
+            # Botón de envío
             enviar = st.form_submit_button("💾 Guardar Ahorro")
 
             if enviar:
@@ -118,18 +147,27 @@ def mostrar_ahorros():
                 id_r = reuniones_dict[reunion_sel]
 
                 # Validación
-                if monto_ahorro == 0 and monto_otros == 0 and monto_retiros == 0:
-                    st.warning("⚠️ Debes ingresar al menos un monto de ahorro, otros ingresos o retiros.")
+                if monto_ahorro == 0 and monto_otros == 0:
+                    st.warning("⚠️ Debes ingresar al menos un monto de ahorro u otras actividades.")
                 else:
                     try:
+                        # Verificar si ya existe un registro para este miembro en esta reunión
                         cursor.execute("""
-                            INSERT INTO Ahorro (ID_Miembro, ID_Reunion, fecha, monto_ahorro, monto_otros, monto_retiros, saldo_inicial, saldo_final)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (id_m, id_r, fecha_ahorro, monto_ahorro, monto_otros, monto_retiros, saldo_inicial, saldo_final))
+                            SELECT COUNT(*) FROM Ahorro 
+                            WHERE ID_Miembro = %s AND ID_Reunion = %s
+                        """, (id_m, id_r))
+                        
+                        if cursor.fetchone()[0] > 0:
+                            st.warning("⚠️ Ya existe un registro de ahorro para este miembro en esta reunión.")
+                        else:
+                            cursor.execute("""
+                                INSERT INTO Ahorro (ID_Miembro, ID_Reunion, fecha, monto_ahorro, monto_otros)
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (id_m, id_r, fecha_ahorro, monto_ahorro, monto_otros))
 
-                        con.commit()
-                        st.success("✅ Ahorro registrado correctamente.")
-                        st.rerun()
+                            con.commit()
+                            st.success("✅ Ahorro registrado correctamente.")
+                            st.rerun()
 
                     except Exception as e:
                         con.rollback()
@@ -142,7 +180,9 @@ def mostrar_ahorros():
         st.subheader("📋 Historial de Ahorros")
         
         cursor.execute("""
-            SELECT a.ID_Ahorro, m.nombre, r.fecha, a.fecha, a.monto_ahorro, a.monto_otros, a.saldo_inicial, a.saldo_final
+            SELECT a.ID_Ahorro, m.nombre, r.fecha, a.fecha, a.monto_ahorro, a.monto_otros,
+                   (a.monto_ahorro + a.monto_otros) as saldo_inicial,
+                   (a.monto_ahorro + a.monto_otros) as saldo_final
             FROM Ahorro a
             JOIN Miembro m ON a.ID_Miembro = m.ID_Miembro
             JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
@@ -154,11 +194,11 @@ def mostrar_ahorros():
         if historial:
             df = pd.DataFrame(historial, columns=[
                 "ID", "Miembro", "Reunión", "Fecha", "Ahorros", 
-                "Otros", "Retiros", "Saldo Inicial", "Saldo Final"
+                "Otros", "Saldo Inicial", "Saldo Final"
             ])
             
             # Formatear columnas numéricas
-            numeric_cols = ["Ahorros", "Otros", "Retiros", "Saldo Inicial", "Saldo Final"]
+            numeric_cols = ["Ahorros", "Otros", "Saldo Inicial", "Saldo Final"]
             for col in numeric_cols:
                 df[col] = df[col].apply(lambda x: f"${x:,.2f}")
             
