@@ -2,6 +2,7 @@ import streamlit as st
 from modulos.reuniones import mostrar_reuniones
 from modulos.prestamo import mostrar_prestamo
 from modulos.asistencia import mostrar_asistencia
+from modulos.ahorros import mostrar_ahorros
 
 def mostrar_gestion_integrada():
     """
@@ -17,7 +18,7 @@ def mostrar_gestion_integrada():
         return
 
     # Crear pestañas principales
-    tab1, tab2, tab3 = st.tabs(["📅 Reuniones","🧍‍♂️ Asistencia", "💰 Préstamos"])
+    tab1, tab2, tab3 = st.tabs(["📅 Reuniones","🧍‍♂️ Asistencia", "💰 Préstamos", "💵 Ahorros"])
 
     with tab1:
         st.subheader("📅 Gestión de Reuniones")
@@ -34,3 +35,7 @@ def mostrar_gestion_integrada():
         except Exception as e:
             st.error("Error temporal en préstamos - trabajando en la solución")
             st.info("Por ahora, usa el módulo individual de préstamos")
+
+ with tab4:
+        st.subheader("💵 Registro de Ahorros")
+        mostrar_ahorros()
