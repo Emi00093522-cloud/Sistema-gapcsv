@@ -24,6 +24,10 @@ def mostrar_ahorros():
         # Mostrar información de la reunión actual
         st.info(f"📅 **Reunión actual:** {nombre_reunion}")
 
+        # OBTENER LA FECHA DE LA REUNIÓN ACTUAL PARA ENCONTRAR LA REUNIÓN ANTERIOR
+        cursor.execute("SELECT fecha FROM Reunion WHERE ID_Reunion = %s", (id_reunion,))
+        fecha_reunion_actual = cursor.fetchone()[0]
+
         # -----------------------------
         # CARGAR MIEMBROS QUE ASISTIERON A ESTA REUNIÓN (SOLO LOS QUE MARCARON SI)
         # -----------------------------
@@ -89,21 +93,22 @@ def mostrar_ahorros():
                     st.write(f"**{nombre_miembro}**")
                 
                 with cols[1]:
-                    # OBTENER EL SALDO FINAL DEL ÚLTIMO REGISTRO ANTERIOR DEL MISMO MIEMBRO
+                    # OBTENER EL SALDO FINAL DE LA REUNIÓN ANTERIOR DEL MISMO MIEMBRO
                     cursor.execute("""
                         SELECT COALESCE(
-                            (SELECT saldos_ahorros 
-                             FROM Ahorro 
-                             WHERE ID_Miembro = %s 
-                             AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
-                             ORDER BY fecha DESC, ID_Ahorro DESC 
+                            (SELECT a.saldos_ahorros 
+                             FROM Ahorro a
+                             JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
+                             WHERE a.ID_Miembro = %s 
+                             AND r.fecha < %s
+                             ORDER BY r.fecha DESC, a.ID_Ahorro DESC 
                              LIMIT 1), 0) as saldo_final_anterior
-                    """, (id_miembro, fecha_ahorro, fecha_ahorro, id_miembro, fecha_ahorro))
+                    """, (id_miembro, fecha_reunion_actual))
                     
                     saldo_final_anterior_result = cursor.fetchone()
                     saldo_inicial = float(saldo_final_anterior_result[0]) if saldo_final_anterior_result else 0.00
                     
-                    # Mostrar saldo inicial (saldo final del registro anterior)
+                    # Mostrar saldo inicial (saldo final de la reunión anterior)
                     st.write(f"${saldo_inicial:,.2f}")
                     saldos_iniciales[id_miembro] = saldo_inicial
                 
@@ -149,7 +154,7 @@ def mostrar_ahorros():
                         retiros_data[id_miembro] = 0.00
                 
                 with cols[5]:
-                    # Calcular saldo final
+                    # Calcular saldo final: Saldo inicial + nuevos ahorros - retiros
                     saldo_final = saldos_iniciales[id_miembro] + ahorros_data[id_miembro] + otros_data[id_miembro] - retiros_data[id_miembro]
                     saldos_finales[id_miembro] = saldo_final
                     
@@ -189,22 +194,6 @@ def mostrar_ahorros():
                             existe_registro = cursor.fetchone()[0] > 0
                             
                             if not existe_registro:
-                                # OBTENER EL SALDO INICIAL CORRECTO (saldo_final del registro anterior)
-                                cursor.execute("""
-                                    SELECT COALESCE(
-                                        (SELECT saldos_ahorros 
-                                         FROM Ahorro 
-                                         WHERE ID_Miembro = %s 
-                                         ORDER BY fecha DESC, ID_Ahorro DESC 
-                                         LIMIT 1), 0) as saldo_anterior
-                                """, (id_miembro,))
-                                
-                                saldo_anterior_result = cursor.fetchone()
-                                saldo_inicial_correcto = float(saldo_anterior_result[0]) if saldo_anterior_result else 0.00
-                                
-                                # RECALCULAR EL SALDO FINAL con el saldo_inicial correcto
-                                saldo_final_correcto = saldo_inicial_correcto + monto_ahorro + monto_otros - monto_retiros
-                                
                                 # Insertar el nuevo registro con TODAS las columnas
                                 cursor.execute("""
                                     INSERT INTO Ahorro (
@@ -215,17 +204,31 @@ def mostrar_ahorros():
                                 """, (
                                     id_miembro, id_reunion, fecha_ahorro, 
                                     monto_ahorro, monto_otros, monto_retiros,
-                                    saldo_final_correcto, saldo_inicial_correcto
+                                    saldo_final, saldo_inicial
                                 ))
                                 registros_guardados += 1
-                                st.success(f"✅ Registro guardado para {nombre_miembro}: Saldo Inicial = ${saldo_inicial_correcto:,.2f}, Saldo Final = ${saldo_final_correcto:,.2f}")
+                                st.success(f"✅ {nombre_miembro}: Saldo Inicial = ${saldo_inicial:,.2f}, Saldo Final = ${saldo_final:,.2f}")
+                            else:
+                                # Actualizar registro existente
+                                cursor.execute("""
+                                    UPDATE Ahorro 
+                                    SET monto_ahorro = %s, monto_otros = %s, monto_retiros = %s, 
+                                        saldos_ahorros = %s, saldo_inicial = %s, fecha = %s
+                                    WHERE ID_Miembro = %s AND ID_Reunion = %s
+                                """, (
+                                    monto_ahorro, monto_otros, monto_retiros,
+                                    saldo_final, saldo_inicial, fecha_ahorro,
+                                    id_miembro, id_reunion
+                                ))
+                                registros_guardados += 1
+                                st.success(f"✅ {nombre_miembro}: Registro actualizado")
 
                     con.commit()
                     
                     if registros_guardados > 0:
-                        st.success(f"✅ Se guardaron {registros_guardados} registros de ahorro correctamente.")
+                        st.success(f"✅ Se guardaron/actualizaron {registros_guardados} registros de ahorro correctamente.")
                     else:
-                        st.info("ℹ️ No se guardaron registros nuevos (no se ingresaron montos o retiros, o ya existen registros).")
+                        st.info("ℹ️ No se guardaron registros nuevos (no se ingresaron montos o retiros).")
                     
                     st.rerun()
 
