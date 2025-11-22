@@ -54,10 +54,10 @@ def panel_secretaria():
     with tabs[2]: mostrar_reglamentos()
     with tabs[3]: mostrar_gestion_integrada()
 
-        if st.button("Cerrar sesión"):
-            st.session_state.clear()
-            st.session_state["pagina_actual"] = "sesion_cerrada"
-            st.rerun()
+    if st.button("Cerrar sesión"):
+        st.session_state.clear()
+        st.session_state["pagina_actual"] = "sesion_cerrada"
+        st.rerun()
 
 # ---------------------------------------------------------
 # PANEL PRESIDENTE
