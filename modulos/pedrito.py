@@ -8,6 +8,7 @@ from miembros import mostrar_miembros
 from reglamentos import mostrar_reglamentos
 from reuniones import mostrar_reuniones
 from prestamo import mostrar_prestamos
+from ahorros import mostrar_ahorros
 from integrada import mostrar_gestion_integrada
 
 # -----------------------------
@@ -54,6 +55,9 @@ def panel_secretaria(usuario, dui):
     with menu[4]:
         st.header("Gestión de Préstamos")
         mostrar_prestamos()
+    with menu[5]: 
+        st.header("Gestión de Ahorros")
+        mostrar_ahorros()
 
 
 # -----------------------------
