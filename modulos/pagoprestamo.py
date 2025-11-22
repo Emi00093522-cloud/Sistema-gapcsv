@@ -93,7 +93,7 @@ def generar_cronograma_pagos(id_prestamo, con):
     # OBTENER LA FRECUENCIA DE REUNIONES DESDE REGLAMENTO (COLUMNA CORRECTA)
     try:
         cursor.execute("""
-            SELECT fecuencia_reunion 
+            SELECT frecuencia_reunion 
             FROM Reglamento 
             WHERE ID_Grupo = %s 
             ORDER BY ID_Reglamento DESC 
@@ -342,7 +342,7 @@ def mostrar_pago_prestamo():
 
         # Obtener frecuencia de reuniones del grupo
         cursor.execute("""
-            SELECT fecuencia_reunion 
+            SELECT frecuencia_reunion 
             FROM Reglamento 
             WHERE ID_Grupo = %s 
             ORDER BY ID_Reglamento DESC 
