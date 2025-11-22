@@ -88,16 +88,21 @@ def mostrar_ahorros():
                     st.write(nombre_miembro)
                 
                 with cols[1]:
-                    # Saldo inicial del registro anterior del mismo miembro
+                    # OBTENER EL SALDO FINAL DEL ÚLTIMO REGISTRO ANTERIOR DEL MISMO MIEMBRO
                     cursor.execute("""
-                        SELECT COALESCE(SUM(monto_ahorro + monto_otros), 0) as saldo_acumulado
-                        FROM Ahorro 
-                        WHERE ID_Miembro = %s 
-                        AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
+                        SELECT COALESCE(
+                            (SELECT (monto_ahorro + monto_otros) 
+                             FROM Ahorro 
+                             WHERE ID_Miembro = %s 
+                             AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
+                             ORDER BY fecha DESC, ID_Ahorro DESC 
+                             LIMIT 1), 0) as saldo_final_anterior
                     """, (id_miembro, fecha_ahorro, fecha_ahorro, id_miembro, fecha_ahorro))
                     
-                    saldo_acumulado_result = cursor.fetchone()
-                    saldo_inicial = float(saldo_acumulado_result[0]) if saldo_acumulado_result else 0.00
+                    saldo_final_anterior_result = cursor.fetchone()
+                    saldo_inicial = float(saldo_final_anterior_result[0]) if saldo_final_anterior_result else 0.00
+                    
+                    # Mostrar saldo inicial (saldo final del registro anterior)
                     st.metric("", f"${saldo_inicial:,.2f}", label_visibility="collapsed")
                     saldos_iniciales[id_miembro] = saldo_inicial
                 
@@ -210,12 +215,13 @@ def mostrar_ahorros():
                     a.monto_ahorro,
                     a.monto_otros,
                     COALESCE((
-                        SELECT SUM(a2.monto_ahorro + a2.monto_otros)
+                        SELECT (a2.monto_ahorro + a2.monto_otros)
                         FROM Ahorro a2
                         WHERE a2.ID_Miembro = a.ID_Miembro 
                         AND (a2.fecha < a.fecha OR (a2.fecha = a.fecha AND a2.ID_Ahorro < a.ID_Ahorro))
-                    ), 0) as saldo_inicial,
-                    (a.monto_ahorro + a.monto_otros) as saldo_actual
+                        ORDER BY a2.fecha DESC, a2.ID_Ahorro DESC
+                        LIMIT 1
+                    ), 0) as saldo_inicial
                 FROM Ahorro a
             )
             SELECT 
@@ -226,7 +232,7 @@ def mostrar_ahorros():
                 sa.monto_ahorro,
                 sa.monto_otros,
                 sa.saldo_inicial,
-                sa.saldo_inicial + sa.saldo_actual as saldo_final
+                sa.saldo_inicial + sa.monto_ahorro + sa.monto_otros as saldo_final
             FROM SaldosAcumulados sa
             JOIN Miembro m ON sa.ID_Miembro = m.ID_Miembro
             JOIN Reunion r ON sa.ID_Reunion = r.ID_Reunion
@@ -259,4 +265,4 @@ def mostrar_ahorros():
         if 'cursor' in locals():
             cursor.close()
         if 'con' in locals():
-            con.close() 
+            con.close()
