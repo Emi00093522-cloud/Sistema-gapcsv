@@ -38,4 +38,8 @@ def mostrar_gestion_integrada():
 
      with tab4:
         st.subheader("💵 Registro de Ahorros")
-        mostrar_ahorros()
+        try:
+            mostrar_ahorros()
+        except Exception as e:
+            st.error("Error temporal en ahorro - trabajando en la solución")
+            st.info("Por ahora, usa el módulo individual de ahorro")
