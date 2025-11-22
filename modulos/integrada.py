@@ -18,7 +18,7 @@ def mostrar_gestion_integrada():
         return
 
     # Crear pestañas principales
-    tab1, tab2, tab3 = st.tabs(["📅 Reuniones","🧍‍♂️ Asistencia", "💰 Préstamos", "💵 Ahorros"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📅 Reuniones","🧍‍♂️ Asistencia", "💰 Préstamos", "💵 Ahorros"])
 
     with tab1:
         st.subheader("📅 Gestión de Reuniones")
