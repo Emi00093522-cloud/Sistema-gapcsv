@@ -1,50 +1,50 @@
-import streamlit as st
-from modulos.reuniones import mostrar_reuniones
-from modulos.prestamo import mostrar_prestamo
-from modulos.asistencia import mostrar_asistencia
-from modulos.ahorros import mostrar_ahorros  # ✅ Nuevo módulo agregado
-
-def mostrar_gestion_integrada():
-    """
-    Módulo integrado que contiene 4 pestañas con los módulos existentes
-    """
+def mostrar_prestamo():
+    # ... código existente ...
     
-    st.header("📊 Gestión Integrada de Grupo")
-    
-    # Verificación de permisos
-    cargo = st.session_state.get("cargo_de_usuario", "").strip().upper()
-    if cargo != "SECRETARIA":
-        st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede acceder a esta función.")
-        return
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor()
 
-    # Crear pestañas principales - ahora con 4 pestañas
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📅 Reuniones", 
-        "🧍‍♂️ Asistencia", 
-        "💰 Préstamos",
-        "💵 Ahorros"  # ✅ Nueva pestaña agregada
-    ])
+        # CARGAR LISTA DE REUNIONES
+        cursor.execute("SELECT ID_Reunion, fecha FROM Reunion ORDER BY fecha DESC")
+        reuniones = cursor.fetchall()
 
-    with tab1:
-        st.subheader("📅 Gestión de Reuniones")
-        mostrar_reuniones()
+        if not reuniones:
+            st.warning("⚠️ No hay reuniones registradas.")
+            return
 
-    with tab2:
-        st.subheader("🧍‍♂️ Registro de Asistencia")
-        mostrar_asistencia()
+        reuniones_dict = {f"Reunión {r[0]} - {r[1]}": r[0] for r in reuniones}
 
-    with tab3:
-        st.subheader("💰 Gestión de Préstamos")
-        try:
-            mostrar_prestamo()
-        except Exception as e:
-            st.error("Error temporal en préstamos - trabajando en la solución")
-            st.info("Por ahora, usa el módulo individual de préstamos")
+        # Seleccionar reunión primero
+        reunion_sel = st.selectbox(
+            "Selecciona la reunión:",
+            list(reuniones_dict.keys())
+        )
+        id_reunion = reuniones_dict[reunion_sel]
 
-    with tab4:  # ✅ Nueva pestaña para ahorros
-        st.subheader("💵 Gestión de Ahorros")
-        try:
-            mostrar_ahorros()
-        except Exception as e:
-            st.error(f"Error al cargar módulo de ahorros: {e}")
-            st.info("Por favor, usa el módulo individual de ahorros")
+        # CARGAR MIEMBROS QUE ASISTIERON A ESTA REUNIÓN
+        cursor.execute("""
+            SELECT m.ID_Miembro, m.nombre 
+            FROM Miembro m
+            JOIN Asistencia a ON m.ID_Miembro = a.ID_Miembro
+            WHERE a.ID_Reunion = %s AND a.asistio = 1
+            ORDER BY m.nombre
+        """, (id_reunion,))
+        
+        miembros_presentes = cursor.fetchall()
+
+        if not miembros_presentes:
+            st.warning(f"⚠️ No hay miembros registrados como presentes en esta reunión.")
+            return
+
+        miembros_dict = {f"{m[1]} (ID {m[0]})": m[0] for m in miembros_presentes}
+
+        # ... resto del código de préstamos usando miembros_dict ...
+        
+    except Exception as e:
+        st.error(f"❌ Error: {e}")
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'con' in locals():
+            con.close()
