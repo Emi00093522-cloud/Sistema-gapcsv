@@ -94,8 +94,8 @@ def mostrar_ahorros():
                         SELECT COALESCE(
                             (SELECT saldos_ahorros 
                              FROM Ahorro 
-                             WHERE ID_Membro = %s 
-                             AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Membro = %s AND fecha = %s)))
+                             WHERE ID_Miembro = %s 
+                             AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
                              ORDER BY fecha DESC, ID_Ahorro DESC 
                              LIMIT 1), 0) as saldo_final_anterior
                     """, (id_miembro, fecha_ahorro, fecha_ahorro, id_miembro, fecha_ahorro))
@@ -183,14 +183,14 @@ def mostrar_ahorros():
                             # Verificar si ya existe un registro para este miembro en esta reunión
                             cursor.execute("""
                                 SELECT COUNT(*) FROM Ahorro 
-                                WHERE ID_Membro = %s AND ID_Reunion = %s
+                                WHERE ID_Miembro = %s AND ID_Reunion = %s
                             """, (id_miembro, id_reunion))
                             
                             if cursor.fetchone()[0] == 0:
                                 # Insertar el nuevo registro con TODAS las columnas
                                 cursor.execute("""
                                     INSERT INTO Ahorro (
-                                        ID_Membro, ID_Reunion, fecha, 
+                                        ID_Miembro, ID_Reunion, fecha, 
                                         monto_ahorro, monto_otros, monto_retiros,
                                         saldos_ahorros, saldo_inicial
                                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -206,7 +206,7 @@ def mostrar_ahorros():
                                     UPDATE Ahorro 
                                     SET monto_ahorro = %s, monto_otros = %s, monto_retiros = %s, 
                                         fecha = %s, saldos_ahorros = %s, saldo_inicial = %s
-                                    WHERE ID_Membro = %s AND ID_Reunion = %s
+                                    WHERE ID_Miembro = %s AND ID_Reunion = %s
                                 """, (
                                     monto_ahorro, monto_otros, monto_retiros, 
                                     fecha_ahorro, saldo_final, saldo_inicial,
@@ -245,7 +245,7 @@ def mostrar_ahorros():
                 a.saldo_inicial,
                 a.saldos_ahorros as saldo_final
             FROM Ahorro a
-            JOIN Miembro m ON a.ID_Membro = m.ID_Miembro
+            JOIN Miembro m ON a.ID_Miembro = m.ID_Miembro
             JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
             WHERE r.ID_Reunion = %s
             ORDER BY m.nombre, a.fecha, a.ID_Ahorro
