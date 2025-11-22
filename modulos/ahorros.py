@@ -11,21 +11,9 @@ def mostrar_ahorros():
         cursor = con.cursor()
 
         # -----------------------------
-        # CARGAR LISTA DE MIEMBROS
-        # -----------------------------
-        cursor.execute("SELECT ID_Miembro, nombre FROM Miembro")
-        miembros = cursor.fetchall()
-
-        if not miembros:
-            st.warning("⚠️ No hay miembros registrados.")
-            return
-
-        miembros_dict = {f"{m[1]} (ID {m[0]})": m[0] for m in miembros}
-
-        # -----------------------------
         # CARGAR LISTA DE REUNIONES
         # -----------------------------
-        cursor.execute("SELECT ID_Reunion, fecha FROM Reunion")
+        cursor.execute("SELECT ID_Reunion, fecha FROM Reunion ORDER BY fecha DESC")
         reuniones = cursor.fetchall()
 
         if not reuniones:
@@ -33,6 +21,32 @@ def mostrar_ahorros():
             return
 
         reuniones_dict = {f"Reunión {r[0]} - {r[1]}": r[0] for r in reuniones}
+
+        # Seleccionar reunión primero
+        reunion_sel = st.selectbox(
+            "Selecciona la reunión:",
+            list(reuniones_dict.keys())
+        )
+        id_reunion = reuniones_dict[reunion_sel]
+
+        # -----------------------------
+        # CARGAR MIEMBROS QUE ASISTIERON A ESTA REUNIÓN
+        # -----------------------------
+        cursor.execute("""
+            SELECT m.ID_Miembro, m.nombre 
+            FROM Miembro m
+            JOIN Asistencia a ON m.ID_Miembro = a.ID_Miembro
+            WHERE a.ID_Reunion = %s AND a.asistio = 1
+            ORDER BY m.nombre
+        """, (id_reunion,))
+        
+        miembros_presentes = cursor.fetchall()
+
+        if not miembros_presentes:
+            st.warning(f"⚠️ No hay miembros registrados como presentes en esta reunión.")
+            return
+
+        miembros_dict = {f"{m[1]} (ID {m[0]})": m[0] for m in miembros_presentes}
 
         # -------------------------------------
         # FORMULARIO DE REGISTRO DE AHORRO EN COLUMNAS
@@ -50,9 +64,11 @@ def mostrar_ahorros():
                 )
             
             with col2:
-                reunion_sel = st.selectbox(
-                    "Selecciona la reunión:",
-                    list(reuniones_dict.keys())
+                # Mostrar reunión seleccionada (solo lectura)
+                st.text_input(
+                    "Reunión seleccionada:",
+                    value=reunion_sel,
+                    disabled=True
                 )
             
             with col3:
@@ -148,7 +164,7 @@ def mostrar_ahorros():
 
             if enviar:
                 id_m = miembros_dict[miembro_sel]
-                id_r = reuniones_dict[reunion_sel]
+                id_r = id_reunion
 
                 # Validación
                 if monto_ahorro == 0 and monto_otros == 0:
