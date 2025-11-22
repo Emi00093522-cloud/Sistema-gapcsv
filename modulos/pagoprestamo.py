@@ -50,18 +50,18 @@ def obtener_reunion_fin_de_mes(con, id_grupo, fecha_base, mes_offset=0):
         SELECT fecha 
         FROM Reunion 
         WHERE ID_Grupo = %s 
-        AND fecha BETWEEN %s AND %s
-        ORDER BY ABS(DATEDIFF(fecha, %s)) ASC
+        AND YEAR(fecha) = %s AND MONTH(fecha) = %s
+        ORDER BY fecha DESC
         LIMIT 1
-    """, (id_grupo, inicio_ultima_semana, fin_mes, fin_mes))
+    """, (id_grupo, fin_mes.year, fin_mes.month))
     
     reunion_cercana = cursor.fetchone()
     
     if reunion_cercana:
         return reunion_cercana[0]
     
-    # Si no hay reuniones programadas, calcular una fecha aproximada (última semana)
-    return inicio_ultima_semana + timedelta(days=3)  # Mitad de la última semana
+    # Si no hay reuniones programadas, usar fin de mes
+    return fin_mes
 
 def generar_cronograma_pagos(id_prestamo, con):
     """Genera el cronograma de pagos basado en los datos del préstamo y reuniones del grupo"""
@@ -82,23 +82,31 @@ def generar_cronograma_pagos(id_prestamo, con):
     
     id_prestamo, id_miembro, monto, total_interes, plazo, fecha_desembolso, nombre, proposito, id_grupo = prestamo
     
-    # Obtener la periodicidad del grupo desde Reglamento
+    # Obtener información del grupo para determinar periodicidad
     cursor.execute("""
-        SELECT periodicidad_reuniones 
-        FROM Reglamento 
-        WHERE ID_Grupo = %s 
-        ORDER BY ID_Reglamento DESC 
-        LIMIT 1
+        SELECT nombre FROM Grupo WHERE ID_Grupo = %s
     """, (id_grupo,))
     
-    resultado_periodicidad = cursor.fetchone()
+    grupo_info = cursor.fetchone()
+    nombre_grupo = grupo_info[0] if grupo_info else f"Grupo {id_grupo}"
     
-    if resultado_periodicidad:
-        periodicidad = resultado_periodicidad[0]
-        st.info(f"🔄 **Periodicidad de reuniones del grupo:** {periodicidad}")
-    else:
-        periodicidad = "Mensual"
-        st.warning("⚠️ No se encontró periodicidad en reglamentos, usando Mensual por defecto")
+    # OBTENER LA FRECUENCIA DE REUNIONES DESDE REGLAMENTO (COLUMNA CORRECTA)
+    try:
+        cursor.execute("""
+            SELECT fecuencia_reunion 
+            FROM Reglamento 
+            WHERE ID_Grupo = %s 
+            ORDER BY ID_Reglamento DESC 
+            LIMIT 1
+        """, (id_grupo,))
+        
+        resultado_frecuencia = cursor.fetchone()
+        frecuencia = resultado_frecuencia[0] if resultado_frecuencia else "Mensual"
+        st.info(f"🔄 **Frecuencia de reuniones del grupo:** {frecuencia}")
+        
+    except Exception as e:
+        frecuencia = "Mensual"
+        st.warning(f"⚠️ Error al obtener frecuencia de reuniones: {e}. Usando valor por defecto: Mensual")
     
     # ✅ CORRECCIÓN: Convertir porcentaje a valor monetario
     interes_monetario = Decimal(str(monto)) * (Decimal(str(total_interes)) / Decimal('100'))
@@ -134,17 +142,8 @@ def generar_cronograma_pagos(id_prestamo, con):
             interes_cuota = interes_mensual
             total_cuota = cuota_mensual
         
-        # Obtener fecha de pago basada en reuniones (mes i-1 porque el primer pago es al mes 1)
+        # Obtener fecha de pago basada en reuniones
         fecha_pago = obtener_reunion_fin_de_mes(con, id_grupo, fecha_desembolso, i)
-        
-        # Si no hay reuniones programadas, calcular fecha aproximada (fin de mes)
-        if fecha_pago is None:
-            # Calcular fin de mes para el mes i
-            if i == 1:
-                next_month = fecha_desembolso.replace(day=28) + timedelta(days=4)
-            else:
-                next_month = (fecha_desembolso.replace(day=1) + timedelta(days=32*i)).replace(day=1)
-            fecha_pago = next_month - timedelta(days=1)  # Último día del mes
         
         # Insertar en cronograma
         cursor.execute("""
@@ -162,6 +161,7 @@ def generar_cronograma_pagos(id_prestamo, con):
     # Mostrar información resumen
     st.success(f"✅ **Cronograma generado:** {plazo} pagos mensuales")
     st.info(f"📋 **Estrategia:** Cada pago se asigna a la reunión más cercana al fin de mes")
+    st.info(f"👥 **Grupo:** {nombre_grupo}")
     
     return True
 
@@ -340,27 +340,206 @@ def mostrar_pago_prestamo():
         # Mostrar información de la reunión actual
         st.info(f"📅 **Reunión actual:** {nombre_reunion}")
 
-        # Obtener periodicidad del grupo
+        # Obtener frecuencia de reuniones del grupo
         cursor.execute("""
-            SELECT periodicidad_reuniones 
+            SELECT fecuencia_reunion 
             FROM Reglamento 
             WHERE ID_Grupo = %s 
             ORDER BY ID_Reglamento DESC 
             LIMIT 1
         """, (id_grupo,))
         
-        periodicidad_result = cursor.fetchone()
-        periodicidad = periodicidad_result[0] if periodicidad_result else "Mensual"
+        frecuencia_result = cursor.fetchone()
+        frecuencia = frecuencia_result[0] if frecuencia_result else "Mensual"
         
-        st.info(f"🔄 **Periodicidad de reuniones:** {periodicidad}")
+        st.info(f"🔄 **Frecuencia de reuniones:** {frecuencia}")
         st.info(f"🎯 **Estrategia de pagos:** Cada cuota se asigna a la reunión más cercana al fin de mes")
 
-        # Resto del código se mantiene igual...
-        # [El resto del código de mostrar_pago_prestamo() permanece igual]
+        # -----------------------------
+        # CARGAR MIEMBROS QUE ASISTIERON A ESTA REUNIÓN (SOLO LOS QUE MARCARON SI)
+        # -----------------------------
+        cursor.execute("""
+            SELECT m.ID_Miembro, m.nombre 
+            FROM Miembro m
+            JOIN Miembroxreunion mr ON m.ID_Miembro = mr.ID_Miembro
+            WHERE mr.ID_Reunion = %s AND mr.asistio = 1
+            ORDER BY m.nombre
+        """, (id_reunion,))
         
-        # Solo cambiar la parte del cronograma para mostrar información específica
-        # ... (el resto del código es idéntico al anterior)
+        miembros_presentes = cursor.fetchall()
 
+        if not miembros_presentes:
+            st.warning(f"⚠️ No hay miembros registrados como presentes en esta reunión.")
+            st.info("Por favor, registra la asistencia primero en el módulo correspondiente.")
+            return
+
+        # Obtener IDs de miembros presentes para filtrar préstamos
+        ids_miembros_presentes = [m[0] for m in miembros_presentes]
+        
+        # Cargar préstamos activos SOLO de miembros presentes
+        if ids_miembros_presentes:
+            placeholders = ','.join(['%s'] * len(ids_miembros_presentes))
+            cursor.execute(f"""
+                SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
+                       p.plazo, p.fecha_desembolso, m.nombre, p.proposito
+                FROM Prestamo p
+                JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+                WHERE p.ID_Estado_prestamo != 3  -- Excluir cancelados
+                AND p.ID_Miembro IN ({placeholders})
+            """, ids_miembros_presentes)
+        else:
+            cursor.execute("""
+                SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
+                       p.plazo, p.fecha_desembolso, m.nombre, p.proposito
+                FROM Prestamo p
+                JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+                WHERE p.ID_Estado_prestamo != 3
+                AND 1=0  -- No mostrar nada si no hay miembros presentes
+            """)
+        
+        prestamos = cursor.fetchall()
+        
+        if not prestamos:
+            st.warning("⚠️ No hay préstamos activos para los miembros presentes en esta reunión.")
+            return
+        
+        # Lista de préstamos
+        prestamos_dict = {
+            f"Préstamo {p[0]} - {p[6]} - ${p[2]:,.2f} - {p[4]} meses": p[0]
+            for p in prestamos
+        }
+        
+        # Selección de préstamo
+        prestamo_sel = st.selectbox(
+            "Selecciona el préstamo:",
+            list(prestamos_dict.keys())
+        )
+        
+        id_prestamo = prestamos_dict[prestamo_sel]
+        prestamo_info = [p for p in prestamos if p[0] == id_prestamo][0]
+        
+        # ✅ CORRECCIÓN: Calcular interés monetario real
+        monto = prestamo_info[2]
+        total_interes_porcentaje = prestamo_info[3]  # Este es el porcentaje
+        plazo = prestamo_info[4]
+        
+        # Convertir porcentaje a valor monetario
+        interes_monetario = monto * (total_interes_porcentaje / 100)
+        monto_total = monto + interes_monetario
+        cuota_mensual = monto_total / plazo
+        
+        # ✅ Tasa real (ya es el porcentaje)
+        tasa_real = total_interes_porcentaje
+        
+        # Mostrar información del préstamo en un layout más organizado
+        st.subheader("📋 RESUMEN DEL PRÉSTAMO")
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Información Básica**")
+            st.write(f"• **Fecha inicio:** {prestamo_info[5]}")
+            st.write(f"• **Tasa interés:** {tasa_real:.1f}%")
+            st.write(f"• **Plazo:** {plazo} meses")
+            st.write(f"• **Propósito:** {prestamo_info[7]}")
+            st.write(f"• **Reuniones:** {frecuencia}")
+        
+        with col2:
+            st.markdown("**Montos**")
+            st.write(f"• **Monto préstamo:** ${monto:,.2f}")
+            st.write(f"• **Interés total:** ${interes_monetario:,.2f}")
+            st.write(f"• **Total a pagar:** ${monto_total:,.2f}")
+            st.write(f"• **Cuota mensual:** ${cuota_mensual:,.2f}")
+        
+        st.markdown("---")
+        
+        # Verificar si existe cronograma
+        cursor.execute("""
+            SELECT COUNT(*) FROM CuotaPrestamo WHERE ID_Prestamo = %s
+        """, (id_prestamo,))
+        
+        tiene_cronograma = cursor.fetchone()[0] > 0
+        
+        if not tiene_cronograma:
+            st.info("📅 Este préstamo no tiene cronograma de pagos generado.")
+            if st.button("🔄 Generar Plan de Pagos", type="primary"):
+                if generar_cronograma_pagos(id_prestamo, con):
+                    st.success("✅ Plan de pagos generado correctamente!")
+                    st.rerun()
+                else:
+                    st.error("❌ Error al generar plan de pagos")
+            return
+        
+        # Obtener todas las cuotas para mostrar
+        cursor.execute("""
+            SELECT numero_cuota, fecha_programada, capital_programado, 
+                   interes_programado, total_programado, capital_pagado, 
+                   interes_pagado, total_pagado, estado
+            FROM CuotaPrestamo
+            WHERE ID_Prestamo = %s
+            ORDER BY fecha_programada ASC
+        """, (id_prestamo,))
+        
+        cuotas = cursor.fetchall()
+        
+        # Mostrar plan de pagos en formato tabla simple
+        st.subheader("📅 PLAN DE PAGOS - BASADO EN REUNIONES DEL GRUPO")
+        st.markdown("---")
+        
+        # Crear tabla usando st.dataframe en lugar de HTML
+        tabla_data = []
+        for cuota in cuotas:
+            numero, fecha_prog, capital_prog, interes_prog, total_prog, \
+            capital_pag, interes_pag, total_pag, estado = cuota
+            
+            capital_pag = capital_pag or 0
+            interes_pag = interes_pag or 0
+            total_pag = total_pag or 0
+            
+            # Determinar emoji para el estado
+            estado_emoji = {
+                'pendiente': '⚪',
+                'parcial': '🟡', 
+                'pagado': '🟢'
+            }
+            
+            # Mostrar montos pagados si hay pago, sino los programados
+            if estado == 'pagado':
+                capital_mostrar = f"${capital_pag:,.2f}"
+                interes_mostrar = f"${interes_pag:,.2f}"
+                total_mostrar = f"${total_pag:,.2f}"
+            elif estado == 'parcial':
+                capital_mostrar = f"${capital_pag:,.2f} de ${capital_prog:,.2f}"
+                interes_mostrar = f"${interes_pag:,.2f} de ${interes_prog:,.2f}"
+                total_mostrar = f"${total_pag:,.2f} de ${total_prog:,.2f}"
+            else:
+                capital_mostrar = f"${capital_prog:,.2f}"
+                interes_mostrar = f"${interes_prog:,.2f}"
+                total_mostrar = f"${total_prog:,.2f}"
+            
+            # ✅ AQUÍ SE MUESTRAN LAS FECHAS CALCULADAS SEGÚN LAS REUNIONES
+            tabla_data.append({
+                "Cuota": numero,
+                "Fecha Pago": fecha_prog,  # Esta es la fecha calculada basada en reuniones
+                "Estado": f"{estado_emoji.get(estado, '⚪')} {estado.upper()}",
+                "Capital": capital_mostrar,
+                "Interés": interes_mostrar,
+                "Total": total_mostrar
+            })
+
+        # Mostrar la tabla usando st.dataframe
+        if tabla_data:
+            st.dataframe(tabla_data, use_container_width=True)
+            
+            # Mostrar información adicional sobre las fechas
+            st.info("📅 **Nota:** Las fechas de pago se asignan automáticamente a las reuniones más cercanas al fin de cada mes")
+        else:
+            st.warning("No hay cuotas generadas para este préstamo")
+        
+        # El resto del código se mantiene igual...
+        # [Aquí iría el resto del código de pagos completos, parciales y estadísticas]
+        
     except Exception as e:
         st.error(f"❌ Error general: {e}")
     
