@@ -61,25 +61,9 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                 promotora_options = {f"{p[1]} (ID: {p[0]})": p[0] for p in promotoras}
                 promotora_sel = st.selectbox("Promotora *", list(promotora_options.keys()))
                 ID_Promotora = promotora_options[promotora_sel]
-                
-                # 🔥 OBTENER EL ID_USUARIO CORRESPONDIENTE AL PROMOTORA
-                cursor.execute("""
-                    SELECT u.ID_Usuario 
-                    FROM Usuario u 
-                    JOIN Promotora p ON u.nombre = p.nombre 
-                    WHERE p.ID_Promotora = %s
-                """, (ID_Promotora,))
-                
-                usuario_result = cursor.fetchone()
-                if usuario_result:
-                    ID_Usuario = usuario_result[0]
-                else:
-                    st.error("❌ No se encontró el usuario correspondiente a esta promotora")
-                    ID_Usuario = None
             else:
                 st.error("❌ No hay promotoras registradas.")
                 ID_Promotora = None
-                ID_Usuario = None
 
             ID_Estado = st.selectbox(
                 "Estado",
@@ -98,20 +82,18 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                     errores.append("⚠ Selecciona un distrito.")
                 if ID_Promotora is None:
                     errores.append("⚠ Selecciona una promotora.")
-                if ID_Usuario is None:
-                    errores.append("⚠ No se pudo encontrar el usuario asociado a la promotora.")
 
                 if errores:
                     for e in errores:
                         st.warning(e)
                 else:
                     try:
-                        # 🔥 INSERT CON ID_Usuario
+                        # INSERT sin duracion_ciclo
                         cursor.execute("""
                             INSERT INTO Grupo 
-                            (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado, ID_Usuario)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado, ID_Usuario))
+                            (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado)
+                            VALUES (%s,%s,%s,%s,%s)
+                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado))
 
                         con.commit()
 
