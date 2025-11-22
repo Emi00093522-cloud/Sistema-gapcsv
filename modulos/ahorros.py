@@ -100,18 +100,20 @@ def mostrar_ahorros():
                 st.write(miembro_sel.split('(')[0].strip())
             
             with cols[1]:
-                # Saldo inicial del registro anterior del mismo miembro
+                # Saldo inicial: saldo_final del registro anterior del mismo miembro
                 id_miembro_actual = miembros_dict[miembro_sel]
+                
+                # Calcular el saldo acumulado hasta el registro anterior
                 cursor.execute("""
-                    SELECT (monto_ahorro + monto_otros) as saldo_anterior
+                    SELECT 
+                        COALESCE(SUM(monto_ahorro + monto_otros), 0) as saldo_acumulado
                     FROM Ahorro 
                     WHERE ID_Miembro = %s 
-                    ORDER BY fecha DESC, ID_Ahorro DESC 
-                    LIMIT 1
-                """, (id_miembro_actual,))
+                    AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
+                """, (id_miembro_actual, fecha_ahorro, fecha_ahorro, id_miembro_actual, fecha_ahorro))
                 
-                saldo_anterior_result = cursor.fetchone()
-                saldo_inicial = float(saldo_anterior_result[0]) if saldo_anterior_result else 0.00
+                saldo_acumulado_result = cursor.fetchone()
+                saldo_inicial = float(saldo_acumulado_result[0]) if saldo_acumulado_result else 0.00
                 st.metric("", f"${saldo_inicial:,.2f}", label_visibility="collapsed")
             
             with cols[2]:
@@ -190,7 +192,89 @@ def mostrar_ahorros():
                         con.rollback()
                         st.error(f"❌ Error al registrar el ahorro: {e}")
 
-        # ... (el resto del código del historial se mantiene igual) ...
+        # -------------------------------------
+        # HISTORIAL DE AHORROS REGISTRADOS CON SALDOS ACUMULATIVOS
+        # -------------------------------------
+        st.markdown("---")
+        st.subheader("📋 Historial de Ahorros")
+        
+        cursor.execute("""
+            WITH SaldosAcumulados AS (
+                SELECT 
+                    a.ID_Ahorro,
+                    a.ID_Miembro,
+                    a.ID_Reunion,
+                    a.fecha,
+                    a.monto_ahorro,
+                    a.monto_otros,
+                    COALESCE((
+                        SELECT SUM(a2.monto_ahorro + a2.monto_otros)
+                        FROM Ahorro a2
+                        WHERE a2.ID_Miembro = a.ID_Miembro 
+                        AND (a2.fecha < a.fecha OR (a2.fecha = a.fecha AND a2.ID_Ahorro < a.ID_Ahorro))
+                    ), 0) as saldo_inicial,
+                    (a.monto_ahorro + a.monto_otros) as saldo_actual
+                FROM Ahorro a
+            )
+            SELECT 
+                sa.ID_Ahorro,
+                m.nombre,
+                r.fecha as fecha_reunion,
+                sa.fecha as fecha_ahorro,
+                sa.monto_ahorro,
+                sa.monto_otros,
+                sa.saldo_inicial,
+                sa.saldo_inicial + sa.saldo_actual as saldo_final
+            FROM SaldosAcumulados sa
+            JOIN Miembro m ON sa.ID_Miembro = m.ID_Miembro
+            JOIN Reunion r ON sa.ID_Reunion = r.ID_Reunion
+            ORDER BY m.nombre, sa.fecha, sa.ID_Ahorro
+        """)
+        
+        historial = cursor.fetchall()
+        
+        if historial:
+            df = pd.DataFrame(historial, columns=[
+                "ID", "Miembro", "Reunión", "Fecha Ahorro", "Ahorros", 
+                "Otros", "Saldo Inicial", "Saldo Final"
+            ])
+            
+            # Formatear columnas numéricas
+            numeric_cols = ["Ahorros", "Otros", "Saldo Inicial", "Saldo Final"]
+            for col in numeric_cols:
+                df[col] = df[col].apply(lambda x: f"${x:,.2f}")
+            
+            st.dataframe(df.drop("ID", axis=1), use_container_width=True)
+            
+            # Mostrar también un resumen por miembro
+            st.subheader("📊 Resumen por Miembro")
+            cursor.execute("""
+                SELECT 
+                    m.nombre,
+                    COUNT(a.ID_Ahorro) as total_registros,
+                    COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
+                    COALESCE(SUM(a.monto_otros), 0) as total_otros,
+                    COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) as saldo_total
+                FROM Miembro m
+                LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
+                GROUP BY m.ID_Miembro, m.nombre
+                ORDER BY m.nombre
+            """)
+            
+            resumen = cursor.fetchall()
+            df_resumen = pd.DataFrame(resumen, columns=[
+                "Miembro", "Total Registros", "Total Ahorros", "Total Otros", "Saldo Total"
+            ])
+            
+            # Formatear columnas numéricas del resumen
+            numeric_cols_resumen = ["Total Ahorros", "Total Otros", "Saldo Total"]
+            for col in numeric_cols_resumen:
+                df_resumen[col] = df_resumen[col].apply(lambda x: f"${x:,.2f}")
+            
+            st.dataframe(df_resumen, use_container_width=True)
+            
+        else:
+            st.info("📝 No hay registros de ahorros aún.")
 
     except Exception as e:
         st.error(f"❌ Error general: {e}")
