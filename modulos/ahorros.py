@@ -88,15 +88,18 @@ def mostrar_ahorros():
                 st.write(miembro_sel.split('(')[0].strip())
             
             with cols[1]:
-                # Saldo inicial (calculado automáticamente) - TODOS los registros anteriores
+                # Saldo inicial del registro anterior del mismo miembro
                 id_miembro_actual = miembros_dict[miembro_sel]
                 cursor.execute("""
-                    SELECT COALESCE(SUM(monto_ahorro + monto_otros), 0) as saldo_inicial 
+                    SELECT (monto_ahorro + monto_otros) as saldo_anterior
                     FROM Ahorro 
-                    WHERE ID_Miembro = %s
+                    WHERE ID_Miembro = %s 
+                    ORDER BY fecha DESC, ID_Ahorro DESC 
+                    LIMIT 1
                 """, (id_miembro_actual,))
-                saldo_inicial_result = cursor.fetchone()
-                saldo_inicial = float(saldo_inicial_result[0]) if saldo_inicial_result else 0.00
+                
+                saldo_anterior_result = cursor.fetchone()
+                saldo_inicial = float(saldo_anterior_result[0]) if saldo_anterior_result else 0.00
                 st.metric("", f"${saldo_inicial:,.2f}", label_visibility="collapsed")
             
             with cols[2]:
@@ -176,31 +179,40 @@ def mostrar_ahorros():
                         st.error(f"❌ Error al registrar el ahorro: {e}")
 
         # -------------------------------------
-        # HISTORIAL DE AHORROS REGISTRADOS
+        # HISTORIAL DE AHORROS REGISTRADOS CON SALDOS ACUMULATIVOS
         # -------------------------------------
         st.markdown("---")
         st.subheader("📋 Historial de Ahorros")
         
         cursor.execute("""
+            WITH SaldosAcumulados AS (
+                SELECT 
+                    a.ID_Ahorro,
+                    a.ID_Miembro,
+                    a.ID_Reunion,
+                    a.fecha,
+                    a.monto_ahorro,
+                    a.monto_otros,
+                    COALESCE(LAG(a.monto_ahorro + a.monto_otros) OVER (
+                        PARTITION BY a.ID_Miembro 
+                        ORDER BY a.fecha, a.ID_Ahorro
+                    ), 0) as saldo_inicial,
+                    (a.monto_ahorro + a.monto_otros) as saldo_actual
+                FROM Ahorro a
+            )
             SELECT 
-                a.ID_Ahorro, 
-                m.nombre, 
+                sa.ID_Ahorro,
+                m.nombre,
                 r.fecha as fecha_reunion,
-                a.fecha as fecha_ahorro, 
-                a.monto_ahorro, 
-                a.monto_otros,
-                (SELECT COALESCE(SUM(a2.monto_ahorro + a2.monto_otros), 0) 
-                 FROM Ahorro a2 
-                 WHERE a2.ID_Miembro = a.ID_Miembro 
-                 AND a2.ID_Ahorro < a.ID_Ahorro) as saldo_inicial,
-                (SELECT COALESCE(SUM(a2.monto_ahorro + a2.monto_otros), 0) 
-                 FROM Ahorro a2 
-                 WHERE a2.ID_Miembro = a.ID_Miembro 
-                 AND a2.ID_Ahorro <= a.ID_Ahorro) as saldo_final
-            FROM Ahorro a
-            JOIN Miembro m ON a.ID_Miembro = m.ID_Miembro
-            JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
-            ORDER BY a.ID_Miembro, a.fecha ASC
+                sa.fecha as fecha_ahorro,
+                sa.monto_ahorro,
+                sa.monto_otros,
+                sa.saldo_inicial,
+                sa.saldo_inicial + sa.saldo_actual as saldo_final
+            FROM SaldosAcumulados sa
+            JOIN Miembro m ON sa.ID_Miembro = m.ID_Miembro
+            JOIN Reunion r ON sa.ID_Reunion = r.ID_Reunion
+            ORDER BY m.nombre, sa.fecha, sa.ID_Ahorro
         """)
         
         historial = cursor.fetchall()
