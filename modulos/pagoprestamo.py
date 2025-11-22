@@ -64,10 +64,10 @@ def obtener_reunion_fin_de_mes(con, id_grupo, fecha_base, mes_offset=0):
     return fin_mes
 
 def generar_cronograma_pagos(id_prestamo, con):
-    """Genera el cronograma de pagos basado en los datos REALES del préstamo"""
+    """Genera el cronograma de pagos usando EXACTAMENTE los datos registrados del préstamo"""
     cursor = con.cursor()
     
-    # Obtener datos REALES del préstamo - EXACTAMENTE como se registraron
+    # Obtener datos REALES del préstamo - SIN CÁLCULOS
     cursor.execute("""
         SELECT 
             p.ID_Prestamo, 
@@ -96,47 +96,33 @@ def generar_cronograma_pagos(id_prestamo, con):
      fecha_aprobacion, nombre, proposito, id_grupo, cuota_mensual, 
      monto_total_pagar, total_interes) = prestamo
     
-    # Obtener frecuencia de reuniones del grupo
-    try:
-        cursor.execute("""
-            SELECT frecuencia_reunion 
-            FROM Reglamento 
-            WHERE ID_Grupo = %s 
-            ORDER BY ID_Reglamento DESC 
-            LIMIT 1
-        """, (id_grupo,))
-        
-        resultado_frecuencia = cursor.fetchone()
-        frecuencia = resultado_frecuencia[0] if resultado_frecuencia else "Mensual"
-        
-    except Exception as e:
-        frecuencia = "Mensual"
+    # Convertir a Decimal para precisión
+    monto_solicitado = Decimal(str(monto_solicitado))
+    cuota_mensual = Decimal(str(cuota_mensual))
+    monto_total_pagar = Decimal(str(monto_total_pagar))
+    total_interes = Decimal(str(total_interes))
     
     # Eliminar cronograma existente
     cursor.execute("DELETE FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
     
-    # Calcular distribución de capital e interés por cuota
-    capital_por_cuota = Decimal(str(monto_solicitado)) / Decimal(str(plazo))
-    interes_por_cuota = Decimal(str(total_interes)) / Decimal(str(plazo))
-    
-    # Generar cronograma con fechas basadas en reuniones
-    saldo_capital = Decimal(str(monto_solicitado))
+    # Generar cronograma usando los valores EXACTOS del préstamo
+    saldo_capital = monto_solicitado
     
     for i in range(1, plazo + 1):
         # Calcular capital e interés para esta cuota
         if i == plazo:  # Última cuota - ajustar por redondeo
             capital_cuota = saldo_capital
-            interes_cuota = Decimal(str(total_interes)) - (interes_por_cuota * (plazo - 1))
+            interes_cuota = monto_total_pagar - monto_solicitado - (total_interes - (total_interes / Decimal(plazo)) * (plazo - 1))
         else:
-            capital_cuota = capital_por_cuota
-            interes_cuota = interes_por_cuota
+            capital_cuota = monto_solicitado / Decimal(plazo)
+            interes_cuota = total_interes / Decimal(plazo)
         
         total_cuota = capital_cuota + interes_cuota
         
         # Obtener fecha de pago basada en reuniones (mes i)
         fecha_pago = obtener_reunion_fin_de_mes(con, id_grupo, fecha_aprobacion, i)
         
-        # Insertar en cronograma
+        # Insertar en cronograma usando los valores exactos
         cursor.execute("""
             INSERT INTO CuotaPrestamo 
             (ID_Prestamo, numero_cuota, fecha_programada, capital_programado, 
@@ -152,7 +138,6 @@ def generar_cronograma_pagos(id_prestamo, con):
     # Mostrar información resumen
     st.success(f"✅ **Cronograma generado:** {plazo} pagos mensuales")
     st.info(f"📋 **Estrategia:** Cada pago se asigna a la reunión más cercana al fin de mes")
-    st.info(f"🔄 **Frecuencia de reuniones:** {frecuencia}")
     
     return True
 
@@ -334,20 +319,6 @@ def mostrar_pago_prestamo():
 
         # Mostrar información de la reunión actual
         st.info(f"📅 **Reunión actual:** {nombre_reunion}")
-
-        # Obtener frecuencia de reuniones del grupo
-        cursor.execute("""
-            SELECT frecuencia_reunion 
-            FROM Reglamento 
-            WHERE ID_Grupo = %s 
-            ORDER BY ID_Reglamento DESC 
-            LIMIT 1
-        """, (id_grupo,))
-        
-        frecuencia_result = cursor.fetchone()
-        frecuencia = frecuencia_result[0] if frecuencia_result else "Mensual"
-        
-        st.info(f"🔄 **Frecuencia de reuniones del grupo:** {frecuencia}")
 
         # Cargar miembros que asistieron a esta reunión
         cursor.execute("""
