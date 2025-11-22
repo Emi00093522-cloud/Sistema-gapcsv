@@ -4,7 +4,7 @@ from modulos.config.conexion import obtener_conexion
 from datetime import date
 
 def mostrar_ahorros():
-    st.header("💰 Registro de Ahorros del Grupo")
+    st.header("💰 Control de Ahorros")
 
     # Verificar si hay una reunión seleccionada
     if 'reunion_actual' not in st.session_state:
@@ -42,36 +42,17 @@ def mostrar_ahorros():
             st.info("Por favor, registra la asistencia primero en el módulo correspondiente.")
             return
 
-        miembros_dict = {f"{m[1]} (ID {m[0]})": m[0] for m in miembros_presentes}
-
         # -------------------------------------
-        # FORMULARIO DE REGISTRO DE AHORRO EN COLUMNAS
+        # TABLA DE AHORROS PARA TODOS LOS MIEMBROS
         # -------------------------------------
         with st.form("form_ahorro"):
-            st.subheader("📝 Datos del ahorro")
+            st.subheader("📝 Registro de Ahorros")
             
-            # PRIMERA FILA DE COLUMNAS
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                miembro_sel = st.selectbox(
-                    "Selecciona el miembro:",
-                    list(miembros_dict.keys())
-                )
-            
-            with col2:
-                # Mostrar reunión seleccionada (solo lectura)
-                st.text_input(
-                    "Reunión:",
-                    value=nombre_reunion,
-                    disabled=True
-                )
-            
-            with col3:
-                fecha_ahorro = st.date_input(
-                    "Fecha del ahorro:",
-                    value=date.today()
-                )
+            # Mostrar fecha de la reunión
+            fecha_ahorro = st.date_input(
+                "Fecha del ahorro:",
+                value=date.today()
+            )
 
             # TABLA DE AHORROS CON FORMATO ESPECÍFICO
             st.markdown("---")
@@ -91,109 +72,130 @@ def mostrar_ahorros():
                 st.markdown("**Retiros**")
             with cols[5]:
                 st.markdown("**Saldos ahorros**")
-            
-            # Fila de datos
-            cols = st.columns([2, 1, 1, 1, 1, 1])
-            
-            with cols[0]:
-                # Mostrar el miembro seleccionado
-                st.write(miembro_sel.split('(')[0].strip())
-            
-            with cols[1]:
-                # Saldo inicial: saldo_final del registro anterior del mismo miembro
-                id_miembro_actual = miembros_dict[miembro_sel]
+
+            # Diccionarios para almacenar los datos de cada miembro
+            ahorros_data = {}
+            otros_data = {}
+            retiros_data = {}
+            saldos_iniciales = {}
+
+            # Filas para cada miembro
+            for id_miembro, nombre_miembro in miembros_presentes:
+                cols = st.columns([2, 1, 1, 1, 1, 1])
                 
-                # Calcular el saldo acumulado hasta el registro anterior
-                cursor.execute("""
-                    SELECT 
-                        COALESCE(SUM(monto_ahorro + monto_otros), 0) as saldo_acumulado
-                    FROM Ahorro 
-                    WHERE ID_Miembro = %s 
-                    AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
-                """, (id_miembro_actual, fecha_ahorro, fecha_ahorro, id_miembro_actual, fecha_ahorro))
+                with cols[0]:
+                    # Mostrar nombre del miembro
+                    st.write(nombre_miembro)
                 
-                saldo_acumulado_result = cursor.fetchone()
-                saldo_inicial = float(saldo_acumulado_result[0]) if saldo_acumulado_result else 0.00
-                st.metric("", f"${saldo_inicial:,.2f}", label_visibility="collapsed")
-            
-            with cols[2]:
-                monto_ahorro = st.number_input(
-                    "Monto ahorro:",
-                    min_value=0.00,
-                    format="%.2f",
-                    key="ahorro_input",
-                    label_visibility="collapsed"
-                )
-            
-            with cols[3]:
-                monto_otros = st.number_input(
-                    "Otras actividades:",
-                    min_value=0.00,
-                    format="%.2f",
-                    key="otros_input",
-                    label_visibility="collapsed"
-                )
-            
-            with cols[4]:
-                # Checkbox para activar retiros
-                retiro_activado = st.checkbox("Activar retiro", key="retiro_checkbox")
+                with cols[1]:
+                    # Saldo inicial del registro anterior del mismo miembro
+                    cursor.execute("""
+                        SELECT COALESCE(SUM(monto_ahorro + monto_otros), 0) as saldo_acumulado
+                        FROM Ahorro 
+                        WHERE ID_Miembro = %s 
+                        AND (fecha < %s OR (fecha = %s AND ID_Ahorro < (SELECT COALESCE(MAX(ID_Ahorro), 0) FROM Ahorro WHERE ID_Miembro = %s AND fecha = %s)))
+                    """, (id_miembro, fecha_ahorro, fecha_ahorro, id_miembro, fecha_ahorro))
+                    
+                    saldo_acumulado_result = cursor.fetchone()
+                    saldo_inicial = float(saldo_acumulado_result[0]) if saldo_acumulado_result else 0.00
+                    st.metric("", f"${saldo_inicial:,.2f}", label_visibility="collapsed")
+                    saldos_iniciales[id_miembro] = saldo_inicial
                 
-                if retiro_activado:
-                    monto_retiros = monto_ahorro + monto_otros
-                    st.error(f"-${monto_retiros:,.2f}")
-                else:
-                    monto_retiros = 0.00
-                    st.info("$0.00")
-            
-            with cols[5]:
-                # Calcular saldo final
-                saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
+                with cols[2]:
+                    # Input para ahorro
+                    monto_ahorro = st.number_input(
+                        "Ahorro",
+                        min_value=0.00,
+                        value=0.00,
+                        format="%.2f",
+                        key=f"ahorro_{id_miembro}",
+                        label_visibility="collapsed"
+                    )
+                    ahorros_data[id_miembro] = monto_ahorro
                 
-                # Mostrar con color según si hay ganancia o pérdida
-                if saldo_final > saldo_inicial:
-                    st.success(f"${saldo_final:,.2f}")
-                elif saldo_final < saldo_inicial:
-                    st.error(f"${saldo_final:,.2f}")
-                else:
-                    st.info(f"${saldo_final:,.2f}")
+                with cols[3]:
+                    # Input para otras actividades
+                    monto_otros = st.number_input(
+                        "Otras actividades",
+                        min_value=0.00,
+                        value=0.00,
+                        format="%.2f",
+                        key=f"otros_{id_miembro}",
+                        label_visibility="collapsed"
+                    )
+                    otros_data[id_miembro] = monto_otros
+                
+                with cols[4]:
+                    # Checkbox para activar retiros
+                    retiro_activado = st.checkbox(
+                        "Activar retiro", 
+                        key=f"retiro_check_{id_miembro}",
+                        value=False
+                    )
+                    
+                    if retiro_activado:
+                        monto_retiros = ahorros_data[id_miembro] + otros_data[id_miembro]
+                        st.error(f"-${monto_retiros:,.2f}")
+                        retiros_data[id_miembro] = monto_retiros
+                    else:
+                        monto_retiros = 0.00
+                        st.info("$0.00")
+                        retiros_data[id_miembro] = 0.00
+                
+                with cols[5]:
+                    # Calcular saldo final
+                    saldo_final = saldos_iniciales[id_miembro] + ahorros_data[id_miembro] + otros_data[id_miembro] - retiros_data[id_miembro]
+                    
+                    # Mostrar con color según si hay ganancia o pérdida
+                    if saldo_final > saldos_iniciales[id_miembro]:
+                        st.success(f"${saldo_final:,.2f}")
+                    elif saldo_final < saldos_iniciales[id_miembro]:
+                        st.error(f"${saldo_final:,.2f}")
+                    else:
+                        st.info(f"${saldo_final:,.2f}")
 
             # Botón de envío
-            enviar = st.form_submit_button("💾 Guardar Ahorro")
+            enviar = st.form_submit_button("💾 Guardar Ahorros")
 
             if enviar:
-                id_m = miembros_dict[miembro_sel]
-                id_r = id_reunion
-
-                # Validación
-                if monto_ahorro == 0 and monto_otros == 0:
-                    st.warning("⚠️ Debes ingresar al menos un monto de ahorro u otras actividades.")
-                else:
-                    try:
-                        # Verificar si ya existe un registro para este miembro en esta reunión
-                        cursor.execute("""
-                            SELECT COUNT(*) FROM Ahorro 
-                            WHERE ID_Miembro = %s AND ID_Reunion = %s
-                        """, (id_m, id_r))
+                try:
+                    registros_guardados = 0
+                    
+                    for id_miembro, nombre_miembro in miembros_presentes:
+                        monto_ahorro = ahorros_data.get(id_miembro, 0)
+                        monto_otros = otros_data.get(id_miembro, 0)
                         
-                        if cursor.fetchone()[0] > 0:
-                            st.warning("⚠️ Ya existe un registro de ahorro para este miembro en esta reunión.")
-                        else:
-                            # Insertar el nuevo registro
+                        # Solo guardar si hay al menos un monto ingresado
+                        if monto_ahorro > 0 or monto_otros > 0:
+                            # Verificar si ya existe un registro para este miembro en esta reunión
                             cursor.execute("""
-                                INSERT INTO Ahorro (ID_Miembro, ID_Reunion, fecha, monto_ahorro, monto_otros)
-                                VALUES (%s, %s, %s, %s, %s)
-                            """, (id_m, id_r, fecha_ahorro, monto_ahorro, monto_otros))
+                                SELECT COUNT(*) FROM Ahorro 
+                                WHERE ID_Miembro = %s AND ID_Reunion = %s
+                            """, (id_miembro, id_reunion))
+                            
+                            if cursor.fetchone()[0] == 0:
+                                # Insertar el nuevo registro
+                                cursor.execute("""
+                                    INSERT INTO Ahorro (ID_Miembro, ID_Reunion, fecha, monto_ahorro, monto_otros)
+                                    VALUES (%s, %s, %s, %s, %s)
+                                """, (id_miembro, id_reunion, fecha_ahorro, monto_ahorro, monto_otros))
+                                registros_guardados += 1
 
-                            con.commit()
-                            st.success("✅ Ahorro registrado correctamente.")
-                            st.rerun()
+                    con.commit()
+                    
+                    if registros_guardados > 0:
+                        st.success(f"✅ Se guardaron {registros_guardados} registros de ahorro correctamente.")
+                    else:
+                        st.info("ℹ️ No se guardaron registros nuevos (todos los miembros ya tenían registro o no se ingresaron montos).")
+                    
+                    st.rerun()
 
-                    except Exception as e:
-                        con.rollback()
-                        st.error(f"❌ Error al registrar el ahorro: {e}")
+                except Exception as e:
+                    con.rollback()
+                    st.error(f"❌ Error al registrar los ahorros: {e}")
 
         # -------------------------------------
-        # HISTORIAL DE AHORROS REGISTRADOS CON SALDOS ACUMULATIVOS
+        # HISTORIAL DE AHORROS REGISTRADOS
         # -------------------------------------
         st.markdown("---")
         st.subheader("📋 Historial de Ahorros")
@@ -228,8 +230,9 @@ def mostrar_ahorros():
             FROM SaldosAcumulados sa
             JOIN Miembro m ON sa.ID_Miembro = m.ID_Miembro
             JOIN Reunion r ON sa.ID_Reunion = r.ID_Reunion
+            WHERE r.ID_Reunion = %s
             ORDER BY m.nombre, sa.fecha, sa.ID_Ahorro
-        """)
+        """, (id_reunion,))
         
         historial = cursor.fetchall()
         
@@ -246,35 +249,8 @@ def mostrar_ahorros():
             
             st.dataframe(df.drop("ID", axis=1), use_container_width=True)
             
-            # Mostrar también un resumen por miembro
-            st.subheader("📊 Resumen por Miembro")
-            cursor.execute("""
-                SELECT 
-                    m.nombre,
-                    COUNT(a.ID_Ahorro) as total_registros,
-                    COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
-                    COALESCE(SUM(a.monto_otros), 0) as total_otros,
-                    COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) as saldo_total
-                FROM Miembro m
-                LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
-                GROUP BY m.ID_Miembro, m.nombre
-                ORDER BY m.nombre
-            """)
-            
-            resumen = cursor.fetchall()
-            df_resumen = pd.DataFrame(resumen, columns=[
-                "Miembro", "Total Registros", "Total Ahorros", "Total Otros", "Saldo Total"
-            ])
-            
-            # Formatear columnas numéricas del resumen
-            numeric_cols_resumen = ["Total Ahorros", "Total Otros", "Saldo Total"]
-            for col in numeric_cols_resumen:
-                df_resumen[col] = df_resumen[col].apply(lambda x: f"${x:,.2f}")
-            
-            st.dataframe(df_resumen, use_container_width=True)
-            
         else:
-            st.info("📝 No hay registros de ahorros aún.")
+            st.info("📝 No hay registros de ahorros para esta reunión.")
 
     except Exception as e:
         st.error(f"❌ Error general: {e}")
