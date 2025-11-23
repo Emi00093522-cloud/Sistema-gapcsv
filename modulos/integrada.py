@@ -1,9 +1,10 @@
 import streamlit as st
 from modulos.reuniones import mostrar_reuniones
-from modulos.prestamo import mostrar_prestamo
+
 from modulos.asistencia import mostrar_asistencia
 from modulos.ahorros import mostrar_ahorros
 from modulos.pagoprestamo import mostrar_pago_prestamo  # ✅ Nuevo módulo agregado
+from modulos.prestamo import mostrar_prestamo
 
 def mostrar_gestion_integrada():
     """
