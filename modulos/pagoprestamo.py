@@ -3,6 +3,18 @@ from modulos.config.conexion import obtener_conexion
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
+from modulos.consultas_db import obtener_pagos_prestamos
+from modulos.permisos import verificar_permisos
+
+def mostrar_pagos():
+    # Necesitas crear esta función en consultas_db.py
+    pagos = obtener_pagos_prestamos()  # ✅ Filtrado automático
+    # ... tu código actual
+
+
+
+
+
 def obtener_reunion_mas_cercana_fin_mes(con, id_grupo, fecha_referencia, mes_offset=0):
     """
     Retorna la fecha de la reunión más cercana al fin del mes objetivo.
