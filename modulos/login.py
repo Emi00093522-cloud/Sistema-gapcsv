@@ -1,6 +1,7 @@
 import streamlit as st
 import hashlib
 from modulos.config.conexion import obtener_conexion
+from modulos.grupos import obtener_id_grupo_por_usuario
 
 def verificar_usuario(usuario, contrasena):
     """Verifica usuario y contraseña en la base de datos."""
@@ -168,6 +169,21 @@ def login():
                 st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
                 st.session_state["cargo_de_usuario"] = datos_usuario["cargo"]
                 st.session_state["id_usuario"] = datos_usuario["ID_Usuario"]
+                id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
+                st.session_state["id_grupo"] = id_grupo
+                from modulos.permisos import obtener_permisos_usuario
+                permisos = obtener_permisos_usuario(
+                    datos_usuario["ID_Usuario"],
+                    datos_usuario["tipo_usuario"],
+                    datos_usuario["cargo"]
+                )
+                st.session_state["permisos_usuario"] = permisos
+                st.success(
+                    f"Bienvenido, {datos_usuario['Usuario']} 👋 "
+                    f"(Cargo: {datos_usuario['cargo']})"
+                )    
+
+                st.rerun()
                 
                 # 🔥 OBTENER Y GUARDAR PERMISOS (LO NUEVO)
                 from modulos.permisos import obtener_permisos_usuario
