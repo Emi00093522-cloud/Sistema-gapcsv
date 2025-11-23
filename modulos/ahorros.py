@@ -91,6 +91,40 @@ def obtener_total_ahorros_ciclo():
         st.error(f"❌ Error calculando total de ahorros: {e}")
         return 0.00
 
+def obtener_total_acumulado_miembro(id_miembro, fecha_reunion_actual):
+    """
+    Obtiene la sumatoria de todos los ahorros y otros de un miembro
+    hasta la reunión anterior a la actual
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        
+        # Obtener sumatoria de TODOS los ahorros históricos
+        cursor.execute("""
+            SELECT 
+                COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
+                COALESCE(SUM(a.monto_otros), 0) as total_otros
+            FROM Ahorro a
+            JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
+            WHERE a.ID_Miembro = %s AND r.fecha < %s
+        """, (id_miembro, fecha_reunion_actual))
+        
+        resultado = cursor.fetchone()
+        total_ahorros = float(resultado[0]) if resultado else 0.00
+        total_otros = float(resultado[1]) if resultado else 0.00
+        
+        return total_ahorros, total_otros
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo total acumulado: {e}")
+        return 0.00, 0.00
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'con' in locals():
+            con.close()
+
 def mostrar_ahorros():
     st.header("💰 Control de Ahorros")
 
@@ -163,12 +197,12 @@ def mostrar_ahorros():
             with cols_titulos[4]:
                 st.markdown("**Retiros**")
 
-
             # Diccionarios para almacenar los datos de cada miembro
             ahorros_data = {}
             otros_data = {}
             retiros_data = {}
             saldos_iniciales = {}
+            retiros_activados = {}
 
             # FILAS PARA CADA MIEMBRO - UNA FILA POR MIEMBRO
             for id_miembro, nombre_miembro in miembros_presentes:
@@ -231,19 +265,22 @@ def mostrar_ahorros():
                         key=f"retiro_check_{id_miembro}",
                         value=False
                     )
+                    retiros_activados[id_miembro] = retiro_activado
                     
                     if retiro_activado:
-                        # Input para el monto de retiro - INICIA EN 0
-                        monto_retiros = st.number_input(
-                            "Monto retiro",
-                            min_value=0.00,
-                            max_value=float(saldos_iniciales[id_miembro] + ahorros_data[id_miembro] + otros_data[id_miembro]),
-                            value=0.00,
-                            format="%.2f",
-                            step=0.01,
-                            key=f"retiro_{id_miembro}",
-                            label_visibility="collapsed"
-                        )
+                        # CALCULAR EL RETIRO AUTOMÁTICAMENTE según la nueva lógica
+                        total_ahorros_acumulados, total_otros_acumulados = obtener_total_acumulado_miembro(id_miembro, fecha_reunion_actual)
+                        
+                        # Sumar los ahorros y otros de ESTA reunión también
+                        total_ahorros_acumulados += monto_ahorro
+                        total_otros_acumulados += monto_otros
+                        
+                        # Calcular retiro: Saldo Inicial + Total Ahorros - Total Otros
+                        monto_retiros = saldo_inicial + total_ahorros_acumulados - total_otros_acumulados
+                        
+                        # Asegurarse de que no sea negativo
+                        monto_retiros = max(0.00, monto_retiros)
+                        
                         st.error(f"**-${monto_retiros:,.2f}**")
                         retiros_data[id_miembro] = monto_retiros
                     else:
@@ -266,9 +303,15 @@ def mostrar_ahorros():
                         monto_otros = otros_data.get(id_miembro, 0)
                         monto_retiros = retiros_data.get(id_miembro, 0)
                         saldo_inicial = saldos_iniciales.get(id_miembro, 0)
+                        retiro_activado = retiros_activados.get(id_miembro, False)
                         
-                        # CALCULAR EL SALDO FINAL SOLO AL GUARDAR
-                        saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
+                        # CALCULAR EL SALDO FINAL
+                        if retiro_activado:
+                            # Cuando hay retiro activado, el saldo final es 0 (retira todo)
+                            saldo_final = 0.00
+                        else:
+                            # Sin retiro: cálculo normal
+                            saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
                         
                         # Solo guardar si hay al menos un monto ingresado o retiro
                         if monto_ahorro > 0 or monto_otros > 0 or monto_retiros > 0:
