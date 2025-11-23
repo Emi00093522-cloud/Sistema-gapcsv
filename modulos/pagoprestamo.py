@@ -412,7 +412,7 @@ def mostrar_pago_prestamo():
                 ok = generar_cronograma_pagos(id_prestamo, con, id_grupo)
                 if ok:
                     st.success("✅ Cronograma generado usando los valores guardados en Prestamo.")
-                    st.experimental_rerun()
+                    st.rerun()  # CORREGIDO: experimental_rerun() -> rerun()
                 else:
                     st.error("❌ No se pudo generar el cronograma. Verifica que 'monto_total_pagar' y 'plazo' estén guardados.")
             cursor.close()
@@ -512,7 +512,7 @@ def mostrar_pago_prestamo():
                             """, (id_prestamo, id_reunion, fecha_pago, 0, 0, float(monto_cuota)))
                             con.commit()
                             st.success("✅ Pago completo registrado.")
-                            st.experimental_rerun()
+                            st.rerun()  # CORREGIDO: experimental_rerun() -> rerun()
                         else:
                             st.error(f"❌ {msg}")
                 else:
@@ -551,7 +551,7 @@ def mostrar_pago_prestamo():
                                 """, (id_prestamo, id_reunion, fecha_pago_par, 0, 0, float(monto_par)))
                                 con.commit()
                                 st.success("✅ Pago parcial registrado y cronograma actualizado si aplica.")
-                                st.experimental_rerun()
+                                st.rerun()  # CORREGIDO: experimental_rerun() -> rerun()
                             else:
                                 st.error(f"❌ {msg}")
                 else:
