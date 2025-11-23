@@ -44,19 +44,16 @@ def obtener_reunion_mas_cercana_fin_mes(con, id_grupo, fecha_referencia, mes_off
         return reunion[1]
     return fecha_objetivo
 
-# -----------------------------
-# Generar cronograma (USANDO SOLO DATOS REGISTRADOS)
-# -----------------------------
+
 def generar_cronograma_pagos(id_prestamo, con):
     """
-    Genera cronograma usando EXCLUSIVAMENTE los campos guardados en Prestamo:
-      - monto
-      - total_interes (EN MONEDA $ tal como lo guardó el módulo de préstamo)
-      - monto_total_pagar (EN MONEDA $)
-      - cuota_mensual (EN MONEDA $, opcional)
-      - plazo (meses)
-      - fecha_desembolso
-    No se recalculan tasas ni porcentajes en esta función.
+    Genera cronograma USANDO EXCLUSIVAMENTE los campos guardados en Prestamo:
+    - monto
+    - total_interes (EN MONEDA $ O NULL)
+    - monto_total_pagar (EN $)
+    - cuota_mensual (EN $) opcional
+    - plazo
+    - fecha_desembolso
     """
     cursor = con.cursor(dictionary=True)
     cursor.execute("""
@@ -70,15 +67,13 @@ def generar_cronograma_pagos(id_prestamo, con):
         cursor.close()
         return False
 
-    # Solo leer lo que está guardado
     monto = p.get('monto')
-    total_interes = p.get('total_interes')           # se asume EN $ (no %)
-    monto_total_pagar = p.get('monto_total_pagar')   # se asume EN $
-    cuota_mensual_reg = p.get('cuota_mensual')       # puede ser None si no existe
+    total_interes = p.get('total_interes') or 0
+    monto_total_pagar = p.get('monto_total_pagar')
+    cuota_mensual_reg = p.get('cuota_mensual')   # puede ser None
     plazo = p.get('plazo')
     fecha_desembolso = p.get('fecha_desembolso')
 
-    # Validaciones mínimas
     if monto is None or monto_total_pagar is None or plazo is None or fecha_desembolso is None:
         st.error("❌ Faltan campos obligatorios en Prestamo: monto / monto_total_pagar / plazo / fecha_desembolso.")
         cursor.close()
@@ -87,40 +82,39 @@ def generar_cronograma_pagos(id_prestamo, con):
     # Borrar cronograma anterior
     cursor.execute("DELETE FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
 
-    # Usar Decimal para precisión
+    # Preparar Decimals
     monto_d = Decimal(str(monto)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     monto_total_d = Decimal(str(monto_total_pagar)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    total_interes_d = Decimal(str(total_interes or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total_interes_d = Decimal(str(total_interes)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     plazo_i = int(plazo)
 
-    # Determinar total por cuota:
-    # - si cuota_mensual está guardada, la usamos como total_programado de cada cuota (ajuste última)
-    # - si no, dividimos monto_total_pagar entre plazo
+    # Determinar total por cuota (si existe cuota_mensual registrada, la usamos)
     if cuota_mensual_reg is not None:
         cuota_d = Decimal(str(cuota_mensual_reg)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        # total de todas las cuotas (aprox) = cuota_d * plazo_i (ultima se ajusta)
     else:
         cuota_d = (monto_total_d / plazo_i).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    # Para distribuir interés y capital por cuota: si total_interes está guardado, distribuimos interes_por_cuota = total_interes / plazo
-    # y capital_por_cuota = cuota_d - interes_por_cuota (última cuota ajusta con saldos)
+    # Determinar interés por cuota (si total_interes fue guardado en $)
     interes_por_cuota = (total_interes_d / plazo_i).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if total_interes_d > 0 else Decimal("0.00")
+
     saldo_capital = monto_d
     saldo_interes = total_interes_d
-
     fecha_primer_pago = fecha_desembolso + timedelta(days=30)
 
     for i in range(1, plazo_i + 1):
         if i == plazo_i:
-            # última cuota toma los saldos restantes
+            # última cuota toma saldos restantes
             interes_cuota = saldo_interes
-            total_cuota = cuota_d if cuota_mensual_reg is not None else (saldo_capital + saldo_interes)
-            # capital = total - interes
-            capital_cuota = (Decimal(str(total_cuota)) - Decimal(str(interes_cuota))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if cuota_mensual_reg is not None:
+                total_cuota = cuota_d
+                capital_cuota = (total_cuota - interes_cuota).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            else:
+                total_cuota = (saldo_capital + saldo_interes).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                capital_cuota = saldo_capital
         else:
             interes_cuota = interes_por_cuota
             total_cuota = cuota_d
-            capital_cuota = (Decimal(str(total_cuota)) - interes_cuota).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            capital_cuota = (total_cuota - interes_cuota).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         fecha_pago = fecha_primer_pago + timedelta(days=30*(i-1))
 
@@ -138,9 +132,7 @@ def generar_cronograma_pagos(id_prestamo, con):
     cursor.close()
     return True
 
-# -----------------------------
-# Aplicar pago (sin cambios)
-# -----------------------------
+
 def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, numero_cuota=None):
     cursor = con.cursor()
     if tipo_pago == "completo" and numero_cuota:
@@ -247,9 +239,7 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, nu
     cursor.close()
     return True, f"Pago {tipo_pago} aplicado correctamente"
 
-# -----------------------------
-# Mostrar pago préstamo (SOLO LLAMAR DATOS REGISTRADOS)
-# -----------------------------
+
 def mostrar_pago_prestamo():
     st.header("💵 Sistema de Pagos de Préstamo")
     if 'reunion_actual' not in st.session_state:
@@ -304,9 +294,9 @@ def mostrar_pago_prestamo():
 
         # === MOSTRAR SOLO LOS CAMPOS REGISTRADOS (SIN NINGÚN CÁLCULO) ===
         monto = prestamo.get('monto')
-        total_interes = prestamo.get('total_interes')         # INTERÉS TOTAL GUARDADO (EN $)
+        total_interes = prestamo.get('total_interes')         # INTERÉS TOTAL GUARDADO (EN $ o 0)
         monto_total_pagar = prestamo.get('monto_total_pagar')
-        cuota_mensual = prestamo.get('cuota_mensual')         # puede ser None (si no existe la columna)
+        cuota_mensual = prestamo.get('cuota_mensual')         # puede ser None (si no se guardó)
         plazo = prestamo.get('plazo')
         fecha_desembolso = prestamo.get('fecha_desembolso')
         proposito = prestamo.get('proposito')
@@ -329,11 +319,11 @@ def mostrar_pago_prestamo():
             if cuota_mensual is not None:
                 st.write(f"• **Cuota mensual (registrada):** ${cuota_mensual:,.2f}")
             else:
-                st.write("• **Cuota mensual (registrada):** (no existe columna en Prestamo)")
+                st.write("• **Cuota mensual (registrada):** (no existe columna o no fue guardada)")
 
         st.markdown("---")
 
-        # Si no hay cronograma, dar opción a generarlo (se usa exclusivamente valores guardados)
+        # Si no hay cronograma, ofrecer generarlo (usando los valores guardados)
         cursor.execute("SELECT COUNT(*) as c FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
         tiene = cursor.fetchone().get('c', 0) > 0
         if not tiene:
@@ -347,7 +337,7 @@ def mostrar_pago_prestamo():
             cursor.close()
             return
 
-        # Mostrar cuotas (sin modificar)
+        # Mostrar cuotas
         cursor.execute("""
             SELECT numero_cuota, fecha_programada, capital_programado,
                    interes_programado, total_programado, capital_pagado,
@@ -406,9 +396,6 @@ def mostrar_pago_prestamo():
         else:
             st.warning(f"**SALDO PENDIENTE: ${saldo:,.2f}**")
 
-        # Forms de pago (idénticos a tu flujo)
-        # ... mantengo tu lógica original de formularios y llamadas a aplicar_pago_cuota
-        # (omito repetir aquí por brevedad, pero en tu archivo original deja la misma lógica)
         cursor.close()
 
     except Exception as e:
