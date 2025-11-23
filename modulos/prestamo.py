@@ -101,7 +101,7 @@ def mostrar_prestamo():
                 # Interés de un mes
                 interes_mensual = monto * tasa_decimal
 
-                # Interés total
+                # Interés total (EN DÓLARES) - CORREGIDO
                 interes_total = interes_mensual * plazo
 
                 # Total a pagar
@@ -140,13 +140,14 @@ def mostrar_prestamo():
                     try:
                         proposito_val = proposito.strip() if proposito.strip() else None
 
+                        # CORRECCIÓN: Guardar el INTERÉS TOTAL EN DÓLARES, no la tasa
                         cursor.execute("""
                             INSERT INTO Prestamo
                             (ID_Miembro, fecha_desembolso, monto, total_interes,
-                             ID_Estado_prestamo, plazo, proposito)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """, (ID_Miembro, fecha_desembolso, monto, tasa_mensual,
-                              ID_Estado_prestamo, plazo, proposito_val))
+                             ID_Estado_prestamo, plazo, proposito, monto_total_pagar, cuota_mensual)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (ID_Miembro, fecha_desembolso, monto, interes_total,  # ← Aquí va el interés total en $
+                              ID_Estado_prestamo, plazo, proposito_val, monto_total, cuota_mensual))
 
                         con.commit()
 
