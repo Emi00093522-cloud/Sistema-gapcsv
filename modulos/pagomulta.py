@@ -13,9 +13,13 @@ def mostrar_pago_multas():
         cursor.execute("SELECT ID_Grupo, nombre FROM Grupo")
         grupos = cursor.fetchall()
         
-        grupo_seleccionado = st.selectbox("Seleccionar Grupo", 
-                                         options=[g['ID_Grupo'] for g in grupos],
-                                         format_func=lambda x: next((g['nombre'] for g in grupos if g['ID_Grupo'] == x), x))
+        if not grupos:
+            st.warning("No hay grupos registrados.")
+            return
+            
+        grupo_options = {f"{g['nombre']}": g['ID_Grupo'] for g in grupos}
+        grupo_seleccionado_nombre = st.selectbox("Seleccionar Grupo", list(grupo_options.keys()))
+        grupo_seleccionado = grupo_options[grupo_seleccionado_nombre]
         
         if grupo_seleccionado:
             # Obtener multas pendientes del grupo
@@ -43,18 +47,22 @@ def mostrar_pago_multas():
             if multas_pendientes:
                 st.subheader("📋 Multas Pendientes de Pago")
                 
+                total_pendiente = sum(multa['saldo_pendiente'] for multa in multas_pendientes)
+                st.info(f"**Total pendiente por cobrar:** ${total_pendiente:,.2f}")
+                
                 for multa in multas_pendientes:
-                    with st.expander(f"🧾 {multa['nombre_completo']} - ${multa['saldo_pendiente']:,.2f} pendientes"):
-                        col1, col2, col3 = st.columns(3)
+                    with st.expander(f"🧾 {multa['nombre_completo']} - ${multa['saldo_pendiente']:,.2f} pendientes", expanded=False):
+                        col1, col2, col3 = st.columns([2, 2, 1])
                         
                         with col1:
                             st.write(f"**Reunión:** {multa['nombre_reunion']}")
                             st.write(f"**Fecha multa:** {multa['fecha_multa']}")
+                            st.write(f"**Miembro:** {multa['nombre_completo']}")
                         
                         with col2:
                             st.write(f"**Monto total:** ${multa['monto_a_pagar']:,.2f}")
                             st.write(f"**Pagado:** ${multa['monto_pagado']:,.2f}")
-                            st.write(f"**Saldo:** ${multa['saldo_pendiente']:,.2f}")
+                            st.write(f"**Saldo pendiente:** ${multa['saldo_pendiente']:,.2f}")
                         
                         with col3:
                             monto_pago = st.number_input(
@@ -76,14 +84,6 @@ def mostrar_pago_multas():
                                         SET monto_pagado = %s 
                                         WHERE ID_Miembro = %s AND ID_Multa = %s
                                     """, (nuevo_monto_pagado, multa['ID_Miembro'], multa['ID_Multa']))
-                                    
-                                    # Registrar el pago en una tabla de historial (opcional)
-                                    cursor.execute("""
-                                        INSERT INTO PagoMulta 
-                                        (ID_Miembro, ID_Multa, monto_pagado, fecha_pago, ID_Reunion_pago) 
-                                        VALUES (%s, %s, %s, %s, %s)
-                                    """, (multa['ID_Miembro'], multa['ID_Multa'], monto_pago, 
-                                          datetime.now().date(), st.session_state.get('reunion_actual', {}).get('id_reunion')))
                                     
                                     con.commit()
                                     st.success(f"✅ Pago de ${monto_pago:,.2f} registrado para {multa['nombre_completo']}")
