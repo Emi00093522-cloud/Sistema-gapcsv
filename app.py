@@ -3,7 +3,7 @@ from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
 from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
-from modulos.miembros import mostrar_miembro
+from modulos.miembros import mostrar_miembros
 from modulos.asistencia import mostrar_asistencia
 from modulos.integrada import mostrar_gestion_integrada
 from modulos.grupos import mostrar_grupos
