@@ -61,7 +61,7 @@ def mostrar_multas():
 
         st.success(f"💰 **Monto de multa por inasistencia:** ${monto_multa:,.2f}")
 
-        # Cargar TODOS los miembros del grupo y su estado de asistencia
+        # Cargar TODOS los miembros del grupo y su estado de asistencia - CORREGIDO
         cursor.execute("""
             SELECT 
                 m.ID_Miembro, 
@@ -113,7 +113,7 @@ def mostrar_multas():
             with cols[0]:
                 st.write(f"{miembro['nombre_completo']}")
             
-            # Verificar si ya existe multa para este miembro
+            # Verificar si ya existe multa para este miembro - CORREGIDO
             cursor.execute("""
                 SELECT ID_Multa, ID_Estado_multa 
                 FROM Multa 
@@ -128,10 +128,6 @@ def mostrar_multas():
             with cols[2]:
                 if multa_existente:
                     # Si ya existe multa, mostrar estado
-                    cursor.execute("SELECT estado_multa FROM Estado_multa WHERE ID_Estado_multa = %s", 
-                                 (multa_existente['ID_Estado_multa'],))
-                    estado_info = cursor.fetchone()
-                    
                     if multa_existente['ID_Estado_multa'] == 2:  # Pagada
                         st.write("✅ Pagada")
                     else:
@@ -174,7 +170,7 @@ def mostrar_multas():
                                 # Determinar el estado basado en el checkbox
                                 estado_multa = 2 if multa['registrar'] else 1  # 2=Pagada, 1=Pendiente
                                 
-                                # Insertar nueva multa
+                                # Insertar nueva multa - CORREGIDO
                                 cursor.execute("""
                                     INSERT INTO Multa 
                                     (ID_Reunion, ID_Miembro, ID_Reglamento, fecha, ID_Estado_multa) 
@@ -206,7 +202,7 @@ def mostrar_multas():
         # SECCIÓN: GESTIÓN DE MULTAS EXISTENTES
         st.subheader("📋 Gestión de Multas Registradas")
 
-        # Obtener todas las multas de esta reunión
+        # Obtener todas las multas de esta reunión - CORREGIDO
         cursor.execute("""
             SELECT 
                 mu.ID_Multa,
