@@ -52,12 +52,13 @@ def mostrar_asistencia():
             'nombre_reunion': reuniones_dict[id_reunion]
         }
 
-        # 2. Cargar SOLO miembros ACTIVOS del grupo
+        # 2. Cargar SOLO miembros ACTIVOS del grupo (usando JOIN con la tabla de estados)
         cursor.execute("""
-            SELECT ID_Miembro, nombre
-            FROM Miembro
-            WHERE ID_Grupo = %s AND estado = 'ACTIVO'
-            ORDER BY nombre
+            SELECT m.ID_Miembro, m.nombre
+            FROM Miembro m
+            INNER JOIN Estado e ON m.ID_Estado = e.ID_Estado
+            WHERE m.ID_Grupo = %s AND e.nombre_estado = 'ACTIVO'
+            ORDER BY m.nombre
         """, (id_grupo_reunion,))
         miembros = cursor.fetchall()
 
