@@ -1,6 +1,13 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 
+from modulos.consultas_db import obtener_asistencia
+from modulos.permisos import verificar_permisos
+
+def mostrar_asistencia():
+    ahorros = obtener_asistencia()  # ✅ Filtrado automático por permisos
+    # ... tu código actual
+
 def mostrar_asistencia():
     st.header("📝 Control de asistencia por reunión")
 
