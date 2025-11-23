@@ -63,18 +63,17 @@ def obtener_reunion_fin_de_mes(con, id_grupo, fecha_base, mes_offset=0):
     # Si no hay reuniones programadas, usar fin de mes
     return fin_mes
 
-def generar_cronograma_pagos(id_prestamo, con):
+def generar_cronograma_pagos(id_prestamo, con, id_grupo):
     """Genera el cronograma de pagos usando EXACTAMENTE los datos registrados del préstamo"""
     cursor = con.cursor()
     
-    # Obtener datos REALES del préstamo - USANDO LAS COLUMNAS EXACTAS DE TU TABLA
+    # Obtener datos REALES del préstamo - USANDO SOLO LAS COLUMNAS QUE EXISTEN
     cursor.execute("""
         SELECT 
             p.monto,
             p.total_interes,
             p.plazo,
-            p.fecha_desembolso,
-            p.ID_Grupo
+            p.fecha_desembolso
         FROM Prestamo p
         WHERE p.ID_Prestamo = %s
     """, (id_prestamo,))
@@ -84,8 +83,8 @@ def generar_cronograma_pagos(id_prestamo, con):
         st.error("❌ No se encontró el préstamo")
         return False
     
-    # Desempaquetar los datos REALES de tu tabla
-    monto, tasa_interes, plazo, fecha_desembolso, id_grupo = prestamo
+    # Desempaquetar los datos REALES
+    monto, tasa_interes, plazo, fecha_desembolso = prestamo
     
     # Convertir a Decimal para precisión
     monto = Decimal(str(monto))
@@ -164,7 +163,7 @@ def mostrar_pago_prestamo():
         # Obtener IDs de miembros presentes para filtrar préstamos
         ids_miembros_presentes = [m[0] for m in miembros_presentes]
         
-        # Cargar préstamos activos SOLO de miembros presentes - USANDO LAS COLUMNAS EXACTAS
+        # Cargar préstamos activos SOLO de miembros presentes - USANDO SOLO COLUMNAS EXISTENTES
         if ids_miembros_presentes:
             placeholders = ','.join(['%s'] * len(ids_miembros_presentes))
             cursor.execute(f"""
@@ -176,8 +175,7 @@ def mostrar_pago_prestamo():
                     p.plazo,
                     p.fecha_desembolso,
                     m.nombre, 
-                    p.proposito,
-                    p.ID_Grupo
+                    p.proposito
                 FROM Prestamo p
                 JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
                 WHERE p.ID_Estado_prestamo != 3  -- Excluir cancelados
@@ -193,8 +191,7 @@ def mostrar_pago_prestamo():
                     p.plazo,
                     p.fecha_desembolso,
                     m.nombre, 
-                    p.proposito,
-                    p.ID_Grupo
+                    p.proposito
                 FROM Prestamo p
                 JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
                 WHERE p.ID_Estado_prestamo != 3
@@ -222,7 +219,7 @@ def mostrar_pago_prestamo():
         id_prestamo = prestamos_dict[prestamo_sel]
         prestamo_info = [p for p in prestamos if p[0] == id_prestamo][0]
         
-        # ✅ USAR DATOS REALES DEL PRÉSTAMO - COLUMNAS EXACTAS DE TU TABLA
+        # ✅ USAR DATOS REALES DEL PRÉSTAMO - SOLO COLUMNAS QUE EXISTEN
         monto = prestamo_info[2]
         tasa_interes = prestamo_info[3]
         plazo = prestamo_info[4]
@@ -268,7 +265,7 @@ def mostrar_pago_prestamo():
         if not tiene_cronograma:
             st.info("📅 Este préstamo no tiene cronograma de pagos generado.")
             if st.button("🔄 Generar Plan de Pagos", type="primary"):
-                if generar_cronograma_pagos(id_prestamo, con):
+                if generar_cronograma_pagos(id_prestamo, con, id_grupo):
                     st.success("✅ Plan de pagos generado correctamente!")
                     st.rerun()
                 else:
@@ -343,7 +340,7 @@ def mostrar_pago_prestamo():
         else:
             st.warning(f"**SALDO PENDIENTE: ${saldo_pendiente:,.2f}**")
         
-        # Sección de pagos (simplificada)
+        # Sección de pagos
         st.subheader("💰 REGISTRAR PAGO")
         st.markdown("---")
         
@@ -482,4 +479,3 @@ def mostrar_pago_prestamo():
             cursor.close()
         if "con" in locals():
             con.close()
-        
