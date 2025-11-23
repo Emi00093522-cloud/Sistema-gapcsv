@@ -3,6 +3,93 @@ from modulos.config.conexion import obtener_conexion
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
+def obtener_prestamos_grupo():
+    """
+    Función para el módulo de cierre de ciclo
+    Retorna todos los pagos de préstamos del grupo actual para consolidar en el cierre
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        # Obtener el ID del grupo actual desde session_state
+        if 'reunion_actual' not in st.session_state:
+            st.error("No hay reunión activa seleccionada")
+            return []
+        
+        id_grupo = st.session_state.reunion_actual['id_grupo']
+        
+        # Consulta para obtener todos los pagos de préstamos del grupo
+        cursor.execute("""
+            SELECT 
+                pp.ID_PagoPrestamo,
+                pp.ID_Prestamo,
+                pp.ID_Reunion,
+                pp.fecha_pago,
+                pp.monto_capital,
+                pp.monto_interes,
+                pp.total_cancelado,
+                p.ID_Miembro,
+                m.nombre as nombre_miembro,
+                prest.monto as monto_prestamo,
+                prest.proposito
+            FROM Pago_prestamo pp
+            JOIN Prestamo prest ON pp.ID_Prestamo = prest.ID_Prestamo
+            JOIN Miembro m ON prest.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s
+            ORDER BY pp.fecha_pago
+        """, (id_grupo,))
+        
+        prestamos_data = cursor.fetchall()
+        
+        # Convertir a lista de diccionarios
+        resultado = []
+        for pago in prestamos_data:
+            resultado.append({
+                'id_pago_prestamo': pago['ID_PagoPrestamo'],
+                'id_prestamo': pago['ID_Prestamo'],
+                'id_reunion': pago['ID_Reunion'],
+                'fecha_pago': pago['fecha_pago'],
+                'monto_capital': float(pago['monto_capital'] or 0),
+                'monto_interes': float(pago['monto_interes'] or 0),
+                'total_cancelado': float(pago['total_cancelado'] or 0),
+                'id_miembro': pago['ID_Miembro'],
+                'nombre_miembro': pago['nombre_miembro'],
+                'monto_prestamo': float(pago['monto_prestamo'] or 0),
+                'proposito': pago['proposito']
+            })
+        
+        return resultado
+        
+    except Exception as e:
+        st.error(f"❌ Error en obtener_prestamos_grupo: {e}")
+        return []
+    
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'con' in locals():
+            con.close()
+
+def obtener_total_prestamos_ciclo():
+    """
+    Retorna la suma total de todos los pagos de préstamos del grupo
+    Incluye tanto capital como intereses pagados
+    """
+    try:
+        prestamos_data = obtener_prestamos_grupo()
+        
+        if not prestamos_data:
+            return 0.00
+        
+        # Sumar todos los totales cancelados (capital + intereses)
+        total_prestamos = sum(item['total_cancelado'] for item in prestamos_data)
+        return total_prestamos
+        
+    except Exception as e:
+        st.error(f"❌ Error calculando total de préstamos: {e}")
+        return 0.00
+
 def obtener_reunion_mas_cercana_fin_mes(con, id_grupo, fecha_referencia, mes_offset=0):
     """
     Retorna la fecha de la reunión más cercana al fin del mes objetivo.
@@ -334,7 +421,7 @@ def mostrar_pago_prestamo():
         # Leer préstamos solo de miembros presentes; SOLO campos de la tabla Prestamo (sin columnas que no existan)
         cursor.execute(f"""
             SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, p.monto_total_pagar,
-                   p.cuota_mensual, p.plazo, p.fecha_desembolso, m.nombre as miembro_nombre, p.proposito
+               p.cuota_mensual, p.plazo, p.fecha_desembolso, m.nombre as miembro_nombre, p.proposito
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE p.ID_Estado_prestamo != 3
