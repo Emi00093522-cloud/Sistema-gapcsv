@@ -2,12 +2,12 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-from modulos.consultas_db import obtener_prestamos
-from modulos.permisos import verificar_permisos
+#from modulos.consultas_db import obtener_prestamos
+#from modulos.permisos import verificar_permisos
 
-def mostrar_prestamos():
+#def mostrar_prestamos():
     # Necesitas crear esta función en consultas_db.py
-    prestamos = obtener_prestamos()  # ✅ Filtrado automático
+ #   prestamos = obtener_prestamos()  # ✅ Filtrado automático
     # ... tu código actual
 
 
