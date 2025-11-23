@@ -2,7 +2,19 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime, date
 
-def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
+from modulos.consultas_db import obtener_grupos
+from modulos.permisos import verificar_permisos
+
+def mostrar_grupos():
+    grupos = obtener_grupos()  # ✅ Ya existe en consultas_db.py
+    # ... tu código actual
+
+# Para crear nuevos grupos
+if verificar_permisos("ver_todo") or verificar_permisos("registrar_distritos"):
+    st.button("Crear Nuevo Grupo")
+
+
+#def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
     st.header("👥 Registrar Grupo")
 
     # Estado para controlar el mensaje de éxito
