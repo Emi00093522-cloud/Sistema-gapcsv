@@ -1,151 +1,168 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
-from modulos.permisos import aplicar_filtros_usuarios
 
-# CONSULTAS PARA GRUPOS
-def obtener_grupos():
-    """Obtiene todos los grupos con filtros según permisos"""
-    if not st.session_state.get("sesion_iniciada", False):
-        return []
-    
-    permisos = st.session_state.get("permisos_usuario", {})
-    
-    query = """
-        SELECT g.*, d.Nombre as Distrito, u.Usuario as Responsable
-        FROM Grupos g
-        LEFT JOIN Distritos d ON g.ID_Distrito = d.ID_Distrito
-        LEFT JOIN Usuario u ON g.ID_Usuario_Responsable = u.ID_Usuario
-    """
-    
-    query_filtrada, params = aplicar_filtros_usuarios(query, permisos)
-    query_filtrada += " ORDER BY g.Nombre_Grupo"
-    
-    con = obtener_conexion()
-    if not con:
-        return []
-    
-    try:
-        cursor = con.cursor(dictionary=True)
-        cursor.execute(query_filtrada, params)
-        return cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error al obtener grupos: {e}")
-        return []
-    finally:
-        con.close()
+def mostrar_asistencia():
+    st.header("📝 Control de asistencia por reunión")
 
-# CONSULTAS PARA REGISTROS/ACTIVIDADES
-def obtener_registros_actividades():
-    """Obtiene registros de actividades con filtros según permisos"""
-    if not st.session_state.get("sesion_iniciada", False):
-        return []
-    
-    permisos = st.session_state.get("permisos_usuario", {})
-    
-    query = """
-        SELECT ra.*, u.Usuario as Registrado_Por, g.Nombre_Grupo
-        FROM Registros_Actividades ra
-        LEFT JOIN Usuario u ON ra.ID_Usuario_Registro = u.ID_Usuario
-        LEFT JOIN Grupos g ON ra.ID_Grupo = g.ID_Grupo
-    """
-    
-    query_filtrada, params = aplicar_filtros_usuarios(query, permisos)
-    query_filtrada += " ORDER BY ra.Fecha_Registro DESC"
-    
-    con = obtener_conexion()
-    if not con:
-        return []
-    
     try:
-        cursor = con.cursor(dictionary=True)
-        cursor.execute(query_filtrada, params)
-        return cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error al obtener registros: {e}")
-        return []
-    finally:
-        con.close()
+        con = obtener_conexion()
+        cursor = con.cursor()
 
-# CONSULTAS PARA DISTRITOS
-def obtener_distritos():
-    """Obtiene todos los distritos (todos los usuarios pueden ver)"""
-    query = "SELECT * FROM Distritos ORDER BY Nombre"
-    
-    con = obtener_conexion()
-    if not con:
-        return []
-    
-    try:
-        cursor = con.cursor(dictionary=True)
-        cursor.execute(query)
-        return cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error al obtener distritos: {e}")
-        return []
-    finally:
-        con.close()
+        # 1. Cargar reuniones
+        cursor.execute("""
+            SELECT ID_Reunion, lugar, fecha, ID_Grupo
+            FROM Reunion
+        """)
+        reuniones = cursor.fetchall()
 
-# CONSULTAS PARA MIEMBROS
-def obtener_miembros():
-    """Obtiene miembros con filtros según permisos"""
-    if not st.session_state.get("sesion_iniciada", False):
-        return []
-    
-    permisos = st.session_state.get("permisos_usuario", {})
-    
-    query = """
-        SELECT m.*, g.Nombre_Grupo, u.Usuario as Registrado_Por
-        FROM Miembros m
-        LEFT JOIN Grupos g ON m.ID_Grupo = g.ID_Grupo
-        LEFT JOIN Usuario u ON m.ID_Usuario_Registro = u.ID_Usuario
-    """
-    
-    query_filtrada, params = aplicar_filtros_usuarios(query, permisos)
-    query_filtrada += " ORDER BY m.Nombre"
-    
-    con = obtener_conexion()
-    if not con:
-        return []
-    
-    try:
-        cursor = con.cursor(dictionary=True)
-        cursor.execute(query_filtrada, params)
-        return cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error al obtener miembros: {e}")
-        return []
-    finally:
-        con.close()
+        if not reuniones:
+            st.warning("⚠ No hay reuniones registradas.")
+            return
 
-# CONSULTAS PARA AHORROS
-def obtener_ahorros():
-    """Obtiene registros de ahorros con filtros según permisos"""
-    if not st.session_state.get("sesion_iniciada", False):
-        return []
-    
-    permisos = st.session_state.get("permisos_usuario", {})
-    
-    query = """
-        SELECT a.*, m.Nombre as Miembro, g.Nombre_Grupo, u.Usuario as Registrado_Por
-        FROM Ahorros a
-        LEFT JOIN Miembros m ON a.ID_Miembro = m.ID_Miembro
-        LEFT JOIN Grupos g ON m.ID_Grupo = g.ID_Grupo
-        LEFT JOIN Usuario u ON a.ID_Usuario_Registro = u.ID_Usuario
-    """
-    
-    query_filtrada, params = aplicar_filtros_usuarios(query, permisos)
-    query_filtrada += " ORDER BY a.Fecha_Registro DESC"
-    
-    con = obtener_conexion()
-    if not con:
-        return []
-    
-    try:
-        cursor = con.cursor(dictionary=True)
-        cursor.execute(query_filtrada, params)
-        return cursor.fetchall()
+        reuniones_dict = {
+            r[0]: f"{r[2]} | {r[1]}"
+            for r in reuniones
+        }
+
+        id_reunion = st.selectbox(
+            "Selecciona la reunión",
+            options=list(reuniones_dict.keys()),
+            format_func=lambda x: reuniones_dict[x]
+        )
+
+        # Obtener ID_Grupo asociado
+        id_grupo = next((r[3] for r in reuniones if r[0] == id_reunion), None)
+
+        # GUARDAR EN SESSION_STATE PARA COMPARTIR CON OTROS MÓDULOS
+        st.session_state.reunion_actual = {
+            'id_reunion': id_reunion,
+            'id_grupo': id_grupo,
+            'nombre_reunion': reuniones_dict[id_reunion]
+        }
+
+        # 2. Cargar miembros
+        cursor.execute("""
+            SELECT ID_Miembro, nombre
+            FROM Miembro
+            WHERE ID_Grupo = %s
+            ORDER BY nombre
+        """, (id_grupo,))
+        miembros = cursor.fetchall()
+
+        if not miembros:
+            st.warning("⚠ No hay miembros en este grupo.")
+            return
+
+        # 3. Cargar asistencia previa (incluye justificación)
+        cursor.execute("""
+            SELECT ID_Miembro, asistio, justificacion
+            FROM Miembroxreunion
+            WHERE ID_Reunion = %s
+        """, (id_reunion,))
+        asistencia_previa = {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
+
+        st.subheader("👥 Lista de asistencia")
+
+        checkboxes = {}
+        justificaciones = {}
+
+        with st.form("form_asistencia"):
+            st.write("### Tabla de asistencia")
+
+            for id_miembro, nombre in miembros:
+                asistio_prev, just_prev = asistencia_previa.get(id_miembro, (0, ""))
+
+                col1, col2, col3 = st.columns([2, 1, 3])
+
+                # Nombre
+                col1.write(nombre)
+
+                # ----- MENÚ: SI / NO / JUSTIFICACIÓN -----
+                if asistio_prev == 1:
+                    idx = 0  # SI
+                elif just_prev and asistio_prev == 0:
+                    idx = 2  # JUSTIFICACIÓN
+                else:
+                    idx = 1  # NO
+
+                asistio = col2.selectbox(
+                    "Asistió",
+                    ["SI", "NO", "JUSTIFICACIÓN"],
+                    index=idx,
+                    key=f"asistio_{id_miembro}"
+                )
+
+                # Justificación si NO o JUSTIFICACIÓN
+                justificacion = ""
+                if asistio in ["NO", "JUSTIFICACIÓN"]:
+                    justificacion = col3.text_input(
+                        "Justificación",
+                        value=just_prev or "",
+                        key=f"just_{id_miembro}"
+                    )
+                else:
+                    col3.write("—")
+
+                checkboxes[id_miembro] = 1 if asistio == "SI" else 0
+                justificaciones[id_miembro] = justificacion
+
+            guardar = st.form_submit_button("💾 Guardar asistencia")
+
+        if guardar:
+            try:
+                for id_miembro in checkboxes.keys():
+                    asistio_val = checkboxes[id_miembro]
+                    just_val = justificaciones[id_miembro] if asistio_val == 0 else ""
+
+                    # ¿Existe ya?
+                    cursor.execute("""
+                        SELECT ID_MiembroxReunion
+                        FROM Miembroxreunion
+                        WHERE ID_Miembro = %s AND ID_Reunion = %s
+                        LIMIT 1
+                    """, (id_miembro, id_reunion))
+                    existe = cursor.fetchone()
+
+                    if existe:
+                        cursor.execute("""
+                            UPDATE Miembroxreunion
+                            SET asistio = %s, justificacion = %s, fecha_registro = CURRENT_TIMESTAMP
+                            WHERE ID_Miembro = %s AND ID_Reunion = %s
+                        """, (asistio_val, just_val, id_miembro, id_reunion))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO Miembroxreunion (ID_Miembro, ID_Reunion, asistio, justificacion, fecha_registro)
+                            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        """, (id_miembro, id_reunion, asistio_val, just_val))
+
+                con.commit()
+
+                # Contar presentes
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM Miembroxreunion
+                    WHERE ID_Reunion = %s AND asistio = 1
+                """, (id_reunion,))
+                total_presentes = cursor.fetchone()[0]
+
+                cursor.execute("""
+                    UPDATE Reunion
+                    SET total_presentes = %s
+                    WHERE ID_Reunion = %s
+                """, (total_presentes, id_reunion))
+                con.commit()
+
+                st.success(f"✅ Asistencia guardada. Presentes: {total_presentes}")
+
+            except Exception as e:
+                con.rollback()
+                st.error(f"❌ Error al guardar asistencia: {e}")
+
     except Exception as e:
-        st.error(f"❌ Error al obtener ahorros: {e}")
-        return []
+        st.error(f"❌ Error: {e}")
+
     finally:
-        con.close()
+        if "cursor" in locals():
+            cursor.close()
+        if "con" in locals():
+            con.close()
