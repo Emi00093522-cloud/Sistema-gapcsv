@@ -1,6 +1,7 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
+from decimal import Decimal
 
 def mostrar_pago_multas():
     st.header("💵 Pago de Multas")
@@ -50,18 +51,23 @@ def mostrar_pago_multas():
             st.subheader("📋 Multas Pendientes de Pago")
             
             # Mostrar resumen
-            total_pendiente = sum(multa['saldo_pendiente'] for multa in multas_pendientes)
+            total_pendiente = sum(float(multa['saldo_pendiente']) for multa in multas_pendientes)
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("👥 Total Miembros", len(multas_pendientes))
             with col2:
                 st.metric("💰 Total Pendiente", f"${total_pendiente:,.2f}")
             with col3:
-                miembros_pagados = len([m for m in multas_pendientes if m['monto_pagado'] > 0])
+                miembros_pagados = len([m for m in multas_pendientes if float(m['monto_pagado']) > 0])
                 st.metric("✅ Con Pagos", miembros_pagados)
 
             # Mostrar cada multa pendiente
             for multa in multas_pendientes:
+                # Convertir a float para evitar problemas de tipo
+                monto_a_pagar = float(multa['monto_a_pagar'])
+                monto_pagado = float(multa['monto_pagado'])
+                saldo_pendiente = float(multa['saldo_pendiente'])
+                
                 # Crear un contenedor para cada multa
                 with st.container():
                     col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
@@ -72,30 +78,30 @@ def mostrar_pago_multas():
                             st.caption(f"📝 Justificación: {multa['justificacion']}")
                     
                     with col2:
-                        st.write(f"**Monto:** ${multa['monto_a_pagar']:,.2f}")
-                        st.write(f"**Pagado:** ${multa['monto_pagado']:,.2f}")
+                        st.write(f"**Monto:** ${monto_a_pagar:,.2f}")
+                        st.write(f"**Pagado:** ${monto_pagado:,.2f}")
                     
                     with col3:
-                        st.write(f"**Saldo:** ${multa['saldo_pendiente']:,.2f}")
-                        if multa['monto_pagado'] > 0:
-                            st.success(f"✅ ${multa['monto_pagado']:,.2f} pagados")
+                        st.write(f"**Saldo:** ${saldo_pendiente:,.2f}")
+                        if monto_pagado > 0:
+                            st.success(f"✅ ${monto_pagado:,.2f} pagados")
                     
                     with col4:
                         # Opciones de pago
-                        if multa['saldo_pendiente'] > 0:
+                        if saldo_pendiente > 0:
                             monto_pago = st.number_input(
                                 "Monto a pagar",
                                 min_value=0.0,
-                                max_value=float(multa['saldo_pendiente']),
-                                value=float(multa['saldo_pendiente']),
+                                max_value=saldo_pendiente,
+                                value=saldo_pendiente,
                                 step=10.0,
                                 key=f"pago_{multa['ID_Miembro']}_{multa['ID_Multa']}"
                             )
                             
                             if st.button("💳 Pagar", key=f"btn_{multa['ID_Miembro']}_{multa['ID_Multa']}"):
                                 try:
-                                    # Actualizar el monto pagado
-                                    nuevo_monto_pagado = multa['monto_pagado'] + monto_pago
+                                    # Actualizar el monto pagado - usando Decimal para la base de datos
+                                    nuevo_monto_pagado = Decimal(str(monto_pagado + monto_pagado))
                                     
                                     cursor.execute("""
                                         UPDATE MiembroxMulta 
@@ -109,10 +115,11 @@ def mostrar_pago_multas():
                                             INSERT INTO PagoMulta 
                                             (ID_Miembro, ID_Multa, monto_pagado, fecha_pago, ID_Reunion_pago) 
                                             VALUES (%s, %s, %s, %s, %s)
-                                        """, (multa['ID_Miembro'], multa['ID_Multa'], monto_pago, 
+                                        """, (multa['ID_Miembro'], multa['ID_Multa'], Decimal(str(monto_pago)), 
                                               datetime.now().date(), id_reunion))
-                                    except:
-                                        pass  # Si no existe la tabla, continuar
+                                    except Exception as hist_error:
+                                        # Si la tabla PagoMulta no existe, continuar sin error
+                                        st.info("ℹ️ Historial de pagos no disponible")
                                     
                                     con.commit()
                                     st.success(f"✅ Pago de ${monto_pago:,.2f} registrado para {multa['nombre_completo']}")
@@ -136,17 +143,19 @@ def mostrar_pago_multas():
                         total_pagado = 0
                         
                         for multa in multas_pendientes:
-                            if multa['saldo_pendiente'] > 0:
-                                nuevo_monto_pagado = multa['monto_a_pagar']  # Pagar todo
+                            saldo_pendiente = float(multa['saldo_pendiente'])
+                            if saldo_pendiente > 0:
+                                # Pagar todo el saldo pendiente
+                                monto_a_pagar = Decimal(str(multa['monto_a_pagar']))
                                 
                                 cursor.execute("""
                                     UPDATE MiembroxMulta 
                                     SET monto_pagado = %s 
                                     WHERE ID_Miembro = %s AND ID_Multa = %s
-                                """, (nuevo_monto_pagado, multa['ID_Miembro'], multa['ID_Multa']))
+                                """, (monto_a_pagar, multa['ID_Miembro'], multa['ID_Multa']))
                                 
                                 multas_pagadas += 1
-                                total_pagado += multa['saldo_pendiente']
+                                total_pagado += saldo_pendiente
                         
                         con.commit()
                         st.success(f"✅ Se pagaron {multas_pagadas} multas por un total de ${total_pagado:,.2f}")
