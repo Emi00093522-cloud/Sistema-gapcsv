@@ -2,7 +2,7 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-def Miembros():
+def miembros():
     st.header("👥 Gestión de Miembros del Grupo")
 
     # 🔥 1) Grupo del usuario logueado
@@ -30,7 +30,7 @@ def Miembros():
         nombre_grupo = grupo_info['nombre']
 
         # Verificar si hay miembros registrados
-        cursor.execute("SELECT COUNT(*) as total FROM Miembro WHERE ID_Grupo = %s", (id_grupo,))
+        cursor.execute("SELECT COUNT(*) as total FROM miembro WHERE ID_Grupo = %s", (id_grupo,))
         total_miembros = cursor.fetchone()['total']
         tiene_miembros = total_miembros > 0
 
