@@ -2,7 +2,17 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
+from modulos.consultas_db import obtener_reglamentos
+from modulos.permisos import verificar_permisos
+
 def mostrar_reglamentos():
+    reglamentos = obtener_reglamentos()  # ✅ Filtrado automático por permisos
+    # ... tu código actual
+
+
+
+
+#def mostrar_reglamentos():
     st.header("📜 Gestión de Reglamentos por Grupo")
 
     try:
