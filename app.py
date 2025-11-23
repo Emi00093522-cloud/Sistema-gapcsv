@@ -8,7 +8,7 @@ from modulos.asistencia import mostrar_asistencia
 from modulos.integrada import mostrar_gestion_integrada
 from modulos.grupos import mostrar_grupos
 from modulos.reglamentos import mostrar_reglamentos
-from modulos.miembros import mostrar_miembros
+from modulos.Miembros import mostrar_Miembros
 
 # Agregar importación del módulo ciclo (si existe)
 try:
