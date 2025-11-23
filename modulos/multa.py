@@ -67,7 +67,7 @@ def mostrar_multas():
         # -----------------------------
         cursor.execute("""
             SELECT ID_Multa, ID_Miembro, ID_Reglamento, fecha, ID_Estado_multa
-            FROM multas 
+            FROM multa 
             WHERE ID_Reunion = %s
         """, (id_reunion,))
         
@@ -210,10 +210,10 @@ def mostrar_multas():
                             if not tiene_multa_actual:
                                 # INSERTAR NUEVA MULTA
                                 cursor.execute("""
-                                    INSERT INTO multas (
-                                        ID_Reunion, ID_Reglamento, fecha, ID_Estado_multa
-                                    ) VALUES (%s, %s, %s, %s)
-                                """, (id_reunion, id_reglamento_seleccionado, fecha_multa, 1))  # 1 = Pendiente
+                                    INSERT INTO multa (
+                                        ID_Reunion, ID_Miembro, ID_Reglamento, fecha, ID_Estado_multa
+                                    ) VALUES (%s, %s, %s, %s, %s)
+                                """, (id_reunion, id_miembro, id_reglamento_seleccionado, fecha_multa, 1))  # 1 = Pendiente
                                 
                                 registros_guardados += 1
                                 st.success(f"✅ Multa asignada a {nombre_miembro}: ${monto_multa:,.2f}")
@@ -225,7 +225,7 @@ def mostrar_multas():
                                     multa_actual["estado"] != 1):  # Si cambió el reglamento o el estado no es pendiente
                                     
                                     cursor.execute("""
-                                        UPDATE multas 
+                                        UPDATE multa 
                                         SET ID_Reglamento = %s, fecha = %s, ID_Estado_multa = 1
                                         WHERE ID_Multa = %s
                                     """, (id_reglamento_seleccionado, fecha_multa, multa_actual["id_multa"]))
@@ -238,7 +238,7 @@ def mostrar_multas():
                             if tiene_multa_actual:
                                 # ELIMINAR MULTA EXISTENTE (o cambiar estado a cancelado)
                                 cursor.execute("""
-                                    DELETE FROM multas 
+                                    DELETE FROM multa 
                                     WHERE ID_Multa = %s
                                 """, (multas_por_miembro[id_miembro]["id_multa"],))
                                 
@@ -275,7 +275,7 @@ def mostrar_multas():
                     WHEN mult.ID_Estado_multa = 2 THEN 'Pagada' 
                     ELSE 'Cancelada'
                 END as estado
-            FROM multas mult
+            FROM multa mult
             JOIN Miembro mb ON mult.ID_Miembro = mb.ID_Miembro
             JOIN Reglamento r ON mult.ID_Reglamento = r.ID_Reglamento
             WHERE mult.ID_Reunion = %s
