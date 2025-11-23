@@ -52,17 +52,17 @@ def mostrar_asistencia():
             'nombre_reunion': reuniones_dict[id_reunion]
         }
 
-        # 2. Cargar miembros del grupo (ya estaba bien, lo dejamos igual)
+        # 2. Cargar SOLO miembros ACTIVOS del grupo
         cursor.execute("""
             SELECT ID_Miembro, nombre
             FROM Miembro
-            WHERE ID_Grupo = %s
+            WHERE ID_Grupo = %s AND estado = 'ACTIVO'
             ORDER BY nombre
         """, (id_grupo_reunion,))
         miembros = cursor.fetchall()
 
         if not miembros:
-            st.warning("⚠ No hay miembros en este grupo.")
+            st.warning("⚠ No hay miembros ACTIVOS en este grupo.")
             return
 
         # 3. Cargar asistencia previa (incluye justificación)
@@ -73,7 +73,7 @@ def mostrar_asistencia():
         """, (id_reunion,))
         asistencia_previa = {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
 
-        st.subheader("👥 Lista de asistencia")
+        st.subheader("👥 Lista de asistencia (miembros ACTIVOS)")
 
         checkboxes = {}
         justificaciones = {}
