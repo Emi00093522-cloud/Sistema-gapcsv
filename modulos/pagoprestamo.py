@@ -3,18 +3,6 @@ from modulos.config.conexion import obtener_conexion
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
-#from modulos.consultas_db import obtener_pagos_prestamos
-#from modulos.permisos import verificar_permisos
-
-#def mostrar_pagoprestamo():
-    # Necesitas crear esta función en consultas_db.py
- #   pagos = obtener_pagos_prestamos()  # ✅ Filtrado automático
-    # ... tu código actual
-
-
-
-
-
 def obtener_reunion_mas_cercana_fin_mes(con, id_grupo, fecha_referencia, mes_offset=0):
     """
     Retorna la fecha de la reunión más cercana al fin del mes objetivo.
@@ -304,7 +292,7 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id
     return True, "Pago aplicado correctamente"
 
 
- def mostrar_pago_prestamo():
+def mostrar_pago_prestamo():
     """
     Muestra resumen del préstamo usando SOLO LOS VALORES GUARDADOS EN LA TABLA Prestamo.
     No hacer cálculos de interés ni convertir porcentajes en esta vista.
