@@ -379,7 +379,8 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id
         cursor.execute("""
             SELECT ID_Cuota, numero_cuota, fecha_programada, 
                    COALESCE(capital_pagado, 0) as capital_pagado,
-                   COALESCE(interes_pagado, 0) as interes_pagado
+                   COALESCE(interes_pagado, 0) as interes_pagado,
+                   estado
             FROM CuotaPrestamo
             WHERE ID_Prestamo = %s AND estado != 'pagado'
             ORDER BY numero_cuota
@@ -423,6 +424,7 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id
             capital_ya_pagado = Decimal(str(cuota['capital_pagado']))
             interes_ya_pagado = Decimal(str(cuota['interes_pagado']))
             total_ya_pagado = capital_ya_pagado + interes_ya_pagado
+            estado_actual = cuota['estado']
             
             if i == len(cuotas_pendientes) - 1:
                 # Última cuota: tomar todo el saldo restante
@@ -459,6 +461,21 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id
                   float(nuevo_total_programado), nuevo_estado, id_cuota))
 
         con.commit()
+        
+        # VERIFICAR QUE LOS CAMBIOS SE GUARDARON
+        cursor.execute("""
+            SELECT numero_cuota, capital_programado, interes_programado, total_programado, estado
+            FROM CuotaPrestamo
+            WHERE ID_Prestamo = %s
+            ORDER BY numero_cuota
+        """, (id_prestamo,))
+        cuotas_actualizadas = cursor.fetchall()
+        
+        # Mostrar en consola para debug
+        print("=== PLAN DE PAGOS ACTUALIZADO ===")
+        for c in cuotas_actualizadas:
+            print(f"Cuota {c['numero_cuota']}: Capital=${c['capital_programado']:.2f}, Interés=${c['interes_programado']:.2f}, Total=${c['total_programado']:.2f}, Estado={c['estado']}")
+        
         return True, "Pago registrado y cronograma actualizado"
 
     except Exception as e:
@@ -608,6 +625,12 @@ def mostrar_pago_prestamo():
 
         st.subheader("📅 Plan de pagos")
         st.markdown("---")
+        
+        # Mostrar mensaje de debug si hay cambios
+        if 'ultimo_pago' in st.session_state and st.session_state.ultimo_pago == id_prestamo:
+            st.success("🔄 Plan de pagos actualizado después del último pago")
+            st.session_state.ultimo_pago = None
+        
         tabla = []
         for c in cuotas:
             numero = c['numero_cuota']
@@ -682,6 +705,7 @@ def mostrar_pago_prestamo():
                         monto_cuota = fila['total_programado']
                         ok, msg = aplicar_pago_cuota(id_prestamo, monto_cuota, fecha_pago, "completo", con, id_grupo, num_sel)
                         if ok:
+                            st.session_state.ultimo_pago = id_prestamo
                             st.success("✅ Pago completo registrado.")
                             st.rerun()
                         else:
@@ -716,6 +740,7 @@ def mostrar_pago_prestamo():
                         else:
                             ok, msg = aplicar_pago_cuota(id_prestamo, monto_par, fecha_pago_par, "parcial", con, id_grupo)
                             if ok:
+                                st.session_state.ultimo_pago = id_prestamo
                                 st.success("✅ Pago parcial registrado y cronograma actualizado.")
                                 st.rerun()
                             else:
