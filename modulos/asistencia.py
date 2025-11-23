@@ -52,26 +52,13 @@ def mostrar_asistencia():
             'nombre_reunion': reuniones_dict[id_reunion]
         }
 
-        # 2. Cargar SOLO miembros ACTIVOS del grupo
-        # Primero necesitamos saber qué ID_Estado corresponde a "ACTIVO"
-        cursor.execute("""
-            SELECT ID_Estado FROM Estado WHERE nombre_estado = 'ACTIVO'
-        """)
-        resultado_estado = cursor.fetchone()
-        
-        if not resultado_estado:
-            st.error("❌ No se encontró el estado 'ACTIVO' en la tabla de estados.")
-            return
-            
-        id_estado_activo = resultado_estado[0]
-
-        # Ahora cargamos solo los miembros activos
+        # 2. Cargar SOLO miembros ACTIVOS del grupo (ID_Estado = 1)
         cursor.execute("""
             SELECT ID_Miembro, nombre
             FROM Miembro
-            WHERE ID_Grupo = %s AND ID_Estado = %s
+            WHERE ID_Grupo = %s AND ID_Estado = 1
             ORDER BY nombre
-        """, (id_grupo_reunion, id_estado_activo))
+        """, (id_grupo_reunion,))
         miembros = cursor.fetchall()
 
         if not miembros:
