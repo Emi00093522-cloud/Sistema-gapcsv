@@ -100,14 +100,14 @@ def mostrar_pago_multas():
                             
                             if st.button("💳 Pagar", key=f"btn_{multa['ID_Miembro']}_{multa['ID_Multa']}"):
                                 try:
-                                    # Actualizar el monto pagado - usando Decimal para la base de datos
-                                    nuevo_monto_pagado = Decimal(str(monto_pagado + monto_pagado))
+                                    # CORRECCIÓN: Calcular el nuevo monto pagado correctamente
+                                    nuevo_monto_pagado = monto_pagado + monto_pago
                                     
                                     cursor.execute("""
                                         UPDATE MiembroxMulta 
                                         SET monto_pagado = %s 
                                         WHERE ID_Miembro = %s AND ID_Multa = %s
-                                    """, (nuevo_monto_pagado, multa['ID_Miembro'], multa['ID_Multa']))
+                                    """, (Decimal(str(nuevo_monto_pagado)), multa['ID_Miembro'], multa['ID_Multa']))
                                     
                                     # Registrar en historial si la tabla existe
                                     try:
@@ -119,7 +119,7 @@ def mostrar_pago_multas():
                                               datetime.now().date(), id_reunion))
                                     except Exception as hist_error:
                                         # Si la tabla PagoMulta no existe, continuar sin error
-                                        st.info("ℹ️ Historial de pagos no disponible")
+                                        pass
                                     
                                     con.commit()
                                     st.success(f"✅ Pago de ${monto_pago:,.2f} registrado para {multa['nombre_completo']}")
