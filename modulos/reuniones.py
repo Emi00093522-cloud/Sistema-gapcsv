@@ -3,12 +3,12 @@ from datetime import datetime
 from modulos.config.conexion import obtener_conexion
 import pandas as pd
 
-from modulos.consultas_db import obtener_reuniones
-from modulos.permisos import verificar_permisos
+#from modulos.consultas_db import obtener_reuniones
+#from modulos.permisos import verificar_permisos
 
-def mostrar_reuniones():
+#def mostrar_reuniones():
     # Necesitas crear esta función en consultas_db.py
-    reuniones = obtener_reuniones()  # ✅ Filtrado automático
+ #   reuniones = obtener_reuniones()  # ✅ Filtrado automático
     # ... tu código actual
 
 
@@ -29,7 +29,7 @@ def _tiene_rol_secretaria():
 #   MÓDULO PRINCIPAL
 # ==========================================================
 
-#def mostrar_reuniones():
+def mostrar_reuniones():
 
     # Títulos
     st.header("📅 Registro de Reuniones")
