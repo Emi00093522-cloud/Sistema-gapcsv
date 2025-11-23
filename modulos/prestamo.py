@@ -13,7 +13,7 @@ from datetime import datetime
 
 
 
-#def mostrar_prestamo():
+def mostrar_prestamo():
     st.header("💰 Registrar Préstamo")
 
     # Verificar si hay una reunión seleccionada
