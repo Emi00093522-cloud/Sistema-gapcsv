@@ -3,11 +3,12 @@ from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
 from modulos.promotora import mostrar_promotora
 from modulos.distrito import mostrar_distrito
+from modulos.grupos import mostrar_grupos
 from modulos.miembros import mostrar_miembro
 from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.integrada import mostrar_gestion_integrada
-from modulos.grupos import mostrar_grupos
+
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
