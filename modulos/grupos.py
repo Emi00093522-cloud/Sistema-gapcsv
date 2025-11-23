@@ -103,9 +103,9 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                         # INSERT sin duracion_ciclo
                         cursor.execute("""
                             INSERT INTO Grupo 
-                            (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado,ID_Usuario)
-                            VALUES (%s,%s,%s,%s,%s,%s)
-                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado, ID_Usuario)
+                            (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado)
+                            VALUES (%s,%s,%s,%s,%s)
+                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado))
 
                         con.commit()
 
