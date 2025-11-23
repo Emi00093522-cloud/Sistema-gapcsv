@@ -102,14 +102,13 @@ def mostrar_reuniones():
                     else:
                         hora_str = str(hora_val)
 
+                # SOLO MOSTRAR FECHA, HORA Y LUGAR - ELIMINAR ID, ESTADO Y PRESENTES
                 filas.append({
-                    "ID": r["ID_Reunion"],
                     "Fecha": fecha_str,
                     "Hora": hora_str,
-                    "Lugar": r.get("lugar") or "",
-                    "Estado": r.get("ID_Estado_reunion"),
-                    "Presentes": r.get("total_presentes") or 0
+                    "Lugar": r.get("lugar") or ""
                 })
+            # Mostrar solo las columnas que quieres
             st.dataframe(pd.DataFrame(filas), use_container_width=True)
 
         st.write("---")
