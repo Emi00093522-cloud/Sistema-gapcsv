@@ -48,6 +48,7 @@ def panel_secretaria():
         "📜 Reglamentos",
         "📅 Reuniones",
         "🚪 Cerrar sesión"
+        "📃 Cierre de ciclo"
     ])
 
     with tabs[0]: mostrar_grupos()
