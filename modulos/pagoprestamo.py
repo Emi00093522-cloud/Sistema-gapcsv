@@ -57,13 +57,15 @@ def generar_cronograma_pagos(id_prestamo, con, id_grupo):
     """Genera el cronograma de pagos usando EXACTAMENTE los datos registrados del préstamo"""
     cursor = con.cursor()
     
-    # Obtener datos REALES del préstamo - SIN CÁLCULOS
+    # Obtener datos REALES del préstamo - SOLO LLAMAR LOS DATOS
     cursor.execute("""
         SELECT 
             p.monto,
             p.total_interes,
             p.plazo,
-            p.fecha_desembolso
+            p.fecha_desembolso,
+            p.cuota_mensual,
+            p.monto_total_pagar
         FROM Prestamo p
         WHERE p.ID_Prestamo = %s
     """, (id_prestamo,))
@@ -73,13 +75,8 @@ def generar_cronograma_pagos(id_prestamo, con, id_grupo):
         st.error("❌ No se encontró el préstamo")
         return False
     
-    # Desempaquetar los datos REALES
-    monto, total_interes, plazo, fecha_desembolso = prestamo
-    
-    # ✅ SOLO USAR LOS DATOS REGISTRADOS - SIN CÁLCULOS
-    # total_interes YA ES el monto total en dinero que se pagará de interés
-    monto_total_pagar = monto + total_interes
-    cuota_mensual = monto_total_pagar / plazo
+    # Desempaquetar los datos REALES - SOLO LOS QUE YA ESTÁN REGISTRADOS
+    monto, total_interes, plazo, fecha_desembolso, cuota_mensual, monto_total_pagar = prestamo
     
     # Eliminar cronograma existente
     cursor.execute("DELETE FROM CuotaPrestamo WHERE ID_Prestamo = %s", (id_prestamo,))
@@ -89,7 +86,7 @@ def generar_cronograma_pagos(id_prestamo, con, id_grupo):
     saldo_interes = Decimal(str(total_interes))
     
     for i in range(1, plazo + 1):
-        # Calcular distribución proporcional
+        # Calcular distribución proporcional usando los datos registrados
         if i == plazo:  # Última cuota
             capital_cuota = saldo_capital
             interes_cuota = saldo_interes
@@ -327,12 +324,22 @@ def mostrar_pago_prestamo():
         # Obtener IDs de miembros presentes para filtrar préstamos
         ids_miembros_presentes = [m[0] for m in miembros_presentes]
         
-        # Cargar préstamos activos SOLO de miembros presentes
+        # Cargar préstamos activos SOLO de miembros presentes - SOLO LLAMAR DATOS
         if ids_miembros_presentes:
             placeholders = ','.join(['%s'] * len(ids_miembros_presentes))
             cursor.execute(f"""
-                SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
-                       p.plazo, p.fecha_desembolso, m.nombre, p.proposito
+                SELECT 
+                    p.ID_Prestamo, 
+                    p.ID_Miembro, 
+                    p.monto,
+                    p.total_interes,
+                    p.plazo,
+                    p.fecha_desembolso,
+                    m.nombre, 
+                    p.proposito,
+                    p.cuota_mensual,
+                    p.monto_total_pagar,
+                    p.tasa_interes
                 FROM Prestamo p
                 JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
                 WHERE p.ID_Estado_prestamo != 3  -- Excluir cancelados
@@ -340,8 +347,18 @@ def mostrar_pago_prestamo():
             """, ids_miembros_presentes)
         else:
             cursor.execute("""
-                SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, 
-                       p.plazo, p.fecha_desembolso, m.nombre, p.proposito
+                SELECT 
+                    p.ID_Prestamo, 
+                    p.ID_Miembro, 
+                    p.monto,
+                    p.total_interes,
+                    p.plazo,
+                    p.fecha_desembolso,
+                    m.nombre, 
+                    p.proposito,
+                    p.cuota_mensual,
+                    p.monto_total_pagar,
+                    p.tasa_interes
                 FROM Prestamo p
                 JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
                 WHERE p.ID_Estado_prestamo != 3
@@ -371,15 +388,15 @@ def mostrar_pago_prestamo():
         
         # ✅ SOLO LLAMAR LOS DATOS REGISTRADOS - SIN CÁLCULOS
         monto = prestamo_info[2]
-        total_interes = prestamo_info[3]  # ✅ Este YA ES el monto total en dinero del interés
+        total_interes = prestamo_info[3]  # Interés total a pagar
         plazo = prestamo_info[4]
         fecha_desembolso = prestamo_info[5]
+        proposito = prestamo_info[7]
+        cuota_mensual = prestamo_info[8]  # Cuota mensual ya calculada
+        monto_total_pagar = prestamo_info[9]  # Total a pagar ya calculado
+        tasa_interes = prestamo_info[10]  # Tasa de interés
         
-        # Calcular valores para mostrar (usando los datos registrados)
-        monto_total_pagar = monto + total_interes
-        cuota_mensual = monto_total_pagar / plazo
-        
-        # Mostrar información del préstamo
+        # Mostrar información del préstamo - SOLO LOS DATOS REGISTRADOS
         st.subheader("📋 RESUMEN DEL PRÉSTAMO")
         st.markdown("---")
         
@@ -388,8 +405,9 @@ def mostrar_pago_prestamo():
         with col1:
             st.markdown("**Información Básica**")
             st.write(f"• **Fecha desembolso:** {fecha_desembolso}")
+            st.write(f"• **Tasa interés:** {tasa_interes}%")
             st.write(f"• **Plazo:** {plazo} meses")
-            st.write(f"• **Propósito:** {prestamo_info[7]}")
+            st.write(f"• **Propósito:** {proposito}")
             st.write(f"• **Frecuencia reuniones:** {frecuencia}")
         
         with col2:
