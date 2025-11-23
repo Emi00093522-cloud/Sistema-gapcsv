@@ -18,7 +18,6 @@ from datetime import date
 
 #AQUI IBA esto mira
     def mostrar_ahorros():
-    
     st.header("💰 Control de Ahorros")
 
     # Verificar si hay una reunión seleccionada
