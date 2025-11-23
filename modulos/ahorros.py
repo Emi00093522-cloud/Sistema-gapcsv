@@ -10,7 +10,15 @@ def mostrar_ahorros():
     ahorros = obtener_ahorros()  # ✅ Filtrado automático por permisos
     # ... tu código actual
 
-def mostrar_ahorros():
+# Para acciones específicas
+if verificar_permisos("ver_todo"):
+    st.button("Ver todos los ahorros")
+else:
+    st.info("Solo puedes ver tus registros")
+
+#AQUI IBA esto mira
+    #def mostrar_ahorros():
+    
     st.header("💰 Control de Ahorros")
 
     # Verificar si hay una reunión seleccionada
