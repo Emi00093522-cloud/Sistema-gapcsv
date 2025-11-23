@@ -1,102 +1,33 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime, timedelta
-from decimal import Decimal
+import calendar
 
-def obtener_multas_grupo():
-    """
-    Función para el módulo de cierre de ciclo
-    Retorna todas las multas del grupo actual para consolidar en el cierre
-    """
-    try:
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-        
-        # Obtener el ID del grupo actual desde session_state
-        if 'reunion_actual' not in st.session_state:
-            st.error("No hay reunión activa seleccionada")
-            return []
-        
-        id_grupo = st.session_state.reunion_actual['id_grupo']
-        
-        # Consulta para obtener todas las multas pagadas del grupo
-        cursor.execute("""
-            SELECT 
-                pm.ID_PagoMulta,
-                pm.ID_Miembro,
-                pm.ID_Multa,
-                pm.monto_pagado,
-                pm.fecha_pago,
-                pm.ID_Reunion_pago,
-                m.nombre as nombre_miembro,
-                mu.motivo,
-                mu.fecha as fecha_multa
-            FROM PagoMulta pm
-            JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
-            JOIN Multa mu ON pm.ID_Multa = mu.ID_Multa
-            WHERE m.ID_Grupo = %s
-            ORDER BY pm.fecha_pago
-        """, (id_grupo,))
-        
-        multas_data = cursor.fetchall()
-        
-        # Convertir a lista de diccionarios
-        resultado = []
-        for multa in multas_data:
-            resultado.append({
-                'id_pago_multa': multa['ID_PagoMulta'],
-                'id_miembro': multa['ID_Miembro'],
-                'id_multa': multa['ID_Multa'],
-                'monto_pagado': float(multa['monto_pagado'] or 0),
-                'fecha_pago': multa['fecha_pago'],
-                'id_reunion_pago': multa['ID_Reunion_pago'],
-                'nombre_miembro': multa['nombre_miembro'],
-                'motivo': multa['motivo'],
-                'fecha_multa': multa['fecha_multa']
-            })
-        
-        return resultado
-        
-    except Exception as e:
-        st.error(f"❌ Error en obtener_multas_grupo: {e}")
-        return []
-    
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'con' in locals():
-            con.close()
+def calcular_fecha_limite(dia_reunion):
+    """Calcula la fecha límite de pago según el día de reunión (lunes = 0 ... domingo = 6)."""
+    hoy = datetime.now().date()
+    dia_actual = hoy.weekday()
 
-def obtener_total_multas_ciclo():
-    """
-    Retorna la suma total de todas las multas pagadas del grupo
-    """
-    try:
-        multas_data = obtener_multas_grupo()
-        
-        if not multas_data:
-            return 0.00
-        
-        total_multas = sum(item['monto_pagado'] for item in multas_data)
-        return total_multas
-        
-    except Exception as e:
-        st.error(f"❌ Error calculando total de multas: {e}")
-        return 0.00
+    # cuántos días faltan para el siguiente día de reunión
+    dias_faltantes = (dia_reunion - dia_actual) % 7
+    if dias_faltantes == 0:
+        dias_faltantes = 7  # si es hoy, aplica para la próxima semana
 
-def mostrar_pago_multas():
-    st.header("💵 Pago de Multas")
-    
+    return hoy + timedelta(days=dias_faltantes)
+
+def mostrar_multas():
+    st.header("📋 Sistema de Multas")
+
     # Verificar si hay una reunión seleccionada
     if 'reunion_actual' not in st.session_state:
-        st.warning("⚠️ Primero debes seleccionar una reunión en el módulo de Asistencia o Multas.")
+        st.warning("⚠️ Primero debes seleccionar una reunión en el módulo de Asistencia.")
         return
 
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Obtener la reunión del session_state
+        # Obtener la reunión seleccionada
         reunion_info = st.session_state.reunion_actual
         id_reunion = reunion_info['id_reunion']
         id_grupo = reunion_info['id_grupo']
@@ -104,227 +35,215 @@ def mostrar_pago_multas():
 
         st.info(f"📅 **Reunión actual:** {nombre_reunion}")
 
-        # Obtener la frecuencia de reunión del reglamento
+        # Obtener el monto de multa y el día de reunión desde Reglamento
         cursor.execute("""
-            SELECT frecuencia_reunion 
-            FROM Reglamento 
-            WHERE ID_Grupo = %s 
-            ORDER BY ID_Reglamento DESC 
-            LIMIT 1
+            SELECT ID_Reglamento, monto_multa_asistencia, dia_reunion
+            FROM Reglamento
+            WHERE ID_Grupo = %s
+            ORDER BY ID_Reglamento DESC LIMIT 1
         """, (id_grupo,))
-        
         reglamento = cursor.fetchone()
-        frecuencia = reglamento['frecuencia_reunion'] if reglamento else 'SEMANAL'  # Valor por defecto
-        
-        # Calcular fecha límite de pago basado en la frecuencia
-        fecha_actual = datetime.now().date()
-        if frecuencia.upper() == 'SEMANAL':
-            fecha_limite_pago = fecha_actual + timedelta(days=7)
-        elif frecuencia.upper() == 'QUINCENAL':
-            fecha_limite_pago = fecha_actual + timedelta(days=15)
-        elif frecuencia.upper() == 'MENSUAL':
-            fecha_limite_pago = fecha_actual + timedelta(days=30)
+
+        if reglamento:
+            monto_multa = float(reglamento['monto_multa_asistencia'])
+            id_reglamento = reglamento['ID_Reglamento']
+            dia_reunion = reglamento['dia_reunion']  # día reunión ya viene de BD
         else:
-            fecha_limite_pago = fecha_actual + timedelta(days=7)  # Por defecto semanal
+            monto_multa = 10.00
+            dia_reunion = 0  # Lunes por defecto
+            st.warning("⚠️ No se encontró reglamento, usando valores por defecto.")
 
-        st.warning(f"⏰ **Fecha límite de pago:** {fecha_limite_pago} (Frecuencia: {frecuencia})")
+        st.success(f"💰 **Monto de multa por inasistencia:** ${monto_multa:,.2f}")
 
-        # Obtener SOLO las multas registradas para esta reunión específica
+        # Cargar miembros y estado de asistencia
+        cursor.execute("""
+            SELECT 
+                m.ID_Miembro, 
+                CONCAT(m.nombre, ' ', m.apellido) AS nombre_completo,
+                COALESCE(mr.asistio, 0) AS asistio,
+                mr.justificacion
+            FROM Miembro m
+            LEFT JOIN Miembroxreunion mr 
+                ON m.ID_Miembro = mr.ID_Miembro 
+                AND mr.ID_Reunion = %s
+            WHERE m.ID_Grupo = %s
+            ORDER BY m.nombre, m.apellido
+        """, (id_reunion, id_grupo))
+
+        todos_miembros = cursor.fetchall()
+
+        if not todos_miembros:
+            st.warning("⚠️ No hay miembros en este grupo.")
+            return
+
+        # Clasificación
+        presentes = [m for m in todos_miembros if m['asistio'] == 1]
+        ausentes_sj = [m for m in todos_miembros if m['asistio'] == 0 and not m['justificacion']]
+        ausentes_cj = [m for m in todos_miembros if m['asistio'] == 0 and m['justificacion']]
+
+        # Métricas
+        col1, col2, col3 = st.columns(3)
+        with col1: st.metric("Presentes", len(presentes))
+        with col2: st.metric("Ausencias sin justificación", len(ausentes_sj))
+        with col3: st.metric("Ausencias con justificación", len(ausentes_cj))
+
+        st.subheader("📊 Formulario de Multas (solo ausentes sin justificación)")
+
+        # Tabla encabezado
+        cols = st.columns([3, 2, 2, 3])
+        for col, h in zip(cols, ["Socio", "A pagar", "Pagada", "Justificación"]):
+            with col: st.write(f"**{h}**")
+
+        multas_a_registrar = []
+
+        for miembro in ausentes_sj:
+            cols = st.columns([3, 2, 2, 3])
+
+            with cols[0]:
+                st.write(miembro['nombre_completo'])
+
+            # Buscar multa existente
+            cursor.execute("""
+                SELECT mxm.*, m.ID_Estado_multa
+                FROM MiembroxMulta mxm
+                JOIN Multa m ON mxm.ID_Multa = m.ID_Multa
+                WHERE mxm.ID_Miembro = %s AND m.ID_Reunion = %s
+            """, (miembro['ID_Miembro'], id_reunion))
+            multa_existente = cursor.fetchone()
+
+            with cols[1]:
+                st.write(f"${monto_multa:,.2f}")
+
+            with cols[2]]:
+                if multa_existente:
+                    if multa_existente['monto_pagado'] >= multa_existente['monto_a_pagar']:
+                        st.write("✅ Pagada")
+                    else:
+                        st.write("⏳ Pendiente")
+                    marcar_pagada = False
+                else:
+                    marcar_pagada = st.checkbox(
+                        "Marcar pagada",
+                        key=f"pagada_{miembro['ID_Miembro']}"
+                    )
+
+            with cols[3]:
+                st.write("Sin justificación")
+
+            multas_a_registrar.append({
+                "ID_Miembro": miembro["ID_Miembro"],
+                "registrar": not bool(multa_existente),
+                "marcar_pagada": marcar_pagada,
+                "monto": monto_multa
+            })
+
+        # Botón registrar multas
+        if ausentes_sj:
+            if st.button("💾 Registrar Multas", type="primary"):
+                try:
+                    for multa in multas_a_registrar:
+                        if multa["registrar"]:
+                            # 1. Insertar multa
+                            cursor.execute("""
+                                INSERT INTO Multa (ID_Reunion, ID_Reglamento, fecha, ID_Estado_multa)
+                                VALUES (%s, %s, %s, %s)
+                            """, (id_reunion, id_reglamento, datetime.now().date(), 1))
+
+                            id_multa_nueva = cursor.lastrowid
+
+                            monto_pagado = multa["monto"] if multa["marcar_pagada"] else 0
+
+                            # 2. Insertar en MiembroxMulta
+                            cursor.execute("""
+                                INSERT INTO MiembroxMulta
+                                (ID_Miembro, ID_Multa, monto_a_pagar, monto_pagado)
+                                VALUES (%s, %s, %s, %s)
+                            """, (multa["ID_Miembro"], id_multa_nueva, multa["monto"], monto_pagado))
+
+                            # 3. Insertar fecha límite en PagoMulta  ← CORREGIDO
+                            fecha_limite = calcular_fecha_limite(dia_reunion)
+
+                            cursor.execute("""
+                                INSERT INTO PagoMulta
+                                (ID_Multa, fecha_limite_pago)
+                                VALUES (%s, %s)
+                            """, (id_multa_nueva, fecha_limite))
+
+                    con.commit()
+                    st.success("Multas registradas correctamente.")
+                    st.rerun()
+
+                except Exception as e:
+                    con.rollback()
+                    st.error(f"Error al registrar multas: {e}")
+
+        else:
+            st.success("🎉 No hay multas que registrar.")
+
+        # ------------------------------------
+        #   SECCIÓN: MULTAS EXISTENTES
+        # ------------------------------------
+
+        st.subheader("📋 Gestión de Multas Registradas")
+
         cursor.execute("""
             SELECT 
                 mxm.ID_Miembro,
-                mxm.ID_Multa,
+                CONCAT(m.nombre, ' ', m.apellido) AS nombre_completo,
                 mxm.monto_a_pagar,
                 mxm.monto_pagado,
-                CONCAT(m.nombre, ' ', m.apellido) as nombre_completo,
-                mu.fecha as fecha_multa,
-                r.fecha as fecha_reunion,
-                (mxm.monto_a_pagar - mxm.monto_pagado) as saldo_pendiente,
-                mr.justificacion,
-                DATEDIFF(%s, mu.fecha) as dias_transcurridos
+                mu.ID_Multa,
+                mu.fecha,
+                em.estado_multa,
+                pm.fecha_limite_pago
             FROM MiembroxMulta mxm
             JOIN Miembro m ON mxm.ID_Miembro = m.ID_Miembro
             JOIN Multa mu ON mxm.ID_Multa = mu.ID_Multa
-            JOIN Reunion r ON mu.ID_Reunion = r.ID_Reunion
-            LEFT JOIN Miembroxreunion mr ON m.ID_Miembro = mr.ID_Miembro AND mr.ID_Reunion = mu.ID_Reunion
-            WHERE m.ID_Grupo = %s 
-            AND mxm.monto_pagado < mxm.monto_a_pagar
-            ORDER BY mu.fecha DESC, m.nombre, m.apellido
-        """, (fecha_actual, id_grupo))
-        
-        multas_pendientes = cursor.fetchall()
-        
-        # Obtener multas pagadas en la reunión actual
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total_multas_pagadas,
-                COALESCE(SUM(mxm.monto_pagado), 0) as total_monto_pagado
-            FROM MiembroxMulta mxm
-            JOIN Multa mu ON mxm.ID_Multa = mu.ID_Multa
-            WHERE mu.ID_Reunion = %s 
-            AND mxm.monto_pagado > 0
+            JOIN Estado_multa em ON mu.ID_Estado_multa = em.ID_Estado_multa
+            LEFT JOIN PagoMulta pm ON pm.ID_Multa = mu.ID_Multa   -- ← CORREGIDO
+            WHERE mu.ID_Reunion = %s
+            ORDER BY nombre_completo
         """, (id_reunion,))
-        
-        resumen_pagos = cursor.fetchone()
-        total_multas_pagadas = resumen_pagos['total_multas_pagadas']
-        total_monto_pagado = float(resumen_pagos['total_monto_pagado'])
-        
-        if multas_pendientes:
-            st.subheader("📋 Multas Pendientes de Pago")
-            
-            # Mostrar resumen
-            total_pendiente = sum(float(multa['saldo_pendiente']) for multa in multas_pendientes)
-            multas_vencidas = [m for m in multas_pendientes if m['dias_transcurridos'] > 7]
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("👥 Total Pendientes", len(multas_pendientes))
-            with col2:
-                st.metric("💰 Total Pendiente", f"${total_pendiente:,.2f}")
-            with col3:
-                st.metric("⚠️ Multas Vencidas", len(multas_vencidas))
-            with col4:
-                st.metric("✅ Pagadas Hoy", total_multas_pagadas, f"${total_monto_pagado:,.2f}")
+        multas = cursor.fetchall()
 
-            # Mostrar cada multa pendiente
-            for multa in multas_pendientes:
-                # Convertir a float para evitar problemas de tipo
-                monto_a_pagar = float(multa['monto_a_pagar'])
-                monto_pagado = float(multa['monto_pagado'])
-                saldo_pendiente = float(multa['saldo_pendiente'])
-                dias_transcurridos = multa['dias_transcurridos']
-                
-                # Determinar si está vencida
-                esta_vencida = dias_transcurridos > 7
-                estado_color = "⚠️" if esta_vencida else "⏳"
-                estado_texto = "VENCIDA" if esta_vencida else f"{dias_transcurridos} días"
-                
-                # Crear un contenedor para cada multa
-                with st.container():
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
-                    
-                    with col1:
-                        st.write(f"**{multa['nombre_completo']}**")
-                        st.write(f"**Reunión:** {multa['fecha_reunion']}")
-                        if multa['justificacion']:
-                            st.caption(f"📝 Justificación: {multa['justificacion']}")
-                        st.write(f"{estado_color} **Estado:** {estado_texto}")
-                    
-                    with col2:
-                        st.write(f"**Monto:** ${monto_a_pagar:,.2f}")
-                        st.write(f"**Pagado:** ${monto_pagado:,.2f}")
-                        st.write(f"**Saldo:** ${saldo_pendiente:,.2f}")
-                    
-                    with col3:
-                        if monto_pagado > 0:
-                            st.success(f"✅ ${monto_pagado:,.2f} pagados")
-                        if esta_vencida:
-                            st.error("🚨 MULTA VENCIDA")
-                            st.info("Se acumulará multa por siguiente reunión")
-                    
-                    with col4:
-                        # Opciones de pago
-                        if saldo_pendiente > 0:
-                            monto_pago = st.number_input(
-                                "Monto a pagar",
-                                min_value=0.0,
-                                max_value=saldo_pendiente,
-                                value=saldo_pendiente,
-                                step=10.0,
-                                key=f"pago_{multa['ID_Miembro']}_{multa['ID_Multa']}"
-                            )
-                            
-                            col_btn1, col_btn2 = st.columns(2)
-                            with col_btn1:
-                                if st.button("💳 Pagar", key=f"btn_{multa['ID_Miembro']}_{multa['ID_Multa']}"):
-                                    try:
-                                        # Calcular el nuevo monto pagado
-                                        nuevo_monto_pagado = monto_pagado + monto_pago
-                                        
-                                        cursor.execute("""
-                                            UPDATE MiembroxMulta 
-                                            SET monto_pagado = %s 
-                                            WHERE ID_Miembro = %s AND ID_Multa = %s
-                                        """, (Decimal(str(nuevo_monto_pagado)), multa['ID_Miembro'], multa['ID_Multa']))
-                                        
-                                        # Registrar en historial si la tabla existe
-                                        try:
-                                            cursor.execute("""
-                                                INSERT INTO PagoMulta 
-                                                (ID_Miembro, ID_Multa, monto_pagado, fecha_pago, ID_Reunion_pago) 
-                                                VALUES (%s, %s, %s, %s, %s)
-                                            """, (multa['ID_Miembro'], multa['ID_Multa'], Decimal(str(monto_pago)), 
-                                                  datetime.now().date(), id_reunion))
-                                        except Exception as hist_error:
-                                            # Si la tabla PagoMulta no existe, continuar sin error
-                                            pass
-                                        
-                                        con.commit()
-                                        st.success(f"✅ Pago de ${monto_pago:,.2f} registrado para {multa['nombre_completo']}")
-                                        st.rerun()
-                                        
-                                    except Exception as e:
-                                        con.rollback()
-                                        st.error(f"❌ Error al registrar pago: {e}")
-                            
-                            with col_btn2:
-                                if esta_vencida and st.button("🔄 Acumular", key=f"acumular_{multa['ID_Miembro']}_{multa['ID_Multa']}"):
-                                    st.info("🔔 Función de acumulación pendiente de implementar")
-                        else:
-                            st.success("✅ Pagado completamente")
-                    
-                    st.divider()
-            
-            # Botón para pagar todas las multas pendientes
-            st.subheader("Pago Masivo")
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col2:
-                if st.button("💳 Pagar Todas", type="primary", use_container_width=True):
-                    try:
-                        multas_pagadas = 0
-                        total_pagado = 0
-                        
-                        for multa in multas_pendientes:
-                            saldo_pendiente = float(multa['saldo_pendiente'])
-                            if saldo_pendiente > 0:
-                                monto_a_pagar = Decimal(str(multa['monto_a_pagar']))
-                                
-                                cursor.execute("""
-                                    UPDATE MiembroxMulta 
-                                    SET monto_pagado = %s 
-                                    WHERE ID_Miembro = %s AND ID_Multa = %s
-                                """, (monto_a_pagar, multa['ID_Miembro'], multa['ID_Multa']))
-                                
-                                multas_pagadas += 1
-                                total_pagado += saldo_pendiente
-                        
-                        con.commit()
-                        st.success(f"✅ Se pagaron {multas_pagadas} multas por un total de ${total_pagado:,.2f}")
-                        st.rerun()
-                        
-                    except Exception as e:
-                        con.rollback()
-                        st.error(f"❌ Error al realizar pago masivo: {e}")
-            
-            with col3:
-                if st.button("📊 Ver Resumen", use_container_width=True):
-                    st.info(f"""
-                    **Resumen de Pagos en esta Reunión:**
-                    - Multas pagadas: {total_multas_pagadas}
-                    - Total recaudado: ${total_monto_pagado:,.2f}
-                    - Multas pendientes: {len(multas_pendientes)}
-                    - Total pendiente: ${total_pendiente:,.2f}
-                    """)
-                        
+        if multas:
+            for multa in multas:
+                col1, col2, col3, col4, col5 = st.columns([3,2,2,2,2])
+                with col1: st.write(f"**{multa['nombre_completo']}**")
+                with col2: st.write(f"${multa['monto_a_pagar']:,.2f}")
+                with col3:
+                    if multa['monto_pagado'] >= multa['monto_a_pagar']:
+                        st.write("✅ Pagada")
+                    else:
+                        st.write("⏳ Pendiente")
+                with col4: st.write(multa['fecha_limite_pago'])
+
+                with col5:
+                    if multa['monto_pagado'] < multa['monto_a_pagar']:
+                        if st.button("Pagar", key=f"pagar_{multa['ID_Multa']}"):
+                            cursor.execute("""
+                                UPDATE MiembroxMulta
+                                SET monto_pagado = monto_a_pagar
+                                WHERE ID_Multa = %s
+                            """, (multa['ID_Multa'],))
+                            con.commit()
+                            st.rerun()
+                    else:
+                        if st.button("Revertir", key=f"rev_{multa['ID_Multa']}"):
+                            cursor.execute("""
+                                UPDATE MiembroxMulta
+                                SET monto_pagado = 0
+                                WHERE ID_Multa = %s
+                            """, (multa['ID_Multa'],))
+                            con.commit()
+                            st.rerun()
+
         else:
-            st.success("🎉 No hay multas pendientes de pago")
-            if total_multas_pagadas > 0:
-                st.info(f"**Resumen de esta reunión:** {total_multas_pagadas} multas pagadas por un total de ${total_monto_pagado:,.2f}")
-                
+            st.info("No hay multas registradas.")
+
     except Exception as e:
         st.error(f"❌ Error: {e}")
+
     finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'con' in locals():
-            con.close()
+        if "cursor" in locals(): cursor.close()
+        if "con" in locals(): con.close()
