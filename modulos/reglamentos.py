@@ -2,16 +2,6 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-#from modulos.consultas_db import obtener_reglamentos
-#from modulos.permisos import verificar_permisos
-
-#def mostrar_reglamentos():
- #   reglamentos = obtener_reglamentos()  # ✅ Filtrado automático por permisos
-    # ... tu código actual
-
-
-
-
 def mostrar_reglamentos():
     st.header("📜 Gestión de Reglamentos por Grupo")
 
@@ -435,13 +425,182 @@ def mostrar_reglamentos():
                         st.session_state.reglamento_a_editar = reglamento['ID_Reglamento']
                         st.rerun()
 
-            # TODO: Implementar la funcionalidad de edición completa
+            # FUNCIONALIDAD DE EDICIÓN COMPLETA
             if 'reglamento_a_editar' in st.session_state:
                 st.write("---")
                 st.subheader("✏️ Editando Reglamento")
-                st.info("🔧 Funcionalidad de edición en desarrollo...")
                 
-                if st.button("❌ Cancelar Edición"):
+                # Cargar datos del reglamento a editar
+                cursor.execute("SELECT * FROM Reglamento WHERE ID_Reglamento = %s", (st.session_state.reglamento_a_editar,))
+                reglamento_editar = cursor.fetchone()
+                
+                if reglamento_editar:
+                    # Obtener información del grupo
+                    cursor.execute("""
+                        SELECT g.nombre, d.nombre as distrito 
+                        FROM Grupo g 
+                        LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito 
+                        WHERE g.ID_Grupo = %s
+                    """, (reglamento_editar['ID_Grupo'],))
+                    grupo_info = cursor.fetchone()
+                    
+                    st.info(f"Editando reglamento del grupo: **{grupo_info['nombre']}** - **{grupo_info['distrito']}**")
+                    
+                    # FORMULARIO DE EDICIÓN
+                    with st.form(f"form_editar_{st.session_state.reglamento_a_editar}"):
+                        st.markdown("### 📋 Información de Reuniones")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            # Día de reunión
+                            dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+                            dia_reunion = st.selectbox(
+                                "Día de reunión:",
+                                options=dias_semana,
+                                index=dias_semana.index(reglamento_editar.get('dia_reunion', 'Lunes')) if reglamento_editar.get('dia_reunion') in dias_semana else 0
+                            )
+                            
+                            # Hora de reunión
+                            hora_actual = reglamento_editar.get('hora_reunion', '00:00 AM')
+                            hora_reunion = st.text_input(
+                                "Hora de reunión:",
+                                value=hora_actual,
+                                placeholder="00:00 AM"
+                            )
+                            
+                            # Lugar de reunión
+                            lugar_reunion = st.text_input(
+                                "Lugar de reunión:",
+                                value=reglamento_editar.get('lugar_reunion', '')
+                            )
+                        
+                        with col2:
+                            # Frecuencia de reunión
+                            frecuencia_reunion = st.selectbox(
+                                "Frecuencia de reunión:",
+                                options=["QUINCENAL", "SEMANAL", "MENSUAL"],
+                                index=["QUINCENAL", "SEMANAL", "MENSUAL"].index(reglamento_editar.get('frecuencia_reunion', 'QUINCENAL')) if reglamento_editar.get('frecuencia_reunion') in ["QUINCENAL", "SEMANAL", "MENSUAL"] else 0
+                            )
+                            
+                            # Ahorro mínimo
+                            ahorro_minimo = st.number_input(
+                                "Ahorro mínimo ($):",
+                                value=float(reglamento_editar.get('ahorro_minimo', 0)),
+                                min_value=0.0,
+                                step=0.5,
+                                format="%.2f"
+                            )
+                        
+                        st.markdown("### 📊 Asistencia y Préstamos")
+                        col3, col4 = st.columns(2)
+                        
+                        with col3:
+                            # Multa por falta
+                            monto_multa_asistencia = st.number_input(
+                                "Multa por falta ($):",
+                                value=float(reglamento_editar.get('monto_multa_asistencia', 0)),
+                                min_value=0.0,
+                                step=0.5,
+                                format="%.2f"
+                            )
+                            
+                            # Justificación ausencia
+                            justificacion_ausencia = st.text_area(
+                                "Justificación para ausencia sin multa:",
+                                value=reglamento_editar.get('justificacion_ausencia', ''),
+                                height=80
+                            )
+                        
+                        with col4:
+                            # Interés por $10
+                            interes_por_diez = st.number_input(
+                                "Interés por $10 prestados ($):",
+                                value=float(reglamento_editar.get('interes_por_diez', 0)),
+                                min_value=0.0,
+                                step=0.1,
+                                format="%.2f"
+                            )
+                            
+                            # Préstamo máximo
+                            monto_maximo_prestamo = st.number_input(
+                                "Préstamo máximo ($):",
+                                value=float(reglamento_editar.get('monto_maximo_prestamo', 0)),
+                                min_value=0.0,
+                                step=10.0,
+                                format="%.2f"
+                            )
+                            
+                            # Plazo máximo
+                            plazo_maximo_prestamo = st.number_input(
+                                "Plazo máximo (meses):",
+                                value=reglamento_editar.get('plazo_maximo_prestamo', 0),
+                                min_value=0,
+                                step=1
+                            )
+                        
+                        st.markdown("### 🎯 Información General")
+                        
+                        # Meta social
+                        meta_social = st.text_area(
+                            "Meta social del grupo:",
+                            value=reglamento_editar.get('meta_social', ''),
+                            height=100,
+                            placeholder="Describa la meta social o propósito del grupo..."
+                        )
+                        
+                        # Otras reglas
+                        otras_reglas = st.text_area(
+                            "Otras reglas:",
+                            value=reglamento_editar.get('otras_reglas', ''),
+                            height=100,
+                            placeholder="Reglas adicionales específicas del grupo..."
+                        )
+                        
+                        # Botones de acción
+                        col_btn1, col_btn2, col_btn3 = st.columns(3)
+                        with col_btn1:
+                            guardar = st.form_submit_button("💾 Guardar Cambios", use_container_width=True, type="primary")
+                        with col_btn2:
+                            cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
+                        
+                        if guardar:
+                            try:
+                                # Validar campos obligatorios
+                                if not dia_reunion or not hora_reunion or not lugar_reunion:
+                                    st.error("❌ Los campos de reuniones (día, hora, lugar) son obligatorios.")
+                                else:
+                                    # Actualizar el reglamento
+                                    cursor.execute("""
+                                        UPDATE Reglamento SET
+                                        dia_reunion = %s, hora_reunion = %s, lugar_reunion = %s, frecuencia_reunion = %s,
+                                        monto_multa_asistencia = %s, justificacion_ausencia = %s, ahorro_minimo = %s,
+                                        interes_por_diez = %s, monto_maximo_prestamo = %s, plazo_maximo_prestamo = %s,
+                                        meta_social = %s, otras_reglas = %s, Fecha_Actualizacion = NOW()
+                                        WHERE ID_Reglamento = %s
+                                    """, (
+                                        dia_reunion, hora_reunion, lugar_reunion, frecuencia_reunion,
+                                        monto_multa_asistencia, justificacion_ausencia, ahorro_minimo,
+                                        interes_por_diez, monto_maximo_prestamo, plazo_maximo_prestamo,
+                                        meta_social, otras_reglas, st.session_state.reglamento_a_editar
+                                    ))
+                                    
+                                    con.commit()
+                                    st.success("✅ Reglamento actualizado exitosamente!")
+                                    st.balloons()
+                                    del st.session_state.reglamento_a_editar
+                                    st.rerun()
+                                    
+                            except Exception as e:
+                                con.rollback()
+                                st.error(f"❌ Error al actualizar el reglamento: {e}")
+                        
+                        if cancelar:
+                            del st.session_state.reglamento_a_editar
+                            st.rerun()
+                
+                else:
+                    st.error("❌ No se pudo cargar el reglamento para editar.")
                     del st.session_state.reglamento_a_editar
                     st.rerun()
 
