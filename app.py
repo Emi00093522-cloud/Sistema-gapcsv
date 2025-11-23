@@ -8,7 +8,7 @@ from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.integrada import mostrar_gestion_integrada
 from modulos.grupos import mostrar_grupos
-from modulos.ciclo import mostrar_ciclo
+
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
@@ -48,14 +48,14 @@ def panel_secretaria():
         "📜 Reglamentos",
         "📅 Reuniones",
         "🚪 Cerrar sesión"
-        "📃 Cierre de ciclo"
+
     ])
 
     with tabs[0]: mostrar_grupos()
     with tabs[1]: mostrar_miembro()
     with tabs[2]: mostrar_reglamentos()
     with tabs[3]: mostrar_gestion_integrada()
-    with tabs[4]: mostrar_ciclo()
+
         
     if st.button("Cerrar sesión"):
         st.session_state.clear()
