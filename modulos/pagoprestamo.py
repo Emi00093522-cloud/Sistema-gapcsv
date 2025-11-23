@@ -304,7 +304,7 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id
     return True, "Pago aplicado correctamente"
 
 
-def mostrar_pago_prestamo():
+# def mostrar_pago_prestamo():
     """
     Muestra resumen del préstamo usando SOLO LOS VALORES GUARDADOS EN LA TABLA Prestamo.
     No hacer cálculos de interés ni convertir porcentajes en esta vista.
