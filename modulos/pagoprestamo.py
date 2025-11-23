@@ -76,8 +76,8 @@ def generar_cronograma_pagos(id_prestamo, con, id_grupo):
     # Desempaquetar los datos REALES
     monto, total_interes, plazo, fecha_desembolso = prestamo
     
-    # ✅ SOLO LLAMAR LOS DATOS - SIN CÁLCULOS
-    # Estos valores ya están calculados y registrados en el préstamo
+    # ✅ SOLO USAR LOS DATOS REGISTRADOS - SIN CÁLCULOS
+    # total_interes YA ES el monto total en dinero que se pagará de interés
     monto_total_pagar = monto + total_interes
     cuota_mensual = monto_total_pagar / plazo
     
@@ -86,18 +86,18 @@ def generar_cronograma_pagos(id_prestamo, con, id_grupo):
     
     # Generar cronograma usando los valores EXACTOS del préstamo
     saldo_capital = Decimal(str(monto))
+    saldo_interes = Decimal(str(total_interes))
     
     for i in range(1, plazo + 1):
         # Calcular distribución proporcional
-        capital_cuota = Decimal(str(monto)) / Decimal(str(plazo))
-        interes_cuota = Decimal(str(total_interes)) / Decimal(str(plazo))
-        total_cuota = Decimal(str(cuota_mensual))
-        
-        # Ajustar última cuota por redondeo
-        if i == plazo:
+        if i == plazo:  # Última cuota
             capital_cuota = saldo_capital
-            interes_cuota = Decimal(str(total_interes)) - (interes_cuota * (plazo - 1))
-            total_cuota = capital_cuota + interes_cuota
+            interes_cuota = saldo_interes
+        else:
+            capital_cuota = Decimal(str(monto)) / Decimal(str(plazo))
+            interes_cuota = Decimal(str(total_interes)) / Decimal(str(plazo))
+        
+        total_cuota = capital_cuota + interes_cuota
         
         # Obtener fecha de pago basada en reuniones (mes i)
         fecha_pago = obtener_reunion_mas_cercana_fin_mes(con, id_grupo, fecha_desembolso, i)
@@ -112,6 +112,7 @@ def generar_cronograma_pagos(id_prestamo, con, id_grupo):
               float(interes_cuota), float(total_cuota)))
         
         saldo_capital -= capital_cuota
+        saldo_interes -= interes_cuota
     
     con.commit()
     
@@ -370,11 +371,11 @@ def mostrar_pago_prestamo():
         
         # ✅ SOLO LLAMAR LOS DATOS REGISTRADOS - SIN CÁLCULOS
         monto = prestamo_info[2]
-        total_interes = prestamo_info[3]
+        total_interes = prestamo_info[3]  # ✅ Este YA ES el monto total en dinero del interés
         plazo = prestamo_info[4]
         fecha_desembolso = prestamo_info[5]
         
-        # Calcular valores para mostrar (pero usar los registrados para el cronograma)
+        # Calcular valores para mostrar (usando los datos registrados)
         monto_total_pagar = monto + total_interes
         cuota_mensual = monto_total_pagar / plazo
         
@@ -394,7 +395,7 @@ def mostrar_pago_prestamo():
         with col2:
             st.markdown("**Montos (Datos Registrados)**")
             st.write(f"• **Monto préstamo:** ${monto:,.2f}")
-            st.write(f"• **Interés total:** ${total_interes:,.2f}")
+            st.write(f"• **Interés total a pagar:** ${total_interes:,.2f}")
             st.write(f"• **Total a pagar:** ${monto_total_pagar:,.2f}")
             st.write(f"• **Cuota mensual:** ${cuota_mensual:,.2f}")
         
