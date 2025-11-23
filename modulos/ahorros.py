@@ -3,20 +3,6 @@ import pandas as pd
 from modulos.config.conexion import obtener_conexion
 from datetime import date
 
-#from modulos.consultas_db import obtener_ahorros
-#from modulos.permisos import verificar_permisos
-
-#def mostrar_ahorros():
- #   ahorros = obtener_ahorros()  # ✅ Filtrado automático por permisos
-    # ... tu código actual
-
-# Para acciones específicas
-#if verificar_permisos("ver_todo"):
- #   st.button("Ver todos los ahorros")
-#else:
- #   st.info("Solo puedes ver tus registros")
-
-#AQUI IBA esto mira
     def mostrar_ahorros():
     st.header("💰 Control de Ahorros")
 
