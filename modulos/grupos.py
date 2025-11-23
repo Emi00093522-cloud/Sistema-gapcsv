@@ -130,3 +130,34 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
             con.close()
         except:
             pass
+from modulos.config.conexion import obtener_conexion
+
+def obtener_id_grupo_por_usuario(id_usuario: int):
+    """
+    Devuelve el ID_Grupo asociado a un usuario.
+    Si el usuario tiene varios grupos, devuelve el último creado.
+    Si no tiene grupos, devuelve None.
+    """
+    con = obtener_conexion()
+    if not con:
+        return None
+
+    try:
+        cursor = con.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT ID_Grupo
+            FROM Grupo
+            WHERE ID_Usuario = %s
+            ORDER BY ID_Grupo DESC
+            LIMIT 1
+        """, (id_usuario,))
+        fila = cursor.fetchone()
+        return fila["ID_Grupo"] if fila else None
+
+    except Exception as e:
+        # Puedes poner un log si quieres
+        return None
+
+    finally:
+        con.close()
+
