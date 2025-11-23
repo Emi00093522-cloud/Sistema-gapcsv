@@ -107,13 +107,13 @@ def mostrar_multas():
             with cols[0]:
                 st.write(f"{miembro['nombre_completo']}")
             
-            # Verificar si ya existe multa para este miembro en esta reunión
+            # Verificar si ya existe multa para este miembro en esta reunión - CORREGIDO
             cursor.execute("""
-                SELECT mp.ID_Miembro, mp.ID_Multa, mp.monto_a_pagar, mp.monto_pagado,
+                SELECT mxm.ID_Miembro, mxm.ID_Multa, mxm.monto_a_pagar, mxm.monto_pagado,
                        m.ID_Multa as multa_id, m.ID_Estado_multa
-                FROM miembro_por_multa mp
-                JOIN Multa m ON mp.ID_Multa = m.ID_Multa
-                WHERE mp.ID_Miembro = %s AND m.ID_Reunion = %s
+                FROM MiembroxMulta mxm
+                JOIN Multa m ON mxm.ID_Multa = m.ID_Multa
+                WHERE mxm.ID_Miembro = %s AND m.ID_Reunion = %s
             """, (miembro['ID_Miembro'], id_reunion))
             
             multa_existente = cursor.fetchone()
@@ -175,9 +175,9 @@ def mostrar_multas():
                                 # Determinar monto pagado basado en el checkbox
                                 monto_pagado = multa['monto'] if multa['registrar'] else 0.00
                                 
-                                # Crear relación en miembro_por_multa
+                                # Crear relación en MiembroxMulta - CORREGIDO
                                 cursor.execute("""
-                                    INSERT INTO miembro_por_multa 
+                                    INSERT INTO MiembroxMulta 
                                     (ID_Miembro, ID_Multa, monto_a_pagar, monto_pagado) 
                                     VALUES (%s, %s, %s, %s)
                                 """, (multa['ID_Miembro'], id_multa_nueva, multa['monto'], monto_pagado))
@@ -207,20 +207,20 @@ def mostrar_multas():
         # SECCIÓN: GESTIÓN DE MULTAS EXISTENTES
         st.subheader("📋 Gestión de Multas Registradas")
 
-        # Obtener todas las multas de esta reunión con detalles de miembros
+        # Obtener todas las multas de esta reunión con detalles de miembros - CORREGIDO
         cursor.execute("""
             SELECT 
-                mp.ID_Miembro,
+                mxm.ID_Miembro,
                 CONCAT(mb.nombre, ' ', mb.apellido) as nombre_completo,
-                mp.monto_a_pagar,
-                mp.monto_pagado,
+                mxm.monto_a_pagar,
+                mxm.monto_pagado,
                 mu.ID_Multa,
                 mu.fecha,
                 em.estado_multa,
                 mu.ID_Estado_multa
-            FROM miembro_por_multa mp
-            JOIN Miembro mb ON mp.ID_Miembro = mb.ID_Miembro
-            JOIN Multa mu ON mp.ID_Multa = mu.ID_Multa
+            FROM MiembroxMulta mxm
+            JOIN Miembro mb ON mxm.ID_Miembro = mb.ID_Miembro
+            JOIN Multa mu ON mxm.ID_Multa = mu.ID_Multa
             JOIN Estado_multa em ON mu.ID_Estado_multa = em.ID_Estado_multa
             WHERE mu.ID_Reunion = %s
             ORDER BY mb.nombre, mb.apellido
@@ -269,7 +269,7 @@ def mostrar_multas():
                         if st.button("✅ Marcar como Pagada", key=f"pagar_{multa['ID_Miembro']}_{multa['ID_Multa']}"):
                             try:
                                 cursor.execute("""
-                                    UPDATE miembro_por_multa 
+                                    UPDATE MiembroxMulta 
                                     SET monto_pagado = monto_a_pagar 
                                     WHERE ID_Miembro = %s AND ID_Multa = %s
                                 """, (multa['ID_Miembro'], multa['ID_Multa']))
@@ -283,7 +283,7 @@ def mostrar_multas():
                         if st.button("↩️ Revertir Pago", key=f"revertir_{multa['ID_Miembro']}_{multa['ID_Multa']}"):
                             try:
                                 cursor.execute("""
-                                    UPDATE miembro_por_multa 
+                                    UPDATE MiembroxMulta 
                                     SET monto_pagado = 0 
                                     WHERE ID_Miembro = %s AND ID_Multa = %s
                                 """, (multa['ID_Miembro'], multa['ID_Multa']))
