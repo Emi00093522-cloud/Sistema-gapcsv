@@ -106,30 +106,30 @@ def mostrar_reglamentos():
                 # 4. Comité de Dirección (SOLO cargos de directiva en orden específico)
                 st.markdown("#### 4. Comité de Dirección")
                 try:
-                # Definir el orden específico de cargos
-                cargos_orden = ['PRESIDENTE', 'SECRETARIA', 'TESORERA', 'ENCARGADA_LLAVE']
-    
-                # Buscar miembros para cada cargo en el orden específico
-                st.markdown("**Integrantes de la Directiva:**")
-    
-                for cargo in cargos_orden:
-                cursor.execute("""
-                SELECT m.nombre, m.apellido 
-                FROM Miembro m
-                INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
-                WHERE m.ID_Grupo = %s AND r.nombre_rol = %s
-                LIMIT 1
-                """, (reglamento['ID_Grupo'], cargo))
-                miembro = cursor.fetchone()
-        
-                if miembro:
-                nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
-                st.markdown(f"**| {cargo.title()} | {nombre_completo} |**")
-                else:
-                st.markdown(f"**| {cargo.title()} | (Vacante) |**")
-            
+                    # Definir el orden específico de cargos
+                    cargos_orden = ['PRESIDENTE', 'SECRETARIA', 'TESORERA', 'ENCARGADA_LLAVE']
+                    
+                    # Buscar miembros para cada cargo en el orden específico
+                    st.markdown("**Integrantes de la Directiva:**")
+                    
+                    for cargo in cargos_orden:
+                        cursor.execute("""
+                            SELECT m.nombre, m.apellido 
+                            FROM Miembro m
+                            INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
+                            WHERE m.ID_Grupo = %s AND r.nombre_rol = %s
+                            LIMIT 1
+                        """, (id_grupo, cargo))
+                        miembro = cursor.fetchone()
+                        
+                        if miembro:
+                            nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
+                            st.markdown(f"**| {cargo.title()} | {nombre_completo} |**")
+                        else:
+                            st.markdown(f"**| {cargo.title()} | (Vacante) |**")
+                            
                 except Exception as e:
-                st.error(f"❌ Error al cargar el comité de dirección: {e}")
+                    st.error(f"❌ Error al cargar el comité de dirección: {e}")
 
                 # 5. Nombre del grupo
                 st.markdown("#### 5. Nombre del grupo de ahorro")
@@ -477,29 +477,31 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
         label_visibility="collapsed"
     )
 
-    # 4. Comité de Dirección (SOLO cargos != 'Socia')
+    # 4. Comité de Dirección (SOLO cargos de directiva en orden específico)
     st.markdown("#### 4. Comité de Dirección")
     try:
-        cursor.execute("""
-            SELECT m.nombre, m.apellido, r.nombre_rol as cargo
-            FROM Miembro m
-            INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
-            WHERE m.ID_Grupo = %s
-              AND UPPER(r.nombre_rol) <> 'SOCIA'
-            ORDER BY r.nombre_rol
-        """, (reglamento['ID_Grupo'],))
-        directiva = cursor.fetchall()
+        # Definir el orden específico de cargos
+        cargos_orden = ['PRESIDENTE', 'SECRETARIA', 'TESORERA', 'ENCARGADA_LLAVE']
         
-        if directiva:
-            st.markdown("""
-            | Cargo | Nombre de la Socia |
-            |-------|-------------------|
-            """)
-            for miembro in directiva:
+        # Buscar miembros para cada cargo en el orden específico
+        st.markdown("**Integrantes de la Directiva:**")
+        
+        for cargo in cargos_orden:
+            cursor.execute("""
+                SELECT m.nombre, m.apellido 
+                FROM Miembro m
+                INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
+                WHERE m.ID_Grupo = %s AND r.nombre_rol = %s
+                LIMIT 1
+            """, (reglamento['ID_Grupo'], cargo))
+            miembro = cursor.fetchone()
+            
+            if miembro:
                 nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
-                st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
-        else:
-            st.info("ℹ️ No se han registrado miembros de directiva (solo aparecen roles distintos a 'Socia').")
+                st.markdown(f"**| {cargo.title()} | {nombre_completo} |**")
+            else:
+                st.markdown(f"**| {cargo.title()} | (Vacante) |**")
+                
     except Exception as e:
         st.error(f"❌ Error al cargar el comité de dirección: {e}")
 
