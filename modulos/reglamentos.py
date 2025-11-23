@@ -2,14 +2,6 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-#from modulos.consultas_db import obtener_reglamentos
-#from modulos.permisos import verificar_permisos
-
-#def mostrar_reglamentos():
-#   reglamentos = obtener_reglamentos()  # ✅ Filtrado automático por permisos
-#    ... tu código actual
-
-
 def mostrar_reglamentos():
     st.header("📜 Gestión de Reglamentos por Grupo")
 
@@ -35,18 +27,12 @@ def mostrar_reglamentos():
         grupos_con_reglamento = [row['ID_Grupo'] for row in cursor.fetchall()]
 
         grupo_opciones = {f"{g['nombre']}": g['ID_Grupo'] for g in grupos}
-        grupos_sin_reglamento = {
-            nombre: id_grupo
-            for nombre, id_grupo in grupo_opciones.items() 
-            if id_grupo not in grupos_con_reglamento
-        }
+        grupos_sin_reglamento = {nombre: id_grupo for nombre, id_grupo in grupo_opciones.items() 
+                               if id_grupo not in grupos_con_reglamento}
 
         # Pestañas para Registrar y Editar
         tab1, tab2 = st.tabs(["📝 Registrar Nuevo Reglamento", "✏️ Editar Reglamentos Existentes"])
 
-        # =====================================================
-        # TAB 1 – REGISTRAR NUEVO
-        # =====================================================
         with tab1:
             st.subheader("Registrar Nuevo Reglamento")
             
@@ -133,16 +119,16 @@ def mostrar_reglamentos():
                 label_visibility="collapsed"
             )
 
-            # 4. Comité de Dirección - SOLO roles distintos a "Socia"
+            # 4. Comité de Dirección - MOSTRAR TODOS LOS MIEMBROS CON ROL
             st.markdown("#### 4. Comité de Dirección")
             
             try:
+                # Mostrar TODOS los miembros que tengan un rol asignado
                 cursor.execute("""
-                    SELECT m.nombre, m.apellido, r.nombre_rol AS cargo
+                    SELECT m.nombre, m.apellido, r.nombre_rol as cargo
                     FROM Miembro m
                     INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
                     WHERE m.ID_Grupo = %s
-                      AND UPPER(r.nombre_rol) <> 'SOCIA'
                     ORDER BY r.nombre_rol
                 """, (id_grupo,))
                 directiva = cursor.fetchall()
@@ -156,7 +142,7 @@ def mostrar_reglamentos():
                         nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
                         st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
                 else:
-                    st.info("ℹ️ No se han registrado miembros de directiva (solo se muestran roles distintos a 'Socia').")
+                    st.info("ℹ️ No se han registrado miembros con roles asignados para este grupo.")
                     
             except Exception as e:
                 st.error(f"❌ Error al cargar el comité de dirección: {e}")
@@ -285,6 +271,7 @@ def mostrar_reglamentos():
                     fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=duracion_ciclo)
                     st.info(f"**Fecha fin de ciclo:** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
                 except:
+                    # Fallback si no tiene dateutil
                     import datetime as dt
                     fecha_fin_ciclo = fecha_inicio_ciclo + dt.timedelta(days=duracion_ciclo * 30)
                     st.info(f"**Fecha fin de ciclo (aproximada):** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
@@ -304,9 +291,11 @@ def mostrar_reglamentos():
             st.markdown("#### 11. Otras reglas")
             st.info("Agrega reglas adicionales específicas de tu grupo:")
             
+            # Inicializar session_state para reglas adicionales
             if 'reglas_adicionales' not in st.session_state:
                 st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
 
+            # Mostrar reglas existentes
             reglas_a_eliminar = []
             for i, regla in enumerate(st.session_state.reglas_adicionales):
                 col_regla1, col_regla2 = st.columns([5, 1])
@@ -319,22 +308,26 @@ def mostrar_reglamentos():
                         height=60,
                         key=f"regla_adicional_{i}"
                     )
+                    # Actualizar en session_state
                     st.session_state.reglas_adicionales[i]['texto'] = texto_regla
                 
                 with col_regla2:
-                    st.write("")
-                    st.write("")
+                    st.write("")  # Espacio
+                    st.write("")  # Espacio
                     if len(st.session_state.reglas_adicionales) > 1:
                         if st.button("🗑️", key=f"eliminar_regla_{i}"):
                             reglas_a_eliminar.append(i)
 
+            # Eliminar reglas marcadas
             for indice in sorted(reglas_a_eliminar, reverse=True):
                 if 0 <= indice < len(st.session_state.reglas_adicionales):
                     st.session_state.reglas_adicionales.pop(indice)
             
+            # Renumerar reglas
             for i, regla in enumerate(st.session_state.reglas_adicionales):
                 regla['id'] = i + 1
 
+            # Botones para gestionar reglas adicionales
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
@@ -351,13 +344,16 @@ def mostrar_reglamentos():
             # Botón para guardar TODO el reglamento
             st.markdown("---")
             if st.button("💾 Guardar Reglamento Completo", use_container_width=True, type="primary"):
+                # Validar campos obligatorios
                 if not dia_reunion or not hora_reunion or not lugar_reunion:
                     st.error("❌ Los campos de reuniones (día, hora, lugar) son obligatorios.")
                     return
 
                 # Validar formato de hora
                 try:
+                    # Combinar hora con AM/PM
                     hora_completa = f"{hora_reunion} {periodo_reunion}"
+                    # Verificar formato básico
                     if not hora_reunion or ':' not in hora_reunion:
                         st.error("❌ Formato de hora inválido. Use formato HH:MM")
                         return
@@ -366,12 +362,14 @@ def mostrar_reglamentos():
                     return
 
                 try:
+                    # Preparar reglas adicionales como texto
                     otras_reglas_texto = "\n".join([
                         f"{regla['id']}. {regla['texto']}" 
                         for regla in st.session_state.reglas_adicionales 
                         if regla['texto'].strip()
                     ])
 
+                    # Guardar el reglamento completo
                     cursor.execute("""
                         INSERT INTO Reglamento 
                         (ID_Grupo, dia_reunion, hora_reunion, lugar_reunion, frecuencia_reunion,
@@ -392,6 +390,7 @@ def mostrar_reglamentos():
                     st.success("✅ Reglamento guardado exitosamente!")
                     st.balloons()
                     
+                    # Limpiar formulario
                     st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
                     st.rerun()
                         
@@ -399,9 +398,6 @@ def mostrar_reglamentos():
                     con.rollback()
                     st.error(f"❌ Error al guardar el reglamento: {e}")
 
-        # =====================================================
-        # TAB 2 – LISTAR / (FUTURA) EDICIÓN
-        # =====================================================
         with tab2:
             st.subheader("Editar Reglamentos Existentes")
             
@@ -409,6 +405,7 @@ def mostrar_reglamentos():
                 st.info("📝 No hay reglamentos registrados aún. Usa la pestaña 'Registrar Nuevo Reglamento' para crear el primer reglamento.")
                 return
 
+            # Cargar reglamentos existentes con información del grupo
             cursor.execute("""
                 SELECT r.ID_Reglamento, r.ID_Grupo, g.nombre as nombre_grupo, 
                        d.nombre as distrito, g.fecha_inicio
@@ -423,10 +420,12 @@ def mostrar_reglamentos():
             
             for reglamento in reglamentos_existentes:
                 with st.expander(f"📜 {reglamento['nombre_grupo']} - Distrito: {reglamento['distrito']}"):
+                    # Botón para editar este reglamento
                     if st.button(f"✏️ Editar Reglamento", key=f"editar_{reglamento['ID_Reglamento']}"):
                         st.session_state.reglamento_a_editar = reglamento['ID_Reglamento']
                         st.rerun()
 
+            # TODO: Implementar la funcionalidad de edición completa
             if 'reglamento_a_editar' in st.session_state:
                 st.write("---")
                 st.subheader("✏️ Editando Reglamento")
