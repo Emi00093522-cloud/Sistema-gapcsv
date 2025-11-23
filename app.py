@@ -8,6 +8,13 @@ from modulos.asistencia import mostrar_asistencia
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.integrada import mostrar_gestion_integrada
 from modulos.grupos import mostrar_grupos
+# Agregar importación del módulo ciclo (si existe)
+try:
+    from modulos.ciclo import mostrar_ciclo
+except ImportError:
+    # Si el módulo no existe, creamos una función temporal
+    def mostrar_ciclo():
+        st.warning("Módulo de Cierre de Ciclo en desarrollo")
 
 
 # ---------------------------------------------------------
@@ -47,14 +54,15 @@ def panel_secretaria():
         "👥 Miembros",
         "📜 Reglamentos",
         "📅 Reuniones",
+        "🔄 Cierre de Ciclo",  # Nueva pestaña agregada
         "🚪 Cerrar sesión"
-
     ])
 
     with tabs[0]: mostrar_grupos()
     with tabs[1]: mostrar_miembro()
     with tabs[2]: mostrar_reglamentos()
     with tabs[3]: mostrar_gestion_integrada()
+    with tabs[4]: mostrar_ciclo()  # Mostrar el módulo de cierre de ciclo
 
         
     if st.button("Cerrar sesión"):
@@ -73,6 +81,7 @@ def panel_presidente():
         "👥 Miembros",
         "📜 Reglamentos",
         "💰 Préstamos",
+        "🔄 Cierre de Ciclo",  # También para presidente si es necesario
         "🚪 Cerrar sesión"
     ])
 
@@ -80,8 +89,9 @@ def panel_presidente():
     with tabs[1]: mostrar_reglamentos()
     with tabs[2]: mostrar_miembro()
     with tabs[3]: mostrar_prestamo()
+    with tabs[4]: mostrar_ciclo()  # Cierre de ciclo para presidente
 
-    with tabs[4]:
+    with tabs[5]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -97,6 +107,7 @@ def panel_promotora(usuario):
         "📈 Dashboard",
         "👩‍💼 Registro Promotora",
         "🏛️ Distrito",
+        "🔄 Cierre de Ciclo",  # Para promotora si es necesario
         "🚪 Cerrar sesión"
     ])
 
@@ -106,8 +117,9 @@ def panel_promotora(usuario):
 
     with tabs[1]: mostrar_promotora()
     with tabs[2]: mostrar_distrito()
+    with tabs[3]: mostrar_ciclo()  # Cierre de ciclo para promotora
 
-    with tabs[3]:
+    with tabs[4]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -122,6 +134,7 @@ def panel_admin():
     tabs = st.tabs([
         "📊 Consolidado Distritos",
         "🧑‍💻 Registrar Usuario",
+        "🔄 Cierre de Ciclo",  # Para administradora
         "🚪 Cerrar sesión"
     ])
 
@@ -129,8 +142,9 @@ def panel_admin():
         st.info("📊 Aquí irá el consolidado general por distrito.")
 
     with tabs[1]: registrar_usuario()
+    with tabs[2]: mostrar_ciclo()  # Cierre de ciclo para administradora
 
-    with tabs[2]:
+    with tabs[3]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -183,4 +197,3 @@ else:
     
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
-
