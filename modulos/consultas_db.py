@@ -116,3 +116,36 @@ def obtener_miembros():
         return []
     finally:
         con.close()
+
+# CONSULTAS PARA AHORROS
+def obtener_ahorros():
+    """Obtiene registros de ahorros con filtros según permisos"""
+    if not st.session_state.get("sesion_iniciada", False):
+        return []
+    
+    permisos = st.session_state.get("permisos_usuario", {})
+    
+    query = """
+        SELECT a.*, m.Nombre as Miembro, g.Nombre_Grupo, u.Usuario as Registrado_Por
+        FROM Ahorros a
+        LEFT JOIN Miembros m ON a.ID_Miembro = m.ID_Miembro
+        LEFT JOIN Grupos g ON m.ID_Grupo = g.ID_Grupo
+        LEFT JOIN Usuario u ON a.ID_Usuario_Registro = u.ID_Usuario
+    """
+    
+    query_filtrada, params = aplicar_filtros_usuarios(query, permisos)
+    query_filtrada += " ORDER BY a.Fecha_Registro DESC"
+    
+    con = obtener_conexion()
+    if not con:
+        return []
+    
+    try:
+        cursor = con.cursor(dictionary=True)
+        cursor.execute(query_filtrada, params)
+        return cursor.fetchall()
+    except Exception as e:
+        st.error(f"❌ Error al obtener ahorros: {e}")
+        return []
+    finally:
+        con.close()
