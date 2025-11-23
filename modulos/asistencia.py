@@ -5,10 +5,11 @@ from modulos.consultas_db import obtener_asistencia
 from modulos.permisos import verificar_permisos
 
 def mostrar_asistencia():
-    ahorros = obtener_asistencia()  # ✅ Filtrado automático por permisos
+    # Necesitas crear esta función en consultas_db.py
+    asistencia = obtener_asistencia()  # ✅ Filtrado automático
     # ... tu código actual
 
-def mostrar_asistencia():
+#def mostrar_asistencia():
     st.header("📝 Control de asistencia por reunión")
 
     try:
