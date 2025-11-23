@@ -240,220 +240,233 @@ def generar_cronograma_pagos(id_prestamo, con, id_grupo=None):
 
 def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id_grupo=None, numero_cuota=None):
     """
-    Aplica pago completo o parcial a la próxima cuota (o número específico si tipo='completo').
-    Si es parcial, recalcula TODAS las cuotas pendientes con el nuevo saldo.
+    Aplica pago completo o parcial y RECALCULA SIEMPRE todo el cronograma pendiente
     """
     cursor = con.cursor(dictionary=True)
 
-    # Obtener información del préstamo
-    cursor.execute("""
-        SELECT monto, total_interes, monto_total_pagar, plazo, fecha_desembolso
-        FROM Prestamo
-        WHERE ID_Prestamo = %s
-    """, (id_prestamo,))
-    prestamo_info = cursor.fetchone()
-    
-    if not prestamo_info:
-        cursor.close()
-        return False, "No se encontró información del préstamo"
-
-    # Extraer datos del préstamo
-    monto_total_prestamo = Decimal(str(prestamo_info['monto_total_pagar']))
-    
-    if tipo_pago == "completo" and numero_cuota:
-        # PAGO COMPLETO de una cuota específica
+    try:
+        # Obtener información del préstamo
         cursor.execute("""
-            SELECT ID_Cuota, capital_programado, interes_programado, total_programado,
-                   capital_pagado, interes_pagado, total_pagado, estado
-            FROM CuotaPrestamo
-            WHERE ID_Prestamo = %s AND numero_cuota = %s
-        """, (id_prestamo, numero_cuota))
-        cuota = cursor.fetchone()
-        
-        if not cuota:
-            cursor.close()
-            return False, "No se encontró la cuota especificada"
-        
-        # Aplicar pago completo a esta cuota
-        cursor.execute("""
-            UPDATE CuotaPrestamo
-            SET capital_pagado = capital_programado,
-                interes_pagado = interes_programado,
-                total_pagado = total_programado,
-                estado = 'pagado'
-            WHERE ID_Cuota = %s
-        """, (cuota['ID_Cuota'],))
-        
-        # Registrar el pago
-        cursor.execute("""
-            INSERT INTO Pago_prestamo (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id_prestamo, st.session_state.reunion_actual['id_reunion'], fecha_pago, 
-              float(cuota['capital_programado']), float(cuota['interes_programado']), float(cuota['total_programado'])))
-        
-        con.commit()
-        cursor.close()
-        return True, "Pago completo registrado"
-    
-    else:
-        # PAGO PARCIAL a la próxima cuota pendiente
-        cursor.execute("""
-            SELECT ID_Cuota, numero_cuota, capital_programado, interes_programado, total_programado,
-                   COALESCE(capital_pagado,0) AS capital_pagado, COALESCE(interes_pagado,0) AS interes_pagado,
-                   COALESCE(total_pagado,0) AS total_pagado, estado
-            FROM CuotaPrestamo
-            WHERE ID_Prestamo = %s AND estado != 'pagado'
-            ORDER BY numero_cuota ASC
-            LIMIT 1
+            SELECT monto, total_interes, monto_total_pagar, plazo, fecha_desembolso
+            FROM Prestamo
+            WHERE ID_Prestamo = %s
         """, (id_prestamo,))
-        cuota_actual = cursor.fetchone()
+        prestamo_info = cursor.fetchone()
         
-        if not cuota_actual:
-            cursor.close()
-            return False, "No hay cuotas pendientes"
+        if not prestamo_info:
+            return False, "No se encontró información del préstamo"
 
-        # Aplicar pago parcial a la cuota actual
+        monto_total_prestamo = Decimal(str(prestamo_info['monto_total_pagar']))
         monto_pagado_d = Decimal(str(monto_pagado))
-        capital_pendiente = Decimal(str(cuota_actual['capital_programado'])) - Decimal(str(cuota_actual['capital_pagado']))
-        interes_pendiente = Decimal(str(cuota_actual['interes_programado'])) - Decimal(str(cuota_actual['interes_pagado']))
-        total_pendiente = capital_pendiente + interes_pendiente
-        
-        # Verificar que el pago no exceda lo pendiente
-        if monto_pagado_d > total_pendiente:
-            cursor.close()
-            return False, f"El pago (${monto_pagado_d}) excede el total pendiente (${total_pendiente})"
 
-        # Aplicar pago: primero a interés, luego a capital
-        nuevo_interes_pagado = Decimal(str(cuota_actual['interes_pagado']))
-        nuevo_capital_pagado = Decimal(str(cuota_actual['capital_pagado']))
-        
-        # Pagar interés primero
-        if interes_pendiente > 0:
-            if monto_pagado_d >= interes_pendiente:
-                nuevo_interes_pagado += interes_pendiente
-                monto_pagado_d -= interes_pendiente
-            else:
-                nuevo_interes_pagado += monto_pagado_d
-                monto_pagado_d = Decimal('0')
-        
-        # Pagar capital con lo que queda
-        if monto_pagado_d > 0 and capital_pendiente > 0:
-            if monto_pagado_d >= capital_pendiente:
-                nuevo_capital_pagado += capital_pendiente
-                monto_pagado_d -= capital_pendiente
-            else:
-                nuevo_capital_pagado += monto_pagado_d
-                monto_pagado_d = Decimal('0')
-        
-        nuevo_total_pagado = nuevo_capital_pagado + nuevo_interes_pagado
-        
-        # Actualizar la cuota actual
-        cursor.execute("""
-            UPDATE CuotaPrestamo
-            SET capital_pagado = %s, interes_pagado = %s, total_pagado = %s,
-                estado = CASE WHEN %s >= %s THEN 'pagado' ELSE 'parcial' END
-            WHERE ID_Cuota = %s
-        """, (float(nuevo_capital_pagado), float(nuevo_interes_pagado), float(nuevo_total_pagado),
-              float(nuevo_total_pagado), float(cuota_actual['total_programado']), cuota_actual['ID_Cuota']))
-
-        # Registrar el pago
-        cursor.execute("""
-            INSERT INTO Pago_prestamo (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id_prestamo, st.session_state.reunion_actual['id_reunion'], fecha_pago,
-              float(nuevo_capital_pagado - Decimal(str(cuota_actual['capital_pagado']))),
-              float(nuevo_interes_pagado - Decimal(str(cuota_actual['interes_pagado']))),
-              float(monto_pagado)))
-
-        # RECALCULAR TODAS LAS CUOTAS PENDIENTES si la cuota actual no se pagó completamente
-        if nuevo_total_pagado < Decimal(str(cuota_actual['total_programado'])):
-            # Calcular total ya pagado hasta ahora
+        # 1. REGISTRAR EL PAGO PRIMERO
+        if tipo_pago == "completo" and numero_cuota:
+            # Pago completo de cuota específica
             cursor.execute("""
-                SELECT COALESCE(SUM(total_pagado), 0) as total_pagado_hasta_ahora
+                SELECT ID_Cuota, capital_programado, interes_programado, total_programado
                 FROM CuotaPrestamo
-                WHERE ID_Prestamo = %s
-            """, (id_prestamo,))
-            total_pagado_hasta_ahora = Decimal(str(cursor.fetchone()['total_pagado_hasta_ahora']))
+                WHERE ID_Prestamo = %s AND numero_cuota = %s
+            """, (id_prestamo, numero_cuota))
+            cuota = cursor.fetchone()
             
-            # Calcular nuevo saldo pendiente
-            nuevo_saldo_pendiente = monto_total_prestamo - total_pagado_hasta_ahora
+            if not cuota:
+                return False, "No se encontró la cuota especificada"
             
-            # Contar cuántas cuotas quedan pendientes (incluyendo la actual si está parcial)
+            # Registrar pago completo de esta cuota
             cursor.execute("""
-                SELECT COUNT(*) as cuotas_pendientes
+                UPDATE CuotaPrestamo
+                SET capital_pagado = capital_programado,
+                    interes_pagado = interes_programado,
+                    total_pagado = total_programado,
+                    estado = 'pagado'
+                WHERE ID_Cuota = %s
+            """, (cuota['ID_Cuota'],))
+            
+            # Registrar en Pago_prestamo
+            cursor.execute("""
+                INSERT INTO Pago_prestamo (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (id_prestamo, st.session_state.reunion_actual['id_reunion'], fecha_pago,
+                  float(cuota['capital_programado']), float(cuota['interes_programado']), float(cuota['total_programado'])))
+        
+        else:
+            # Pago parcial a la próxima cuota pendiente
+            cursor.execute("""
+                SELECT ID_Cuota, numero_cuota, capital_programado, interes_programado, total_programado,
+                       COALESCE(capital_pagado,0) AS capital_pagado, COALESCE(interes_pagado,0) AS interes_pagado
                 FROM CuotaPrestamo
                 WHERE ID_Prestamo = %s AND estado != 'pagado'
+                ORDER BY numero_cuota ASC
+                LIMIT 1
             """, (id_prestamo,))
-            cuotas_pendientes = cursor.fetchone()['cuotas_pendientes']
+            cuota_actual = cursor.fetchone()
             
-            if cuotas_pendientes > 0 and nuevo_saldo_pendiente > 0:
-                # Calcular nueva cuota mensual
-                nueva_cuota_mensual = (nuevo_saldo_pendiente / cuotas_pendientes).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                
-                # Obtener proporción actual de capital vs interés
-                cursor.execute("""
-                    SELECT 
-                        COALESCE(SUM(capital_programado - COALESCE(capital_pagado, 0)), 0) as capital_pendiente,
-                        COALESCE(SUM(interes_programado - COALESCE(interes_pagado, 0)), 0) as interes_pendiente
-                    FROM CuotaPrestamo
-                    WHERE ID_Prestamo = %s AND estado != 'pagado'
-                """, (id_prestamo,))
-                saldos_pendientes = cursor.fetchone()
-                
-                capital_pendiente_total = Decimal(str(saldos_pendientes['capital_pendiente']))
-                interes_pendiente_total = Decimal(str(saldos_pendientes['interes_pendiente']))
-                total_pendiente_actual = capital_pendiente_total + interes_pendiente_total
-                
-                if total_pendiente_actual > 0:
-                    proporcion_capital = capital_pendiente_total / total_pendiente_actual
-                    proporcion_interes = interes_pendiente_total / total_pendiente_actual
+            if not cuota_actual:
+                return False, "No hay cuotas pendientes"
+
+            # Aplicar pago a la cuota actual
+            capital_pendiente = Decimal(str(cuota_actual['capital_programado'])) - Decimal(str(cuota_actual['capital_pagado']))
+            interes_pendiente = Decimal(str(cuota_actual['interes_programado'])) - Decimal(str(cuota_actual['interes_pagado']))
+            total_pendiente = capital_pendiente + interes_pendiente
+            
+            if monto_pagado_d > total_pendiente:
+                return False, f"El pago (${monto_pagado_d}) excede el total pendiente (${total_pendiente})"
+
+            # Aplicar pago: primero interés, luego capital
+            nuevo_interes_pagado = Decimal(str(cuota_actual['interes_pagado']))
+            nuevo_capital_pagado = Decimal(str(cuota_actual['capital_pagado']))
+            
+            # Pagar interés primero
+            if interes_pendiente > 0:
+                if monto_pagado_d >= interes_pendiente:
+                    nuevo_interes_pagado += interes_pendiente
+                    monto_pagado_d -= interes_pendiente
                 else:
-                    proporcion_capital = Decimal("0.5")
-                    proporcion_interes = Decimal("0.5")
-                
-                # Recalcular todas las cuotas pendientes
-                cursor.execute("""
-                    SELECT ID_Cuota, numero_cuota, fecha_programada, capital_pagado, interes_pagado
-                    FROM CuotaPrestamo
-                    WHERE ID_Prestamo = %s AND estado != 'pagado'
-                    ORDER BY numero_cuota
-                """, (id_prestamo,))
-                cuotas_pendientes = cursor.fetchall()
-                
-                saldo_restante = nuevo_saldo_pendiente
-                
-                for i, cuota in enumerate(cuotas_pendientes):
-                    id_cuota = cuota['ID_Cuota']
-                    capital_ya_pagado = Decimal(str(cuota['capital_pagado']))
-                    interes_ya_pagado = Decimal(str(cuota['interes_pagado']))
-                    
-                    if i == len(cuotas_pendientes) - 1:
-                        # Última cuota: tomar el saldo restante completo
-                        capital_cuota = (saldo_restante * proporcion_capital).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                        interes_cuota = saldo_restante - capital_cuota
-                    else:
-                        # Cuotas intermedias: usar la cuota calculada
-                        capital_cuota = (nueva_cuota_mensual * proporcion_capital).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                        interes_cuota = nueva_cuota_mensual - capital_cuota
-                        saldo_restante -= nueva_cuota_mensual
-                    
-                    total_cuota = capital_cuota + interes_cuota
-                    
-                    # Actualizar la cuota con los nuevos valores programados
-                    cursor.execute("""
-                        UPDATE CuotaPrestamo
-                        SET capital_programado = %s,
-                            interes_programado = %s,
-                            total_programado = %s
-                        WHERE ID_Cuota = %s
-                    """, (float(capital_cuota + capital_ya_pagado), 
-                          float(interes_cuota + interes_ya_pagado), 
-                          float(total_cuota + capital_ya_pagado + interes_ya_pagado), 
-                          id_cuota))
+                    nuevo_interes_pagado += monto_pagado_d
+                    monto_pagado_d = Decimal('0')
+            
+            # Pagar capital con lo que queda
+            if monto_pagado_d > 0 and capital_pendiente > 0:
+                if monto_pagado_d >= capital_pendiente:
+                    nuevo_capital_pagado += capital_pendiente
+                    monto_pagado_d -= capital_pendiente
+                else:
+                    nuevo_capital_pagado += monto_pagado_d
+                    monto_pagado_d = Decimal('0')
+            
+            nuevo_total_pagado = nuevo_capital_pagado + nuevo_interes_pagado
+            
+            # Determinar nuevo estado
+            if nuevo_total_pagado >= Decimal(str(cuota_actual['total_programado'])):
+                nuevo_estado = 'pagado'
+            else:
+                nuevo_estado = 'parcial'
+
+            # Actualizar la cuota actual
+            cursor.execute("""
+                UPDATE CuotaPrestamo
+                SET capital_pagado = %s, interes_pagado = %s, total_pagado = %s, estado = %s
+                WHERE ID_Cuota = %s
+            """, (float(nuevo_capital_pagado), float(nuevo_interes_pagado), float(nuevo_total_pagado), nuevo_estado, cuota_actual['ID_Cuota']))
+
+            # Registrar en Pago_prestamo
+            cursor.execute("""
+                INSERT INTO Pago_prestamo (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (id_prestamo, st.session_state.reunion_actual['id_reunion'], fecha_pago,
+                  float(nuevo_capital_pagado - Decimal(str(cuota_actual['capital_pagado']))),
+                  float(nuevo_interes_pagado - Decimal(str(cuota_actual['interes_pagado']))),
+                  float(monto_pagado)))
+
+        # 2. RECALCULAR SIEMPRE TODAS LAS CUOTAS PENDIENTES
+        # Obtener total pagado hasta ahora
+        cursor.execute("""
+            SELECT COALESCE(SUM(total_pagado), 0) as total_pagado_hasta_ahora
+            FROM CuotaPrestamo
+            WHERE ID_Prestamo = %s
+        """, (id_prestamo,))
+        total_pagado_hasta_ahora = Decimal(str(cursor.fetchone()['total_pagado_hasta_ahora']))
+        
+        # Calcular nuevo saldo pendiente
+        nuevo_saldo_pendiente = monto_total_prestamo - total_pagado_hasta_ahora
+        
+        # Si ya está pagado completamente, no hay nada que recalcular
+        if nuevo_saldo_pendiente <= 0:
+            con.commit()
+            return True, "Préstamo completamente pagado"
+        
+        # Obtener cuotas pendientes
+        cursor.execute("""
+            SELECT ID_Cuota, numero_cuota, fecha_programada, 
+                   COALESCE(capital_pagado, 0) as capital_pagado,
+                   COALESCE(interes_pagado, 0) as interes_pagado
+            FROM CuotaPrestamo
+            WHERE ID_Prestamo = %s AND estado != 'pagado'
+            ORDER BY numero_cuota
+        """, (id_prestamo,))
+        cuotas_pendientes = cursor.fetchall()
+        
+        if not cuotas_pendientes:
+            con.commit()
+            return True, "Pago registrado"
+        
+        # Calcular nueva cuota mensual equitativa
+        cuotas_pendientes_count = len(cuotas_pendientes)
+        nueva_cuota_mensual = (nuevo_saldo_pendiente / cuotas_pendientes_count).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        
+        # Calcular proporción capital/interés del saldo pendiente
+        cursor.execute("""
+            SELECT 
+                COALESCE(SUM(capital_programado - COALESCE(capital_pagado, 0)), 0) as capital_pendiente,
+                COALESCE(SUM(interes_programado - COALESCE(interes_pagado, 0)), 0) as interes_pendiente
+            FROM CuotaPrestamo
+            WHERE ID_Prestamo = %s AND estado != 'pagado'
+        """, (id_prestamo,))
+        saldos = cursor.fetchone()
+        
+        capital_pendiente_total = Decimal(str(saldos['capital_pendiente']))
+        interes_pendiente_total = Decimal(str(saldos['interes_pendiente']))
+        total_pendiente_actual = capital_pendiente_total + interes_pendiente_total
+        
+        if total_pendiente_actual > 0:
+            proporcion_capital = capital_pendiente_total / total_pendiente_actual
+            proporcion_interes = interes_pendiente_total / total_pendiente_actual
+        else:
+            proporcion_capital = Decimal("0.5")
+            proporcion_interes = Decimal("0.5")
+        
+        # RECALCULAR TODAS LAS CUOTAS PENDIENTES
+        saldo_restante = nuevo_saldo_pendiente
+        
+        for i, cuota in enumerate(cuotas_pendientes):
+            id_cuota = cuota['ID_Cuota']
+            capital_ya_pagado = Decimal(str(cuota['capital_pagado']))
+            interes_ya_pagado = Decimal(str(cuota['interes_pagado']))
+            total_ya_pagado = capital_ya_pagado + interes_ya_pagado
+            
+            if i == len(cuotas_pendientes) - 1:
+                # Última cuota: tomar todo el saldo restante
+                capital_cuota = (saldo_restante * proporcion_capital).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                interes_cuota = saldo_restante - capital_cuota
+            else:
+                # Cuotas intermedias: distribución equitativa
+                capital_cuota = (nueva_cuota_mensual * proporcion_capital).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                interes_cuota = nueva_cuota_mensual - capital_cuota
+                saldo_restante -= nueva_cuota_mensual
+            
+            # Los nuevos valores programados son: lo ya pagado + lo pendiente
+            nuevo_capital_programado = capital_ya_pagado + capital_cuota
+            nuevo_interes_programado = interes_ya_pagado + interes_cuota
+            nuevo_total_programado = nuevo_capital_programado + nuevo_interes_programado
+            
+            # Determinar estado basado en lo pagado vs programado
+            if total_ya_pagado >= nuevo_total_programado:
+                nuevo_estado = 'pagado'
+            elif total_ya_pagado > 0:
+                nuevo_estado = 'parcial'
+            else:
+                nuevo_estado = 'pendiente'
+            
+            # ACTUALIZAR LA CUOTA CON LOS NUEVOS VALORES
+            cursor.execute("""
+                UPDATE CuotaPrestamo
+                SET capital_programado = %s,
+                    interes_programado = %s,
+                    total_programado = %s,
+                    estado = %s
+                WHERE ID_Cuota = %s
+            """, (float(nuevo_capital_programado), float(nuevo_interes_programado), 
+                  float(nuevo_total_programado), nuevo_estado, id_cuota))
 
         con.commit()
+        return True, "Pago registrado y cronograma actualizado"
+
+    except Exception as e:
+        con.rollback()
+        return False, f"Error al procesar pago: {str(e)}"
+    
+    finally:
         cursor.close()
-        return True, "Pago parcial aplicado y cronograma actualizado"
 
 
 def mostrar_pago_prestamo():
