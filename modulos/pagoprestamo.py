@@ -6,7 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from modulos.consultas_db import obtener_pagos_prestamos
 from modulos.permisos import verificar_permisos
 
-def mostrar_pagos():
+def mostrar_pagoprestamo():
     # Necesitas crear esta función en consultas_db.py
     pagos = obtener_pagos_prestamos()  # ✅ Filtrado automático
     # ... tu código actual
