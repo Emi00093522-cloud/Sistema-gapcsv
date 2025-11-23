@@ -3,6 +3,13 @@ import pandas as pd
 from modulos.config.conexion import obtener_conexion
 from datetime import date
 
+from modulos.consultas_db import obtener_ahorros
+from modulos.permisos import verificar_permisos
+
+def mostrar_ahorros():
+    ahorros = obtener_ahorros()  # ✅ Filtrado automático por permisos
+    # ... tu código actual
+
 def mostrar_ahorros():
     st.header("💰 Control de Ahorros")
 
