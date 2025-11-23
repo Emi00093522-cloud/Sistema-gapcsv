@@ -163,10 +163,6 @@ def mostrar_ahorros():
                         st.info("**$0.00**")
                         retiros_data[id_miembro] = 0.00
                 
-                with cols[5]:
-                    # CAMPO VACÍO - Solo muestra guiones hasta que se guarde
-                    st.write("**--**")
-                
                 # Línea separadora entre miembros
                 st.markdown("---")
 
