@@ -2,6 +2,12 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from modulos.consultas_db import obtener_pagoprestamo
+from modulos.permisos import verificar_permisos
+
+def mostrar_ahorros():
+    ahorros = obtener_pagoprestamo()  # ✅ Filtrado automático por permisos
+    # ... tu código actual
 
 
 def obtener_reunion_mas_cercana_fin_mes(con, id_grupo, fecha_referencia, mes_offset=0):
