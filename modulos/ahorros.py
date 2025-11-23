@@ -74,8 +74,7 @@ def mostrar_ahorros():
                 st.markdown("**Otras actividades**")
             with cols_titulos[4]:
                 st.markdown("**Retiros**")
-            with cols_titulos[5]:
-                st.markdown("**Saldos ahorros**")
+
 
             # Diccionarios para almacenar los datos de cada miembro
             ahorros_data = {}
