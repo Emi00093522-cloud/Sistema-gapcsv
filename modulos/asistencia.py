@@ -1,30 +1,34 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 
-#from modulos.consultas_db import obtener_asistencia
-#from modulos.permisos import verificar_permisos
-
-#def mostrar_asistencia():
-    # Necesitas crear esta función en consultas_db.py
- #   asistencia = obtener_asistencia()  # ✅ Filtrado automático
-    # ... tu código actual
-
 def mostrar_asistencia():
     st.header("📝 Control de asistencia por reunión")
 
+    # 🔥 1) Tomar el grupo del usuario logueado
+    id_grupo = st.session_state.get("id_grupo")
+    if id_grupo is None:
+        st.error("⚠️ No tienes un grupo asociado. Crea primero un grupo en el módulo 'Grupos'.")
+        return
+
     try:
         con = obtener_conexion()
+        if not con:
+            st.error("❌ No se pudo conectar a la base de datos.")
+            return
+
         cursor = con.cursor()
 
-        # 1. Cargar reuniones
+        # 1. Cargar SOLO las reuniones del grupo del usuario
         cursor.execute("""
             SELECT ID_Reunion, lugar, fecha, ID_Grupo
             FROM Reunion
-        """)
+            WHERE ID_Grupo = %s
+            ORDER BY fecha DESC
+        """, (id_grupo,))
         reuniones = cursor.fetchall()
 
         if not reuniones:
-            st.warning("⚠ No hay reuniones registradas.")
+            st.warning("⚠ No hay reuniones registradas para tu grupo.")
             return
 
         reuniones_dict = {
@@ -38,23 +42,23 @@ def mostrar_asistencia():
             format_func=lambda x: reuniones_dict[x]
         )
 
-        # Obtener ID_Grupo asociado
-        id_grupo = next((r[3] for r in reuniones if r[0] == id_reunion), None)
+        # ID_Grupo asociado (debería coincidir con id_grupo)
+        id_grupo_reunion = next((r[3] for r in reuniones if r[0] == id_reunion), None)
 
-        # GUARDAR EN SESSION_STATE PARA COMPARTIR CON OTROS MÓDULOS
+        # Guardar en session_state por si otros módulos lo usan
         st.session_state.reunion_actual = {
             'id_reunion': id_reunion,
-            'id_grupo': id_grupo,
+            'id_grupo': id_grupo_reunion,
             'nombre_reunion': reuniones_dict[id_reunion]
         }
 
-        # 2. Cargar miembros
+        # 2. Cargar miembros del grupo (ya estaba bien, lo dejamos igual)
         cursor.execute("""
             SELECT ID_Miembro, nombre
             FROM Miembro
             WHERE ID_Grupo = %s
             ORDER BY nombre
-        """, (id_grupo,))
+        """, (id_grupo_reunion,))
         miembros = cursor.fetchall()
 
         if not miembros:
