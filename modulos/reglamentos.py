@@ -5,58 +5,78 @@ from datetime import datetime
 def mostrar_reglamentos():
     st.header("📜 Gestión de Reglamentos por Grupo")
 
+    # 🔒 1. Tomar el grupo desde la sesión (asignado en el login)
+    id_grupo_usuario = st.session_state.get("id_grupo", None)
+
+    if id_grupo_usuario is None:
+        st.error("⚠ No se encontró el grupo asociado al usuario. Vuelve a iniciar sesión.")
+        return
+
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # Cargar grupos existentes con información disponible
+        # ------------------------------------------------------------
+        # 2. Cargar SOLO el grupo del usuario logueado
+        # ------------------------------------------------------------
         cursor.execute("""
-            SELECT g.ID_Grupo, g.nombre, g.fecha_inicio, d.nombre as distrito
+            SELECT g.ID_Grupo, g.nombre, g.fecha_inicio, d.nombre AS distrito
             FROM Grupo g
             LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
-            ORDER BY g.nombre
-        """)
+            WHERE g.ID_Grupo = %s
+        """, (id_grupo_usuario,))
         grupos = cursor.fetchall()
             
         if not grupos:
-            st.error("❌ No se encontraron grupos en la base de datos.")
+            st.error("❌ No se encontró información del grupo asociado al usuario.")
             return
 
-        # Verificar qué grupos ya tienen reglamento
-        cursor.execute("SELECT DISTINCT ID_Grupo FROM Reglamento")
+        grupo_info = grupos[0]  # solo uno
+        nombre_grupo_usuario = grupo_info["nombre"]
+
+        # ------------------------------------------------------------
+        # 3. Verificar si ESTE grupo ya tiene reglamento
+        # ------------------------------------------------------------
+        cursor.execute(
+            "SELECT DISTINCT ID_Grupo FROM Reglamento WHERE ID_Grupo = %s",
+            (id_grupo_usuario,)
+        )
         grupos_con_reglamento = [row['ID_Grupo'] for row in cursor.fetchall()]
 
-        grupo_opciones = {f"{g['nombre']}": g['ID_Grupo'] for g in grupos}
-        grupos_sin_reglamento = {nombre: id_grupo for nombre, id_grupo in grupo_opciones.items() 
-                               if id_grupo not in grupos_con_reglamento}
+        # Diccionarios de apoyo (solo hay 1 grupo, pero lo dejamos genérico)
+        grupo_opciones = {f"{grupo_info['nombre']}": grupo_info['ID_Grupo']}
 
-        # Pestañas para Registrar y Editar
-        tab1, tab2 = st.tabs(["📝 Registrar Nuevo Reglamento", "✏️ Editar Reglamentos Existentes"])
+        # Si el grupo ya tiene reglamento, este dict quedará vacío
+        grupos_sin_reglamento = {
+            nombre: id_grupo for nombre, id_grupo in grupo_opciones.items()
+            if id_grupo not in grupos_con_reglamento
+        }
 
+        # ------------------------------------------------------------
+        # 4. Pestañas Registrar / Editar (si ya hay reglamento)
+        # ------------------------------------------------------------
+        tab1, tab2 = st.tabs(["📝 Registrar Nuevo Reglamento", "✏️ Editar Reglamento"])
+
+        # ============================================================
+        # TAB 1: REGISTRAR NUEVO
+        # ============================================================
         with tab1:
             st.subheader("Registrar Nuevo Reglamento")
-            
+
             if not grupos_sin_reglamento:
-                st.info("🎉 Todos los grupos ya tienen su reglamento registrado.")
-                st.info("Usa la pestaña 'Editar Reglamentos Existentes' para modificar los reglamentos.")
+                st.info(f"🎉 El grupo **{nombre_grupo_usuario}** ya tiene su reglamento registrado.")
+                st.info("Usa la pestaña **'Editar Reglamento'** para modificarlo.")
                 return
 
-            # 1. Selección del grupo
+            # 1. Nombre del grupo de ahorro (ya está fijado)
             st.markdown("### 1. Nombre del grupo de ahorro")
-            grupo_seleccionado = st.selectbox(
-                "Selecciona el grupo para el NUEVO reglamento:",
-                options=list(grupos_sin_reglamento.keys()),
-                key="nuevo_grupo"
-            )
-            id_grupo = grupos_sin_reglamento[grupo_seleccionado]
-            
-            # Obtener información del grupo seleccionado
-            grupo_info = next((g for g in grupos if g['ID_Grupo'] == id_grupo), None)
-            
-            if not grupo_info:
-                st.error("❌ No se pudo obtener la información del grupo.")
-                return
+            nombre_visible = list(grupos_sin_reglamento.keys())[0]
+            id_grupo = grupos_sin_reglamento[nombre_visible]
 
+            # Mostrar solo como info, sin selectbox
+            st.info(f"Grupo asignado: **{nombre_visible}**")
+
+            # `grupo_info` ya corresponde a este grupo
             st.markdown("---")
             st.markdown("### 📋 Formulario de Reglamento Interno")
 
@@ -72,13 +92,13 @@ def mostrar_reglamentos():
             else:
                 st.info("**Fecha de formación:** No registrada")
 
-            # 3. Reuniones - CAMPOS EDITABLES (MODIFICADO CON FRECUENCIA SIMPLE)
+            # 3. Reuniones
             st.markdown("#### 3. Reuniones")
             col_reun1, col_reun2, col_reun3 = st.columns(3)
             
             with col_reun1:
-                # Día de la semana - lista desplegable
-                dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+                dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves",
+                               "Viernes", "Sábado", "Domingo"]
                 dia_reunion = st.selectbox(
                     "Día:",
                     options=dias_semana,
@@ -86,7 +106,6 @@ def mostrar_reglamentos():
                 )
             
             with col_reun2:
-                # Hora con formato y AM/PM
                 col_hora, col_ampm = st.columns([2, 1])
                 with col_hora:
                     hora_reunion = st.text_input(
@@ -103,14 +122,12 @@ def mostrar_reglamentos():
                     )
             
             with col_reun3:
-                # Lugar - solo texto
                 lugar_reunion = st.text_input(
                     "Lugar:",
                     placeholder="Ej: Casa comunal",
                     key="lugar_reunion"
                 )
 
-            # Frecuencia de reunión - MODIFICADO: Solo menú desplegable
             st.markdown("**Frecuencia de reunión:**")
             frecuencia_reunion = st.selectbox(
                 "Seleccione la frecuencia:",
@@ -119,16 +136,15 @@ def mostrar_reglamentos():
                 label_visibility="collapsed"
             )
 
-            # 4. Comité de Dirección - MOSTRAR TODOS LOS MIEMBROS CON ROL
+            # 4. Comité de Dirección (SIN rol 'Socia')
             st.markdown("#### 4. Comité de Dirección")
-            
             try:
-                # Mostrar TODOS los miembros que tengan un rol asignado
                 cursor.execute("""
-                    SELECT m.nombre, m.apellido, r.nombre_rol as cargo
+                    SELECT m.nombre, m.apellido, r.nombre_rol AS cargo
                     FROM Miembro m
                     INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
                     WHERE m.ID_Grupo = %s
+                      AND UPPER(r.nombre_rol) <> 'SOCIA'
                     ORDER BY r.nombre_rol
                 """, (id_grupo,))
                 directiva = cursor.fetchall()
@@ -142,22 +158,20 @@ def mostrar_reglamentos():
                         nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
                         st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
                 else:
-                    st.info("ℹ️ No se han registrado miembros con roles asignados para este grupo.")
+                    st.info("ℹ️ No se han registrado miembros de directiva (solo se muestran roles distintos a 'Socia').")
                     
             except Exception as e:
                 st.error(f"❌ Error al cargar el comité de dirección: {e}")
 
-            # 5. Nombre del grupo de ahorro - SOLO LECTURA
+            # 5. Nombre del grupo de ahorro
             st.markdown("#### 5. Nombre del grupo de ahorro")
             st.info(f"**Nuestro grupo se llama:** {grupo_info['nombre']}")
 
-            # 6. Asistencia y Reglas - REGLONES EDITABLES
+            # 6. Asistencia
             st.markdown("#### 6. Asistencia")
-            
             st.markdown("**Nosotras asistimos a todas las reuniones.**")
             
             col_asist1, col_asist2 = st.columns(2)
-            
             with col_asist1:
                 st.markdown("**Si faltamos a una reunión pagamos una multa de:**")
                 monto_multa_asistencia = st.number_input(
@@ -169,9 +183,11 @@ def mostrar_reglamentos():
                     key="monto_multa_asistencia",
                     label_visibility="collapsed"
                 )
-            
             with col_asist2:
-                st.markdown("**No pagamos una multa si faltamos a una reunión y tenemos permiso por la siguiente razón (o razones):**")
+                st.markdown(
+                    "**No pagamos una multa si faltamos a una reunión y "
+                    "tenemos permiso por la siguiente razón (o razones):**"
+                )
                 justificacion_ausencia = st.text_area(
                     "Justificación para ausencia sin multa:",
                     placeholder="Ej: Enfermedad certificada, emergencia familiar, etc.",
@@ -180,7 +196,7 @@ def mostrar_reglamentos():
                     label_visibility="collapsed"
                 )
 
-            # 7. Ahorros - CAMPO EDITABLE
+            # 7. Ahorros
             st.markdown("#### 7. Ahorros")
             st.markdown("**Depositamos una cantidad mínima de ahorros de:**")
             ahorro_minimo = st.number_input(
@@ -192,13 +208,11 @@ def mostrar_reglamentos():
                 key="ahorro_minimo"
             )
 
-            # 8. Préstamos - CAMPOS EDITABLES
+            # 8. Préstamos
             st.markdown("#### 8. Préstamos")
-            
             st.markdown("**Pagamos interés cuando se cumple el mes.**")
             
             col_prest1, col_prest2, col_prest3 = st.columns(3)
-            
             with col_prest1:
                 st.markdown("**Interés por cada $10.00 prestados:**")
                 interes_por_diez = st.number_input(
@@ -210,7 +224,6 @@ def mostrar_reglamentos():
                     key="interes_por_diez",
                     label_visibility="collapsed"
                 )
-            
             with col_prest2:
                 st.markdown("**Monto máximo de préstamo:**")
                 monto_maximo_prestamo = st.number_input(
@@ -222,7 +235,6 @@ def mostrar_reglamentos():
                     key="monto_maximo_prestamo",
                     label_visibility="collapsed"
                 )
-            
             with col_prest3:
                 st.markdown("**Plazo máximo de préstamo:**")
                 plazo_maximo_prestamo = st.number_input(
@@ -241,11 +253,9 @@ def mostrar_reglamentos():
                 key="un_prestamo_vez"
             )
 
-            # 9. Ciclo - CAMPOS EDITABLES
+            # 9. Ciclo
             st.markdown("#### 9. Ciclo")
-            
             col_ciclo1, col_ciclo2 = st.columns(2)
-            
             with col_ciclo1:
                 st.markdown("**Fecha inicio de ciclo:**")
                 fecha_inicio_ciclo = st.date_input(
@@ -253,7 +263,6 @@ def mostrar_reglamentos():
                     key="fecha_inicio_ciclo",
                     label_visibility="collapsed"
                 )
-            
             with col_ciclo2:
                 st.markdown("**Duración del ciclo:**")
                 duracion_ciclo = st.selectbox(
@@ -264,21 +273,23 @@ def mostrar_reglamentos():
                     label_visibility="collapsed"
                 )
             
-            # Calcular fecha fin automáticamente
             if fecha_inicio_ciclo:
                 try:
                     from dateutil.relativedelta import relativedelta
                     fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=duracion_ciclo)
                     st.info(f"**Fecha fin de ciclo:** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
                 except:
-                    # Fallback si no tiene dateutil
                     import datetime as dt
                     fecha_fin_ciclo = fecha_inicio_ciclo + dt.timedelta(days=duracion_ciclo * 30)
                     st.info(f"**Fecha fin de ciclo (aproximada):** {fecha_fin_ciclo.strftime('%d/%m/%Y')}")
 
-            st.markdown("**Al cierre de ciclo, vamos a calcular los ahorros y ganancias de cada socia durante el ciclo, a retirar nuestros ahorros y ganancias y a decidir cuándo vamos a empezar un nuevo ciclo.**")
+            st.markdown(
+                "**Al cierre de ciclo, vamos a calcular los ahorros y ganancias de cada socia "
+                "durante el ciclo, a retirar nuestros ahorros y ganancias y a decidir "
+                "cuándo vamos a empezar un nuevo ciclo.**"
+            )
 
-            # 10. Meta social - CAMPO EDITABLE
+            # 10. Meta social
             st.markdown("#### 10. Meta social")
             meta_social = st.text_area(
                 "Meta social del grupo:",
@@ -287,19 +298,16 @@ def mostrar_reglamentos():
                 key="meta_social"
             )
 
-            # 11+. Otras reglas - SISTEMA DE REGLONES
+            # 11. Otras reglas
             st.markdown("#### 11. Otras reglas")
             st.info("Agrega reglas adicionales específicas de tu grupo:")
             
-            # Inicializar session_state para reglas adicionales
             if 'reglas_adicionales' not in st.session_state:
                 st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
 
-            # Mostrar reglas existentes
             reglas_a_eliminar = []
             for i, regla in enumerate(st.session_state.reglas_adicionales):
                 col_regla1, col_regla2 = st.columns([5, 1])
-                
                 with col_regla1:
                     texto_regla = st.text_area(
                         f"Regla {regla['id']}:",
@@ -308,52 +316,40 @@ def mostrar_reglamentos():
                         height=60,
                         key=f"regla_adicional_{i}"
                     )
-                    # Actualizar en session_state
                     st.session_state.reglas_adicionales[i]['texto'] = texto_regla
-                
                 with col_regla2:
-                    st.write("")  # Espacio
-                    st.write("")  # Espacio
+                    st.write("")
+                    st.write("")
                     if len(st.session_state.reglas_adicionales) > 1:
                         if st.button("🗑️", key=f"eliminar_regla_{i}"):
                             reglas_a_eliminar.append(i)
 
-            # Eliminar reglas marcadas
             for indice in sorted(reglas_a_eliminar, reverse=True):
                 if 0 <= indice < len(st.session_state.reglas_adicionales):
                     st.session_state.reglas_adicionales.pop(indice)
             
-            # Renumerar reglas
             for i, regla in enumerate(st.session_state.reglas_adicionales):
                 regla['id'] = i + 1
 
-            # Botones para gestionar reglas adicionales
             col_btn1, col_btn2 = st.columns(2)
-            
             with col_btn1:
                 if st.button("➕ Agregar regla adicional", use_container_width=True):
                     nuevo_id = len(st.session_state.reglas_adicionales) + 1
                     st.session_state.reglas_adicionales.append({'id': nuevo_id, 'texto': ''})
                     st.rerun()
-            
             with col_btn2:
                 if st.button("🔄 Limpiar reglas adicionales", use_container_width=True):
                     st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
                     st.rerun()
 
-            # Botón para guardar TODO el reglamento
             st.markdown("---")
             if st.button("💾 Guardar Reglamento Completo", use_container_width=True, type="primary"):
-                # Validar campos obligatorios
                 if not dia_reunion or not hora_reunion or not lugar_reunion:
                     st.error("❌ Los campos de reuniones (día, hora, lugar) son obligatorios.")
                     return
 
-                # Validar formato de hora
                 try:
-                    # Combinar hora con AM/PM
                     hora_completa = f"{hora_reunion} {periodo_reunion}"
-                    # Verificar formato básico
                     if not hora_reunion or ':' not in hora_reunion:
                         st.error("❌ Formato de hora inválido. Use formato HH:MM")
                         return
@@ -362,14 +358,12 @@ def mostrar_reglamentos():
                     return
 
                 try:
-                    # Preparar reglas adicionales como texto
                     otras_reglas_texto = "\n".join([
-                        f"{regla['id']}. {regla['texto']}" 
-                        for regla in st.session_state.reglas_adicionales 
+                        f"{regla['id']}. {regla['texto']}"
+                        for regla in st.session_state.reglas_adicionales
                         if regla['texto'].strip()
                     ])
 
-                    # Guardar el reglamento completo
                     cursor.execute("""
                         INSERT INTO Reglamento 
                         (ID_Grupo, dia_reunion, hora_reunion, lugar_reunion, frecuencia_reunion,
@@ -389,8 +383,6 @@ def mostrar_reglamentos():
                     con.commit()
                     st.success("✅ Reglamento guardado exitosamente!")
                     st.balloons()
-                    
-                    # Limpiar formulario
                     st.session_state.reglas_adicionales = [{'id': 1, 'texto': ''}]
                     st.rerun()
                         
@@ -398,39 +390,47 @@ def mostrar_reglamentos():
                     con.rollback()
                     st.error(f"❌ Error al guardar el reglamento: {e}")
 
+        # ============================================================
+        # TAB 2: EDITAR (solo el reglamento del grupo del usuario)
+        # ============================================================
         with tab2:
-            st.subheader("Editar Reglamentos Existentes")
-            
-            if not grupos_con_reglamento:
-                st.info("📝 No hay reglamentos registrados aún. Usa la pestaña 'Registrar Nuevo Reglamento' para crear el primer reglamento.")
+            st.subheader("Editar Reglamento Existente")
+
+            if id_grupo_usuario not in grupos_con_reglamento:
+                st.info(
+                    f"📝 El grupo **{nombre_grupo_usuario}** aún no tiene reglamento. "
+                    "Primero créalo en la pestaña 'Registrar Nuevo Reglamento'."
+                )
                 return
 
-            # Cargar reglamentos existentes con información del grupo
             cursor.execute("""
-                SELECT r.ID_Reglamento, r.ID_Grupo, g.nombre as nombre_grupo, 
-                       d.nombre as distrito, g.fecha_inicio
+                SELECT r.ID_Reglamento, r.ID_Grupo, g.nombre AS nombre_grupo, 
+                       d.nombre AS distrito, g.fecha_inicio
                 FROM Reglamento r
                 JOIN Grupo g ON r.ID_Grupo = g.ID_Grupo
                 LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+                WHERE r.ID_Grupo = %s
                 ORDER BY g.nombre
-            """)
+            """, (id_grupo_usuario,))
             reglamentos_existentes = cursor.fetchall()
 
-            st.write("### 📋 Reglamentos Guardados")
+            st.write("### 📋 Reglamento del grupo")
             
             for reglamento in reglamentos_existentes:
-                with st.expander(f"📜 {reglamento['nombre_grupo']} - Distrito: {reglamento['distrito']}"):
-                    # Botón para editar este reglamento
-                    if st.button(f"✏️ Editar Reglamento", key=f"editar_{reglamento['ID_Reglamento']}"):
+                with st.expander(
+                    f"📜 {reglamento['nombre_grupo']} - Distrito: {reglamento['distrito']}"
+                ):
+                    if st.button(
+                        f"✏️ Editar Reglamento", key=f"editar_{reglamento['ID_Reglamento']}"
+                    ):
                         st.session_state.reglamento_a_editar = reglamento['ID_Reglamento']
                         st.rerun()
 
-            # TODO: Implementar la funcionalidad de edición completa
             if 'reglamento_a_editar' in st.session_state:
                 st.write("---")
                 st.subheader("✏️ Editando Reglamento")
                 st.info("🔧 Funcionalidad de edición en desarrollo...")
-                
+
                 if st.button("❌ Cancelar Edición"):
                     del st.session_state.reglamento_a_editar
                     st.rerun()
