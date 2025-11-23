@@ -69,14 +69,7 @@ def mostrar_miembro():
                 max_chars=20
             )
 
-            # Campo 6: email (opcional)
-            email = st.text_input(
-                "Email (opcional)",
-                placeholder="Ingrese el email",
-                max_chars=100
-            )
-
-            # Campo 7: telefono (OBLIGATORIO)
+            # Campo 6: telefono (OBLIGATORIO)
             telefono = st.text_input(
                 "Teléfono *",
                 placeholder="Ingrese el teléfono",
@@ -149,7 +142,6 @@ def mostrar_miembro():
                 else:
                     try:
                         DUI_val = DUI.strip()
-                        email_val = email.strip() if email.strip() != "" else None
                         telefono_val = telefono.strip()
 
                         # 🔥 3) Verificar duplicado SOLO dentro del mismo grupo
@@ -175,17 +167,16 @@ def mostrar_miembro():
                             cursor.execute(
                                 """
                                 INSERT INTO Miembro 
-                                    (ID_Grupo, nombre, apellido, DUI, email, telefono, 
+                                    (ID_Grupo, nombre, apellido, DUI, telefono, 
                                      ID_Rol, ID_Estado, fecha_inscripcion) 
                                 VALUES 
-                                    (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    (%s, %s, %s, %s, %s, %s, %s, %s)
                                 """,
                                 (
                                     ID_Grupo,
                                     nombre.strip(),
                                     apellido.strip(),
                                     DUI_val,
-                                    email_val,
                                     telefono_val,
                                     ID_Rol,
                                     ID_Estado,
