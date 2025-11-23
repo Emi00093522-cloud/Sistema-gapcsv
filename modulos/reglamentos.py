@@ -103,7 +103,7 @@ def mostrar_reglamentos():
                     label_visibility="collapsed"
                 )
 
-                # 4. Comité de Dirección (SOLO cargos != 'Socia')
+                # 4. Comité de Dirección (SOLO cargos específicos de directiva)
                 st.markdown("#### 4. Comité de Dirección")
                 try:
                     cursor.execute("""
@@ -111,21 +111,24 @@ def mostrar_reglamentos():
                         FROM Miembro m
                         INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
                         WHERE m.ID_Grupo = %s
-                          AND UPPER(r.nombre_rol) <> 'SOCIA'
-                        ORDER BY r.nombre_rol
+                          AND UPPER(r.nombre_rol) IN ('PRESIDENTE', 'SECRETARIA', 'TESORERA', 'ENCARGADA DE LLAVE')
+                        ORDER BY 
+                            CASE UPPER(r.nombre_rol)
+                                WHEN 'PRESIDENTE' THEN 1
+                                WHEN 'SECRETARIA' THEN 2
+                                WHEN 'TESORERA' THEN 3
+                                WHEN 'ENCARGADA DE LLAVE' THEN 4
+                                ELSE 5
+                            END
                     """, (id_grupo,))
                     directiva = cursor.fetchall()
                     
                     if directiva:
-                        st.markdown("""
-                        | Cargo | Nombre de la Socia |
-                        |-------|-------------------|
-                        """)
                         for miembro in directiva:
                             nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
                             st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
                     else:
-                        st.info("ℹ️ No se han registrado miembros de directiva (solo aparecen roles distintos a 'Socia').")
+                        st.info("ℹ️ No se han registrado miembros de directiva (Presidente, Secretaria, Tesorera, Encargada de llave).")
                         
                 except Exception as e:
                     st.error(f"❌ Error al cargar el comité de dirección: {e}")
@@ -476,7 +479,7 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
         label_visibility="collapsed"
     )
 
-    # 4. Comité de Dirección (SOLO cargos != 'Socia')
+    # 4. Comité de Dirección (SOLO cargos específicos de directiva)
     st.markdown("#### 4. Comité de Dirección")
     try:
         cursor.execute("""
@@ -484,21 +487,24 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
             FROM Miembro m
             INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
             WHERE m.ID_Grupo = %s
-              AND UPPER(r.nombre_rol) <> 'SOCIA'
-            ORDER BY r.nombre_rol
+              AND UPPER(r.nombre_rol) IN ('PRESIDENTE', 'SECRETARIA', 'TESORERA', 'ENCARGADA DE LLAVE')
+            ORDER BY 
+                CASE UPPER(r.nombre_rol)
+                    WHEN 'PRESIDENTE' THEN 1
+                    WHEN 'SECRETARIA' THEN 2
+                    WHEN 'TESORERA' THEN 3
+                    WHEN 'ENCARGADA DE LLAVE' THEN 4
+                    ELSE 5
+                END
         """, (reglamento['ID_Grupo'],))
         directiva = cursor.fetchall()
         
         if directiva:
-            st.markdown("""
-            | Cargo | Nombre de la Socia |
-            |-------|-------------------|
-            """)
             for miembro in directiva:
                 nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
                 st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
         else:
-            st.info("ℹ️ No se han registrado miembros de directiva (solo aparecen roles distintos a 'Socia').")
+            st.info("ℹ️ No se han registrado miembros de directiva (Presidente, Secretaria, Tesorera, Encargada de llave).")
     except Exception as e:
         st.error(f"❌ Error al cargar el comité de dirección: {e}")
 
