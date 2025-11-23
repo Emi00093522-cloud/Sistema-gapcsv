@@ -1,26 +1,16 @@
 import streamlit as st
-from modulos.config.conexion import obtener_conexion
 from datetime import datetime, date
-
-#from modulos.consultas_db import obtener_grupos
-#from modulos.permisos import verificar_permisos
-
-#def mostrar_grupos():
- #   grupos = obtener_grupos()  # ✅ Ya existe en consultas_db.py
-    # ... tu código actual
-
-# Para crear nuevos grupos
-# if verificar_permisos("ver_todo") or verificar_permisos("registrar_distritos"):
-  #  st.button("Crear Nuevo Grupo")
+from modulos.config.conexion import obtener_conexion
 
 
-def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETARÍA
+def mostrar_grupos():   # ⭐ Función para registrar grupos
     st.header("👥 Registrar Grupo")
 
     # Estado para controlar el mensaje de éxito
-    if 'grupo_registrado' not in st.session_state:
+    if "grupo_registrado" not in st.session_state:
         st.session_state.grupo_registrado = False
 
+    # Si ya se registró un grupo, mostramos mensaje y opción de registrar otro
     if st.session_state.grupo_registrado:
         st.success("🎉 ¡Grupo registrado con éxito!")
         
@@ -31,8 +21,21 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
         st.info("💡 **Para seguir navegando, selecciona una opción en el menú**")
         return
 
+    # 🔐 VALIDACIÓN: debe haber un usuario logueado
+    if "id_usuario" not in st.session_state:
+        st.error("⚠️ Debes iniciar sesión para registrar un grupo.")
+        return
+
+    # 👤 ID del usuario que está creando el grupo (viene del login)
+    id_usuario = st.session_state["id_usuario"]
+    # st.write("Debug id_usuario:", id_usuario)  # <- déjalo comentado si no lo necesitas
+
     try:
         con = obtener_conexion()
+        if not con:
+            st.error("❌ No se pudo conectar a la base de datos.")
+            return
+
         cursor = con.cursor()
 
         # Obtener distritos
@@ -43,13 +46,15 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
         cursor.execute("SELECT ID_Promotora, nombre FROM Promotora")
         promotoras = cursor.fetchall()
 
-        # Formulario para registrar grupo
+        # 📝 Formulario para registrar grupo
         with st.form("form_grupo"):
             st.subheader("Datos del Grupo")
             
-            nombre = st.text_input("Nombre del grupo *", 
-                                   placeholder="Ingrese el nombre del grupo",
-                                   max_chars=100)
+            nombre = st.text_input(
+                "Nombre del grupo *", 
+                placeholder="Ingrese el nombre del grupo",
+                max_chars=100
+            )
 
             # Distritos
             if distritos:
@@ -60,12 +65,12 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                 st.error("❌ No hay distritos registrados.")
                 ID_Distrito = None
             
-            # Fecha
+            # Fecha de inicio
             fecha_inicio = st.date_input(
                 "Fecha de inicio *",
                 value=datetime.now().date(),
-                min_value=date(1990,1,1),
-                max_value=date(2100,12,31)
+                min_value=date(1990, 1, 1),
+                max_value=date(2100, 12, 31)
             )
 
             # Promotora
@@ -77,9 +82,10 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                 st.error("❌ No hay promotoras registradas.")
                 ID_Promotora = None
 
+            # Estado (1 = Activo, 2 = Inactivo)
             ID_Estado = st.selectbox(
                 "Estado",
-                options=[1,2],
+                options=[1, 2],
                 format_func=lambda x: "Activo" if x == 1 else "Inactivo"
             )
 
@@ -100,15 +106,17 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
                         st.warning(e)
                 else:
                     try:
-                        # INSERT sin duracion_ciclo
+                        # 🔥 INSERT: ahora también guarda ID_Usuario automáticamente
                         cursor.execute("""
                             INSERT INTO Grupo 
-                            (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado,ID_Usuario)
-                            VALUES (%s,%s,%s,%s,%s,%s)
-                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado,ID_Usuario))
+                                (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado, ID_Usuario)
+                            VALUES 
+                                (%s, %s, %s, %s, %s, %s)
+                        """, (nombre, ID_Distrito, fecha_inicio, ID_Promotora, ID_Estado, id_usuario))
 
                         con.commit()
 
+                        # Obtener el ID_Grupo recién creado
                         cursor.execute("SELECT LAST_INSERT_ID()")
                         id_grupo = cursor.fetchone()[0]
 
@@ -130,7 +138,7 @@ def mostrar_grupos():   # ⭐ ESTA ES LA FUNCIÓN QUE USARÁ EL PANEL DE SECRETA
             con.close()
         except:
             pass
-from modulos.config.conexion import obtener_conexion
+
 
 def obtener_id_grupo_por_usuario(id_usuario: int):
     """
@@ -154,10 +162,10 @@ def obtener_id_grupo_por_usuario(id_usuario: int):
         fila = cursor.fetchone()
         return fila["ID_Grupo"] if fila else None
 
-    except Exception as e:
-        # Puedes poner un log si quieres
+    except Exception:
         return None
 
     finally:
         con.close()
+
 
