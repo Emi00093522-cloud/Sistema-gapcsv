@@ -3,7 +3,7 @@ import pandas as pd
 from modulos.config.conexion import obtener_conexion
 from datetime import date
 
-    def mostrar_ahorros():
+def mostrar_ahorros():
     st.header("💰 Control de Ahorros")
 
     # Verificar si hay una reunión seleccionada
