@@ -104,32 +104,32 @@ def mostrar_reglamentos():
                 )
 
                 # 4. Comité de Dirección (SOLO cargos de directiva en orden específico)
-                st.markdown("#### 4. Comité de Dirección")
-                try:
-                # Definir el orden específico de cargos
-                cargos_orden = ['PRESIDENTE', 'SECRETARIA', 'TESORERA', 'ENCARGADA_LLAVE']
+st.markdown("#### 4. Comité de Dirección")
+try:
+    # Definir el orden específico de cargos
+    cargos_orden = ['PRESIDENTE', 'SECRETARIA', 'TESORERA', 'ENCARGADA_LLAVE']
     
-                # Buscar miembros para cada cargo en el orden específico
-                st.markdown("**Integrantes de la Directiva:**")
+    # Buscar miembros para cada cargo en el orden específico
+    st.markdown("**Integrantes de la Directiva:**")
     
-                for cargo in cargos_orden:
-                cursor.execute("""
-                SELECT m.nombre, m.apellido 
-                FROM Miembro m
-                INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
-                WHERE m.ID_Grupo = %s AND r.nombre_rol = %s
-                LIMIT 1
-                """, (reglamento['ID_Grupo'], cargo))
-                miembro = cursor.fetchone()
+    for cargo in cargos_orden:
+        cursor.execute("""
+            SELECT m.nombre, m.apellido 
+            FROM Miembro m
+            INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
+            WHERE m.ID_Grupo = %s AND r.nombre_rol = %s
+            LIMIT 1
+        """, (reglamento['ID_Grupo'], cargo))
+        miembro = cursor.fetchone()
         
-                if miembro:
-                nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
-                st.markdown(f"**| {cargo.title()} | {nombre_completo} |**")
-                else:
-                st.markdown(f"**| {cargo.title()} | (Vacante) |**")
+        if miembro:
+            nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
+            st.markdown(f"**| {cargo.title()} | {nombre_completo} |**")
+        else:
+            st.markdown(f"**| {cargo.title()} | (Vacante) |**")
             
-                except Exception as e:
-                st.error(f"❌ Error al cargar el comité de dirección: {e}")
+except Exception as e:
+    st.error(f"❌ Error al cargar el comité de dirección: {e}")
 
                 # 5. Nombre del grupo
                 st.markdown("#### 5. Nombre del grupo de ahorro")
