@@ -2,7 +2,16 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-def mostrar_miembro():
+from modulos.consultas_db import obtener_miembros
+from modulos.permisos import verificar_permisos
+
+def mostrar_miembros():
+    miembros = obtener_miembros()  # ✅ Ya existe en consultas_db.py
+    # ... tu código actual
+
+
+
+#def mostrar_miembro():
     st.header("👥 Registrar Miembro")
 
     # Estado para controlar el mensaje de éxito
