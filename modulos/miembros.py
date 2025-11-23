@@ -2,7 +2,7 @@ import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
-def mostrar_miembro():
+def Miembros():
     st.header("👥 Gestión de Miembros del Grupo")
 
     # 🔥 1) Grupo del usuario logueado
@@ -34,14 +34,19 @@ def mostrar_miembro():
         total_miembros = cursor.fetchone()['total']
         tiene_miembros = total_miembros > 0
 
-        # Crear las dos tabs
-        tab1, tab2 = st.tabs(["📝 Registrar Nuevo Miembro", "📋 Gestionar Todos los Miembros"])
+        # Crear las dos tabs - EXACTAMENTE COMO EN REGLAMENTOS
+        tab1, tab2 = st.tabs(["📝 Registrar Miembros", "📋 Gestionar Miembros"])
 
         # ======================================================
         # TAB 1: REGISTRAR NUEVO MIEMBRO
         # ======================================================
         with tab1:
-            st.subheader("Registrar Nuevo Miembro")
+            st.subheader("Registrar Nuevos Miembros")
+            
+            if tiene_miembros:
+                st.info("ℹ️ Para gestionar miembros existentes, ve a la pestaña 'Gestionar Miembros'")
+            else:
+                st.info("👥 Comienza registrando los miembros de tu grupo")
 
             # Estado para controlar el mensaje de éxito
             if "miembro_registrado" not in st.session_state:
@@ -102,14 +107,15 @@ def mostrar_miembro():
                     5: "ASOCIADA"
                 }
 
-                roles_directiva = {k: v for k, v in roles.items() if k in [1, 2, 3, 4]}
-                roles_no_directiva = {k: v for k, v in roles.items() if k == 5}
-
                 st.info("**Miembros de Directiva:** Presidente, Secretaria, Tesorera, Encargada de Llave")
 
-                opciones_directiva = {f"🎯 {v} (ID: {k})": k for k, v in roles_directiva.items()}
-                opciones_no_directiva = {f"👥 {v} (ID: {k})": k for k, v in roles_no_directiva.items()}
-                todas_opciones = {**opciones_directiva, **opciones_no_directiva}
+                todas_opciones = {
+                    "🎯 PRESIDENTE (ID: 1)": 1,
+                    "🎯 SECRETARIA (ID: 2)": 2, 
+                    "🎯 TESORERA (ID: 3)": 3,
+                    "🎯 ENCARGADA_LLAVE (ID: 4)": 4,
+                    "👥 ASOCIADA (ID: 5)": 5
+                }
 
                 rol_seleccionado = st.selectbox("Seleccione el rol *", options=list(todas_opciones.keys()))
                 ID_Rol = todas_opciones[rol_seleccionado]
@@ -200,11 +206,11 @@ def mostrar_miembro():
         # TAB 2: GESTIONAR TODOS LOS MIEMBROS
         # ======================================================
         with tab2:
-            st.subheader("Gestionar Todos los Miembros")
+            st.subheader("Gestionar Miembros del Grupo")
             st.markdown(f"**Grupo:** {nombre_grupo}")
 
             if not tiene_miembros:
-                st.info("📝 Este grupo aún no tiene miembros registrados. Agrega el primero en la pestaña 'Registrar Nuevo Miembro'.")
+                st.info("📝 Este grupo aún no tiene miembros registrados. Agrega el primero en la pestaña 'Registrar Miembros'.")
             else:
                 # Cargar todos los miembros del grupo
                 cursor.execute("""
