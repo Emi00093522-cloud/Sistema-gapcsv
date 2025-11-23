@@ -7,8 +7,32 @@ import os
 # Agregar la ruta de tus módulos
 sys.path.append(os.path.dirname(__file__))
 
+def verificar_modulos():
+    st.sidebar.write("### 🔧 Verificación de Módulos")
+    
+    try:
+        from ahorros import obtener_ahorros_grupo
+        st.sidebar.success("✅ ahorros.py - CONECTADO")
+    except ImportError:
+        st.sidebar.error("❌ ahorros.py - NO ENCONTRADO")
+    
+    try:
+        from pagomulta import obtener_multas_grupo
+        st.sidebar.success("✅ pagomulta.py - CONECTADO")  
+    except ImportError:
+        st.sidebar.error("❌ pagomulta.py - NO ENCONTRADO")
+    
+    try:
+        from pagoprestamo import obtener_prestamos_grupo
+        st.sidebar.success("✅ pagoprestamo.py - CONECTADO")
+    except ImportError:
+        st.sidebar.error("❌ pagoprestamo.py - NO ENCONTRADO")
+
 def mostrar_informacion_ciclo():
     st.header("🔒 Cierre de Ciclo - Resumen Financiero")
+    
+    # DEBUG: Verificar que se está ejecutando
+    st.success("✅ ¡Módulo de Cierre de Ciclo funcionando!")
     
     # Siempre mostrar el botón - NO DEPENDE DE CICLO ACTIVO
     st.subheader("📊 Gestión de Cierre de Ciclo")
@@ -204,28 +228,11 @@ def mostrar_resumen_cierre():
             st.session_state.mostrar_resumen = False
             st.rerun()
 
-# Código para probar si tus módulos existen
-def verificar_modulos():
-    st.sidebar.write("### 🔧 Verificación de Módulos")
-    
-    try:
-        from ahorros import obtener_ahorros_grupo
-        st.sidebar.success("✅ ahorros.py - CONECTADO")
-    except ImportError:
-        st.sidebar.error("❌ ahorros.py - NO ENCONTRADO")
-    
-    try:
-        from pagomulta import obtener_multas_grupo
-        st.sidebar.success("✅ pagomulta.py - CONECTADO")  
-    except ImportError:
-        st.sidebar.error("❌ pagomulta.py - NO ENCONTRADO")
-    
-    try:
-        from pagoprestamo import obtener_prestamos_grupo
-        st.sidebar.success("✅ pagoprestamo.py - CONECTADO")
-    except ImportError:
-        st.sidebar.error("❌ pagoprestamo.py - NO ENCONTRADO")
-
-if __name__ == "__main__":
+# 🔥 FUNCIÓN QUE APP.PY ESTÁ BUSCANDO - AGREGAR ESTA
+def mostrar_ciclo():
+    """Función que llama app.py - NOMBRE EXACTO QUE APP.PY ESPERA"""
     verificar_modulos()
     mostrar_informacion_ciclo()
+
+if __name__ == "__main__":
+    mostrar_ciclo()
