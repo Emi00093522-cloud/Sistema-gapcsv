@@ -180,4 +180,4 @@ else:
     
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
-st.write("Debug - id_grupo:", st.session_state.get("id_grupo"))
+
