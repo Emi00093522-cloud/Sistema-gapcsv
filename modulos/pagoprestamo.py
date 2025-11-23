@@ -272,7 +272,7 @@ def mostrar_pago_prestamo():
         placeholders = ','.join(['%s'] * len(ids))
         cursor.execute(f"""
             SELECT p.ID_Prestamo, p.ID_Miembro, p.monto, p.total_interes, p.monto_total_pagar,
-                   p.cuota_mensual, p.plazo, p.fecha_desembolso, m.nombre as miembro_nombre, p.proposito, p.tasa_interes
+                   p.cuota_mensual, p.plazo, p.fecha_desembolso, m.nombre as miembro_nombre, p.proposito
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE p.ID_Estado_prestamo != 3
@@ -300,6 +300,7 @@ def mostrar_pago_prestamo():
         plazo = prestamo.get('plazo')
         fecha_desembolso = prestamo.get('fecha_desembolso')
         proposito = prestamo.get('proposito')
+        # tasa_interes no está en la tabla; si existe en tu esquema real, agrégala o será None
         tasa_interes = prestamo.get('tasa_interes')
 
         st.subheader("📋 RESUMEN DEL PRÉSTAMO")
