@@ -1,15 +1,15 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 
-from modulos.consultas_db import obtener_asistencia
-from modulos.permisos import verificar_permisos
-
-def mostrar_asistencia():
-    # Necesitas crear esta función en consultas_db.py
-    asistencia = obtener_asistencia()  # ✅ Filtrado automático
-    # ... tu código actual
+#from modulos.consultas_db import obtener_asistencia
+#from modulos.permisos import verificar_permisos
 
 #def mostrar_asistencia():
+    # Necesitas crear esta función en consultas_db.py
+ #   asistencia = obtener_asistencia()  # ✅ Filtrado automático
+    # ... tu código actual
+
+def mostrar_asistencia():
     st.header("📝 Control de asistencia por reunión")
 
     try:
