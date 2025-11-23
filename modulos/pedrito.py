@@ -7,6 +7,7 @@ from grupos import mostrar_grupos                # para SECRETARIA
 from miembros import mostrar_miembros
 from reglamentos import mostrar_reglamentos
 from reuniones import mostrar_reuniones
+from ciclo import mostrar_ciclo                  # Nuevo módulo importado
 from prestamo import mostrar_prestamos
 from ahorros import mostrar_ahorros
 from integrada import mostrar_gestion_integrada
@@ -34,7 +35,7 @@ def panel_secretaria(usuario, dui):
 
     st.write(f"Secretaria: **{usuario}** — DUI: **{dui}**")
 
-    menu = st.tabs(["Crear Grupo", "Miembros", "Reglamentos","Reuniones", "Préstamos"])
+    menu = st.tabs(["Crear Grupo", "Miembros", "Reglamentos", "Reuniones", "Cierre de Ciclo", "Préstamos", "Ahorros"])
 
     with menu[0]:
         st.header("Crear Grupo")
@@ -52,11 +53,15 @@ def panel_secretaria(usuario, dui):
         st.header("Reuniones del Grupo")
         mostrar_reuniones()
 
-    with menu[4]:
+    with menu[4]:  # Nueva pestaña agregada
+        st.header("Cierre de Ciclo")
+        mostrar_ciclo()
+
+    with menu[5]:
         st.header("Gestión de Préstamos")
         mostrar_prestamos()
         
-    with menu[5]: 
+    with menu[6]: 
         st.header("Gestión de Ahorros")
         mostrar_ahorros()
 
