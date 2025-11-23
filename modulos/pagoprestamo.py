@@ -234,9 +234,10 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id
     """
     cursor = con.cursor(dictionary=True)
 
+    # CORRECCIÓN: Siempre obtener numero_cuota en ambas consultas
     if tipo_pago == "completo" and numero_cuota:
         cursor.execute("""
-            SELECT ID_Cuota, capital_programado, interes_programado, total_programado,
+            SELECT ID_Cuota, numero_cuota, capital_programado, interes_programado, total_programado,
                    capital_pagado, interes_pagado, total_pagado, estado, fecha_programada
             FROM CuotaPrestamo
             WHERE ID_Prestamo = %s AND numero_cuota = %s
@@ -259,7 +260,7 @@ def aplicar_pago_cuota(id_prestamo, monto_pagado, fecha_pago, tipo_pago, con, id
 
     # Aplicar el pago a la cuota actual
     id_cuota = cuota['ID_Cuota']
-    numero_cuota = cuota['numero_cuota']
+    numero_cuota_actual = cuota['numero_cuota']  # Siempre obtener el número de cuota
     capital_prog = Decimal(str(cuota['capital_programado']))
     interes_prog = Decimal(str(cuota['interes_programado']))
     total_prog = Decimal(str(cuota['total_programado']))
