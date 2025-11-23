@@ -3,6 +3,7 @@ import hashlib
 from modulos.config.conexion import obtener_conexion
 from modulos.grupos import obtener_id_grupo_por_usuario
 
+
 def verificar_usuario(usuario, contrasena):
     """Verifica usuario y contraseña en la base de datos."""
     con = obtener_conexion()
@@ -16,7 +17,7 @@ def verificar_usuario(usuario, contrasena):
         # Encriptar la contraseña para compararla con la guardada
         contrasena_hash = hashlib.sha256(contrasena.encode()).hexdigest()
 
-        # 🔥 CONSULTA FINAL — Ahora incluye el cargo
+        # Consulta: obtenemos usuario, tipo y cargo
         query = """
             SELECT 
                 u.ID_Usuario,
@@ -39,6 +40,7 @@ def verificar_usuario(usuario, contrasena):
     finally:
         con.close()
 
+
 def restablecer_contrasena():
     """Interfaz para restablecer contraseña"""
     st.subheader("🔐 Restablecer Contraseña")
@@ -47,9 +49,11 @@ def restablecer_contrasena():
         st.write("**Ingresa tus datos para verificar identidad:**")
         
         usuario = st.text_input("Nombre de usuario*")
-        dui = st.text_input("DUI*", 
-                           placeholder="00000000-0",
-                           help="Formato: 8 dígitos, guión, 1 dígito")
+        dui = st.text_input(
+            "DUI*", 
+            placeholder="00000000-0",
+            help="Formato: 8 dígitos, guión, 1 dígito"
+        )
         
         st.markdown("---")
         st.write("**Ingresa tu nueva contraseña:**")
@@ -68,19 +72,17 @@ def restablecer_contrasena():
                 st.error("❌ Las contraseñas no coinciden.")
                 return
                 
-            # 🔥 VALIDAR FORMATO DEL DUI
+            # Validar formato del DUI
             if not validar_formato_dui(dui):
                 st.error("❌ Formato de DUI inválido. Use: 00000000-0")
                 return
                 
-            # Verificar que el usuario existe y el DUI coincide
             con = obtener_conexion()
             if not con:
                 st.error("⚠️ No se pudo conectar a la base de datos.")
                 return
                 
             try:
-                # 🔥 VERIFICAR SI EL USUARIO Y DUI COINCIDEN
                 cursor_verificar = con.cursor(dictionary=True)
                 
                 cursor_verificar.execute(
@@ -95,7 +97,6 @@ def restablecer_contrasena():
                     con.close()
                     return
                 
-                # 🔥 Usar un NUEVO cursor para la actualización
                 cursor_actualizar = con.cursor()
                 nueva_contrasena_hash = hashlib.sha256(nueva_contrasena.encode()).hexdigest()
                 
@@ -105,7 +106,6 @@ def restablecer_contrasena():
                 )
                 con.commit()
                 
-                # 🔥 VERIFICAR SI SE ACTUALIZÓ CORRECTAMENTE
                 if cursor_actualizar.rowcount > 0:
                     st.success("✅ Contraseña restablecida exitosamente. Ya puedes iniciar sesión.")
                     st.session_state["mostrar_restablecer"] = False
@@ -119,18 +119,19 @@ def restablecer_contrasena():
             finally:
                 con.close()
 
+
 def validar_formato_dui(dui):
     """Valida el formato del DUI salvadoreño"""
     import re
-    # Formato: 8 dígitos, guión, 1 dígito
     patron = r'^\d{8}-\d{1}$'
     return bool(re.match(patron, dui))
+
 
 def login():
     """Interfaz del login."""
     st.title("Inicio de sesión 👩‍💼")
     
-    # 🔥 BOTÓN VOLVER AL MENÚ PRINCIPAL
+    # Botón volver al menú principal
     if st.button("🏠 Volver al menú principal"):
         st.session_state["pagina_actual"] = "inicio"
         st.rerun()
@@ -163,29 +164,21 @@ def login():
             datos_usuario = verificar_usuario(usuario, contrasena)
 
             if datos_usuario:
-                # 🔥 GUARDAMOS TODO EN SESIÓN + PERMISOS (LO NUEVO)
+                # Guardar datos básicos en sesión
                 st.session_state["sesion_iniciada"] = True
                 st.session_state["usuario"] = datos_usuario["Usuario"]
                 st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
                 st.session_state["cargo_de_usuario"] = datos_usuario["cargo"]
                 st.session_state["id_usuario"] = datos_usuario["ID_Usuario"]
+
+                # 👉 Obtener el grupo asociado a este usuario
                 id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
                 st.session_state["id_grupo"] = id_grupo
-                from modulos.permisos import obtener_permisos_usuario
-                permisos = obtener_permisos_usuario(
-                    datos_usuario["ID_Usuario"],
-                    datos_usuario["tipo_usuario"],
-                    datos_usuario["cargo"]
-                )
-                st.session_state["permisos_usuario"] = permisos
-                st.success(
-                    f"Bienvenido, {datos_usuario['Usuario']} 👋 "
-                    f"(Cargo: {datos_usuario['cargo']})"
-                )    
 
-                st.rerun()
-                
-                # 🔥 OBTENER Y GUARDAR PERMISOS (LO NUEVO)
+                # (Opcional) Debug temporal
+                # st.write("Debug - id_grupo:", id_grupo)
+
+                # Obtener permisos
                 from modulos.permisos import obtener_permisos_usuario
                 permisos = obtener_permisos_usuario(
                     datos_usuario["ID_Usuario"],
