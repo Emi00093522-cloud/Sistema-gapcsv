@@ -3,6 +3,87 @@ from modulos.config.conexion import obtener_conexion
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+def obtener_multas_grupo():
+    """
+    Función para el módulo de cierre de ciclo
+    Retorna todas las multas del grupo actual para consolidar en el cierre
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        # Obtener el ID del grupo actual desde session_state
+        if 'reunion_actual' not in st.session_state:
+            st.error("No hay reunión activa seleccionada")
+            return []
+        
+        id_grupo = st.session_state.reunion_actual['id_grupo']
+        
+        # Consulta para obtener todas las multas pagadas del grupo
+        cursor.execute("""
+            SELECT 
+                pm.ID_PagoMulta,
+                pm.ID_Miembro,
+                pm.ID_Multa,
+                pm.monto_pagado,
+                pm.fecha_pago,
+                pm.ID_Reunion_pago,
+                m.nombre as nombre_miembro,
+                mu.motivo,
+                mu.fecha as fecha_multa
+            FROM PagoMulta pm
+            JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
+            JOIN Multa mu ON pm.ID_Multa = mu.ID_Multa
+            WHERE m.ID_Grupo = %s
+            ORDER BY pm.fecha_pago
+        """, (id_grupo,))
+        
+        multas_data = cursor.fetchall()
+        
+        # Convertir a lista de diccionarios
+        resultado = []
+        for multa in multas_data:
+            resultado.append({
+                'id_pago_multa': multa['ID_PagoMulta'],
+                'id_miembro': multa['ID_Miembro'],
+                'id_multa': multa['ID_Multa'],
+                'monto_pagado': float(multa['monto_pagado'] or 0),
+                'fecha_pago': multa['fecha_pago'],
+                'id_reunion_pago': multa['ID_Reunion_pago'],
+                'nombre_miembro': multa['nombre_miembro'],
+                'motivo': multa['motivo'],
+                'fecha_multa': multa['fecha_multa']
+            })
+        
+        return resultado
+        
+    except Exception as e:
+        st.error(f"❌ Error en obtener_multas_grupo: {e}")
+        return []
+    
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'con' in locals():
+            con.close()
+
+def obtener_total_multas_ciclo():
+    """
+    Retorna la suma total de todas las multas pagadas del grupo
+    """
+    try:
+        multas_data = obtener_multas_grupo()
+        
+        if not multas_data:
+            return 0.00
+        
+        total_multas = sum(item['monto_pagado'] for item in multas_data)
+        return total_multas
+        
+    except Exception as e:
+        st.error(f"❌ Error calculando total de multas: {e}")
+        return 0.00
+
 def mostrar_pago_multas():
     st.header("💵 Pago de Multas")
     
