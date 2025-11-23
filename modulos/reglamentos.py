@@ -5,7 +5,7 @@ from datetime import datetime
 def mostrar_reglamentos():
     st.header("📜 Gestión de Reglamentos del Grupo")
 
-    # 🔥 1) Tomar el grupo del usuario logueado
+    # 🔥 1) Grupo del usuario logueado
     id_grupo = st.session_state.get("id_grupo")
     if id_grupo is None:
         st.error("⚠️ No tienes un grupo asociado. Crea primero un grupo en el módulo 'Grupos'.")
@@ -15,7 +15,7 @@ def mostrar_reglamentos():
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
-        # 🔹 Cargar solo la info del grupo del usuario
+        # Info del grupo del usuario
         cursor.execute("""
             SELECT g.ID_Grupo, g.nombre, g.fecha_inicio, d.nombre as distrito
             FROM Grupo g
@@ -28,16 +28,16 @@ def mostrar_reglamentos():
             st.error("❌ No se encontró información del grupo asociado a tu usuario.")
             return
 
-        # 🔹 Verificar si este grupo ya tiene reglamento
+        # ¿Ya tiene reglamento este grupo?
         cursor.execute("SELECT ID_Reglamento FROM Reglamento WHERE ID_Grupo = %s", (id_grupo,))
         registro_reg = cursor.fetchone()
         tiene_reglamento = registro_reg is not None
 
-        # Pestañas para Registrar y Editar SOLO de este grupo
+        # Tabs
         tab1, tab2 = st.tabs(["📝 Registrar / Ver Reglamento del Grupo", "✏️ Editar Reglamento del Grupo"])
 
         # ======================================================
-        # TAB 1: REGISTRAR NUEVO (SOLO SI NO EXISTE)
+        # TAB 1: REGISTRAR (solo si no existe)
         # ======================================================
         with tab1:
             st.subheader("Reglamento del grupo")
@@ -45,17 +45,14 @@ def mostrar_reglamentos():
             if tiene_reglamento:
                 st.info("✅ Este grupo ya tiene un reglamento registrado.")
                 st.info("Si deseas modificarlo, ve a la pestaña **'Editar Reglamento del Grupo'**.")
-                # Si quieres, aquí se podría mostrar un resumen del reglamento actual
             else:
-                # 👉 Solo si NO tiene reglamento, mostramos el formulario de creación
-
                 st.markdown("### 📋 Formulario de Reglamento Interno")
 
-                # 1. Nombre de la comunidad (Distrito) - SOLO LECTURA
+                # 1. Comunidad (solo lectura)
                 st.markdown("#### 1. Nombre de la comunidad")
                 st.info(f"**Distrito:** {grupo_info['distrito'] or 'No asignado'}")
 
-                # 2. Fecha en que se formó el grupo - SOLO LECTURA
+                # 2. Fecha formación (solo lectura)
                 st.markdown("#### 2. Fecha en que se formó el grupo de ahorro")
                 fecha_formacion = grupo_info['fecha_inicio']
                 if fecha_formacion:
@@ -106,7 +103,7 @@ def mostrar_reglamentos():
                     label_visibility="collapsed"
                 )
 
-                # 4. Comité de Dirección
+                # 4. Comité de Dirección (SOLO cargos != 'Socia')
                 st.markdown("#### 4. Comité de Dirección")
                 try:
                     cursor.execute("""
@@ -114,6 +111,7 @@ def mostrar_reglamentos():
                         FROM Miembro m
                         INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
                         WHERE m.ID_Grupo = %s
+                          AND UPPER(r.nombre_rol) <> 'SOCIA'
                         ORDER BY r.nombre_rol
                     """, (id_grupo,))
                     directiva = cursor.fetchall()
@@ -127,7 +125,7 @@ def mostrar_reglamentos():
                             nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
                             st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
                     else:
-                        st.info("ℹ️ No se han registrado miembros con roles asignados para este grupo.")
+                        st.info("ℹ️ No se han registrado miembros de directiva (solo aparecen roles distintos a 'Socia').")
                         
                 except Exception as e:
                     st.error(f"❌ Error al cargar el comité de dirección: {e}")
@@ -247,7 +245,6 @@ def mostrar_reglamentos():
                         label_visibility="collapsed"
                     )
                 
-                # Calcular fecha fin automáticamente
                 if fecha_inicio_ciclo:
                     try:
                         from dateutil.relativedelta import relativedelta
@@ -367,7 +364,7 @@ def mostrar_reglamentos():
                         st.error(f"❌ Error al guardar el reglamento: {e}")
 
         # ======================================================
-        # TAB 2: EDITAR REGLAMENTO EXISTENTE DEL GRUPO
+        # TAB 2: EDITAR (solo reglamento de este grupo)
         # ======================================================
         with tab2:
             st.subheader("Editar Reglamento del Grupo")
@@ -375,7 +372,6 @@ def mostrar_reglamentos():
             if not tiene_reglamento:
                 st.info("📝 Este grupo aún no tiene reglamento. Crea uno en la pestaña 'Registrar / Ver Reglamento del Grupo'.")
             else:
-                # Cargar el reglamento SOLO de este grupo
                 cursor.execute("""
                     SELECT r.ID_Reglamento, r.ID_Grupo, g.nombre as nombre_grupo, 
                            d.nombre as distrito, g.fecha_inicio,
@@ -408,11 +404,10 @@ def mostrar_reglamentos():
 
 
 def mostrar_formulario_edicion(reglamento, cursor, con):
-    """Muestra el formulario para editar un reglamento existente del grupo actual"""
+    """Formulario para editar el reglamento existente del grupo actual"""
     
     st.subheader(f"✏️ Editando Reglamento: {reglamento['nombre_grupo']}")
     
-    # Información del grupo (solo lectura)
     col_info1, col_info2 = st.columns(2)
     with col_info1:
         st.info(f"**Distrito:** {reglamento['distrito']}")
@@ -421,7 +416,7 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
     
     st.markdown("---")
     
-    # 3. Reuniones - CAMPOS EDITABLES
+    # 3. Reuniones
     st.markdown("#### 3. Reuniones")
     col_reun1, col_reun2, col_reun3 = st.columns(3)
     
@@ -481,7 +476,7 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
         label_visibility="collapsed"
     )
 
-    # 4. Comité de Dirección - SOLO LECTURA
+    # 4. Comité de Dirección (SOLO cargos != 'Socia')
     st.markdown("#### 4. Comité de Dirección")
     try:
         cursor.execute("""
@@ -489,6 +484,7 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
             FROM Miembro m
             INNER JOIN Rol r ON m.ID_Rol = r.ID_Rol
             WHERE m.ID_Grupo = %s
+              AND UPPER(r.nombre_rol) <> 'SOCIA'
             ORDER BY r.nombre_rol
         """, (reglamento['ID_Grupo'],))
         directiva = cursor.fetchall()
@@ -502,7 +498,7 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
                 nombre_completo = f"{miembro['nombre']} {miembro['apellido']}"
                 st.markdown(f"| {miembro['cargo']} | {nombre_completo} |")
         else:
-            st.info("ℹ️ No se han registrado miembros con roles asignados para este grupo.")
+            st.info("ℹ️ No se han registrado miembros de directiva (solo aparecen roles distintos a 'Socia').")
     except Exception as e:
         st.error(f"❌ Error al cargar el comité de dirección: {e}")
 
@@ -727,10 +723,10 @@ def mostrar_formulario_edicion(reglamento, cursor, con):
                 return
 
             try:
-                hora_completa = f"{hora_reunion} {periodo_reunion}"
                 if not hora_reunion or ':' not in hora_reunion:
                     st.error("❌ Formato de hora inválido. Use formato HH:MM")
                     return
+                hora_completa = f"{hora_reunion} {periodo_reunion}"
             except:
                 st.error("❌ Error en el formato de hora. Use formato HH:MM")
                 return
