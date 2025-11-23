@@ -63,7 +63,7 @@ def mostrar_ahorros():
             st.markdown("### 💰 Control de Ahorros")
             
             # ENCABEZADO DE LA TABLA - UNA SOLA FILA PARA LOS TÍTULOS
-            cols_titulos = st.columns([2, 1, 1, 1, 1])
+            cols_titulos = st.columns([2, 1, 1, 1, 1,1])
             with cols_titulos[0]:
                 st.markdown("**Socios/as**")
             with cols_titulos[1]:
