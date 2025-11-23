@@ -5,7 +5,7 @@ from modulos.prestamo import mostrar_prestamo
 from modulos.ahorros import mostrar_ahorros
 from modulos.pagoprestamo import mostrar_pago_prestamo
 from modulos.multa import mostrar_multas
-from modulos.pago_multa import mostrar_pago_multas  # ✅ Nuevo módulo agregado
+from modulos.pagomulta import mostrar_pago_multas  # ✅ Nuevo módulo agregado
 
 def mostrar_gestion_integrada():
     """
