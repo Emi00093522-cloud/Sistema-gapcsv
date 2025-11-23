@@ -268,15 +268,28 @@ def mostrar_ahorros():
                     retiros_activados[id_miembro] = retiro_activado
                     
                     if retiro_activado:
-                        # CALCULAR EL RETIRO AUTOMÁTICAMENTE según la nueva lógica
-                        total_ahorros_acumulados, total_otros_acumulados = obtener_total_acumulado_miembro(id_miembro, fecha_reunion_actual)
+                        # OBTENER LOS TOTALES ACUMULADOS DE REUNIONES PASADAS (EXCLUYENDO LA ACTUAL)
+                        total_ahorros_pasados, total_otros_pasados = obtener_total_acumulado_miembro(id_miembro, fecha_reunion_actual)
                         
-                        # Sumar los ahorros y otros de ESTA reunión también
-                        total_ahorros_acumulados += monto_ahorro
-                        total_otros_acumulados += monto_otros
+                        # INCLUIR LOS DATOS DE ESTA REUNIÓN TAMBIÉN
+                        total_ahorros_acumulados = total_ahorros_pasados + monto_ahorro
+                        total_otros_acumulados = total_otros_pasados + monto_otros
                         
-                        # Calcular retiro: Saldo Inicial + Total Ahorros - Total Otros
-                        monto_retiros = saldo_inicial + total_ahorros_acumulados - total_otros_acumulados
+                        # DEBUG TEMPORAL - Esto mostrará los cálculos detallados
+                        with st.expander(f"🔍 DEBUG CÁLCULOS - {nombre_miembro}", expanded=True):
+                            st.write(f"**Saldo Inicial:** ${saldo_inicial:,.2f}")
+                            st.write(f"**Ahorros Pasados:** ${total_ahorros_pasados:,.2f}")
+                            st.write(f"**Ahorro Actual:** ${monto_ahorro:,.2f}")
+                            st.write(f"**→ Total Ahorros:** ${total_ahorros_acumulados:,.2f}")
+                            st.write(f"**Otros Pasados:** ${total_otros_pasados:,.2f}")
+                            st.write(f"**Otros Actual:** ${monto_otros:,.2f}")
+                            st.write(f"**→ Total Otros:** ${total_otros_acumulados:,.2f}")
+                            st.write(f"**Fórmula:** ${saldo_inicial:,.2f} + ${total_ahorros_acumulados:,.2f} - ${total_otros_acumulados:,.2f}")
+                            
+                            # Calcular retiro: Saldo Inicial + Total Ahorros - Total Otros
+                            monto_retiros = saldo_inicial + total_ahorros_acumulados - total_otros_acumulados
+                            
+                            st.write(f"**Resultado cálculo:** ${monto_retiros:,.2f}")
                         
                         # Asegurarse de que no sea negativo
                         monto_retiros = max(0.00, monto_retiros)
