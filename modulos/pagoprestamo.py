@@ -22,19 +22,16 @@ def generar_cronograma_pagos(id_prestamo, con):
     
     id_prestamo, id_miembro, monto, total_interes, plazo, fecha_desembolso, nombre, proposito = prestamo
     
-    # ✅ CORRECCIÓN: Convertir porcentaje a valor monetario
-    interes_monetario = Decimal(str(monto)) * (Decimal(str(total_interes)) / Decimal('100'))
-    
-    # Calcular cuota mensual (CORREGIDO)
-    monto_total = Decimal(str(monto)) + interes_monetario
+    # Calcular cuota mensual (debería ser igual a la del módulo préstamo)
+    monto_total = Decimal(str(monto)) + Decimal(str(total_interes))
     cuota_mensual = monto_total / Decimal(str(plazo))
     cuota_mensual = round(cuota_mensual, 2)
     
-    # Distribución mensual (CORREGIDO)
+    # Distribución mensual
     capital_mensual = Decimal(str(monto)) / Decimal(str(plazo))
     capital_mensual = round(capital_mensual, 2)
     
-    interes_mensual = interes_monetario / Decimal(str(plazo))
+    interes_mensual = Decimal(str(total_interes)) / Decimal(str(plazo))
     interes_mensual = round(interes_mensual, 2)
     
     # Fechas - primer pago a 30 días del desembolso
@@ -47,10 +44,10 @@ def generar_cronograma_pagos(id_prestamo, con):
     saldo_capital = Decimal(str(monto))
     
     for i in range(1, plazo + 1):
-        # Ajustar última cuota por redondeo (CORREGIDO)
+        # Ajustar última cuota por redondeo
         if i == plazo:
             capital_cuota = saldo_capital
-            interes_cuota = interes_monetario - (interes_mensual * (plazo - 1))
+            interes_cuota = Decimal(str(total_interes)) - (interes_mensual * (plazo - 1))
             total_cuota = capital_cuota + interes_cuota
         else:
             capital_cuota = capital_mensual
@@ -250,18 +247,15 @@ def mostrar_pago_prestamo():
         id_prestamo = prestamos_dict[prestamo_sel]
         prestamo_info = [p for p in prestamos if p[0] == id_prestamo][0]
         
-        # ✅ CORRECCIÓN: Calcular interés monetario real
+        # Calcular información del préstamo
         monto = prestamo_info[2]
-        total_interes_porcentaje = prestamo_info[3]  # Este es el porcentaje
+        total_interes = prestamo_info[3]
         plazo = prestamo_info[4]
-        
-        # Convertir porcentaje a valor monetario
-        interes_monetario = monto * (total_interes_porcentaje / 100)
-        monto_total = monto + interes_monetario
+        monto_total = monto + total_interes
         cuota_mensual = monto_total / plazo
         
-        # ✅ Tasa real (ya es el porcentaje)
-        tasa_real = total_interes_porcentaje
+        # Calcular tasa aproximada
+        tasa_aprox = (total_interes / (monto * plazo)) * 100 if monto > 0 and plazo > 0 else 0
         
         # Mostrar información del préstamo en un layout más organizado
         st.subheader("📋 RESUMEN DEL PRÉSTAMO")
@@ -272,14 +266,14 @@ def mostrar_pago_prestamo():
         with col1:
             st.markdown("**Información Básica**")
             st.write(f"• **Fecha inicio:** {prestamo_info[5]}")
-            st.write(f"• **Tasa interés:** {tasa_real:.1f}%")
+            st.write(f"• **Tasa interés:** {tasa_aprox:.1f}%")
             st.write(f"• **Plazo:** {plazo} meses")
             st.write(f"• **Propósito:** {prestamo_info[7]}")
         
         with col2:
             st.markdown("**Montos**")
             st.write(f"• **Monto préstamo:** ${monto:,.2f}")
-            st.write(f"• **Interés total:** ${interes_monetario:,.2f}")
+            st.write(f"• **Interés total:** ${total_interes:,.2f}")
             st.write(f"• **Total a pagar:** ${monto_total:,.2f}")
             st.write(f"• **Cuota mensual:** ${cuota_mensual:,.2f}")
         
@@ -350,7 +344,6 @@ def mostrar_pago_prestamo():
                 total_mostrar = f"${total_prog:,.2f}"
             
             tabla_data.append({
-                "Cuota": numero,
                 "Fecha": fecha_prog,
                 "Estado": f"{estado_emoji.get(estado, '⚪')} {estado.upper()}",
                 "Capital": capital_mostrar,
@@ -367,7 +360,7 @@ def mostrar_pago_prestamo():
         total_pagado = sum(c[7] or 0 for c in cuotas)
         
         st.markdown("---")
-        st.markdown(f"**TOTAL:** ${monto:,.2f} (capital) + ${interes_monetario:,.2f} (interés) = **${monto_total:,.2f}**")
+        st.markdown(f"**TOTAL:** ${monto:,.2f} (capital) + ${total_interes:,.2f} (interés) = **${monto_total:,.2f}**")
         
         saldo_pendiente = monto_total - total_pagado
         if saldo_pendiente <= 0:
@@ -420,7 +413,7 @@ def mostrar_pago_prestamo():
                             if success:
                                 # Registrar en tabla PagoPrestamo
                                 cursor.execute("""
-                                    INSERT INTO Pago_prestamo 
+                                    INSERT INTO PagoPrestamo 
                                     (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
                                     VALUES (%s, %s, %s, %s, %s, %s)
                                 """, (id_prestamo, None, fecha_pago_completo, 0, 0, float(monto_cuota)))
@@ -487,7 +480,7 @@ def mostrar_pago_prestamo():
                                 if success:
                                     # Registrar en tabla PagoPrestamo
                                     cursor.execute("""
-                                        INSERT INTO Pago_prestamo 
+                                        INSERT INTO PagoPrestamo 
                                         (ID_Prestamo, ID_Reunion, fecha_pago, monto_capital, monto_interes, total_cancelado)
                                         VALUES (%s, %s, %s, %s, %s, %s)
                                     """, (id_prestamo, None, fecha_pago_parcial, 0, 0, float(monto_parcial)))
