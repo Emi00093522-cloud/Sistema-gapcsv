@@ -3,12 +3,13 @@ from modulos.reuniones import mostrar_reuniones
 from modulos.asistencia import mostrar_asistencia
 from modulos.prestamo import mostrar_prestamo
 from modulos.ahorros import mostrar_ahorros
-from modulos.pagoprestamo import mostrar_pago_prestamo  # ✅ Nuevo módulo agregado
-from modulos.multa import mostrar_multas  # ✅ Nuevo módulo de multas agregado
+from modulos.pagoprestamo import mostrar_pago_prestamo
+from modulos.multa import mostrar_multas
+from modulos.pago_multa import mostrar_pago_multas  # ✅ Nuevo módulo agregado
 
 def mostrar_gestion_integrada():
     """
-    Módulo integrado que contiene 6 pestañas con los módulos existentes
+    Módulo integrado que contiene 7 pestañas con los módulos existentes
     """
     
     st.header("📊 Gestión Integrada de Grupo")
@@ -19,14 +20,15 @@ def mostrar_gestion_integrada():
         st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede acceder a esta función.")
         return
 
-    # Crear pestañas principales - ahora con 6 pestañas
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    # Crear pestañas principales - ahora con 7 pestañas
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📅 Reuniones", 
         "🧍‍♂️ Asistencia", 
         "💰 Préstamos",
         "💵 Ahorros",
         "💳 Pagos Préstamos",
-        "⚖️ Multas"  # ✅ Nueva pestaña de multas agregada
+        "⚖️ Multas",
+        "💵 Pagos Multas"  # ✅ Nueva pestaña de pagos de multas agregada
     ])
 
     with tab1:
@@ -43,7 +45,7 @@ def mostrar_gestion_integrada():
             mostrar_prestamo()
         except Exception as e:
             st.error("Error temporal en préstamos - trabajando en la solución")
-            st.info("Por ahora, usa el módulo individual de préstamos")
+            st.info("Por favor, usa el módulo individual de préstamos")
 
     with tab4:
         st.subheader("💵 Gestión de Ahorros")
@@ -61,10 +63,18 @@ def mostrar_gestion_integrada():
             st.error(f"Error al cargar módulo de pagos de préstamos: {e}")
             st.info("Por favor, usa el módulo individual de pagos de préstamos")
 
-    with tab6:  # ✅ Nueva pestaña para multas
+    with tab6:
         st.subheader("⚖️ Gestión de Multas")
         try:
             mostrar_multas()
         except Exception as e:
             st.error(f"Error al cargar módulo de multas: {e}")
             st.info("Por favor, usa el módulo individual de multas")
+
+    with tab7:  # ✅ Nueva pestaña para pagos de multas
+        st.subheader("💵 Gestión de Pagos de Multas")
+        try:
+            mostrar_pago_multas()
+        except Exception as e:
+            st.error(f"Error al cargar módulo de pagos de multas: {e}")
+            st.info("Por favor, usa el módulo individual de pagos de multas")
