@@ -5,11 +5,12 @@ from modulos.prestamo import mostrar_prestamo
 from modulos.ahorros import mostrar_ahorros
 from modulos.pagoprestamo import mostrar_pago_prestamo
 from modulos.multa import mostrar_multas
-from modulos.pagomulta import mostrar_pago_multas  # ✅ Nuevo módulo agregado
+from modulos.pagomulta import mostrar_pago_multas
+from modulos.movimientocaja import mostrar_movimiento_caja  # ✅ Nuevo módulo agregado
 
 def mostrar_gestion_integrada():
     """
-    Módulo integrado que contiene 7 pestañas con los módulos existentes
+    Módulo integrado que contiene 8 pestañas con los módulos existentes
     """
     
     st.header("📊 Gestión Integrada de Grupo")
@@ -20,15 +21,16 @@ def mostrar_gestion_integrada():
         st.warning("🔒 Acceso restringido: Solo la SECRETARIA puede acceder a esta función.")
         return
 
-    # Crear pestañas principales - ahora con 7 pestañas
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    # Crear pestañas principales - ahora con 8 pestañas
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📅 Reuniones", 
         "🧍‍♂️ Asistencia", 
         "💰 Préstamos",
         "💵 Ahorros",
         "💳 Pagos Préstamos",
         "⚖️ Multas",
-        "💵 Pagos Multas"  # ✅ Nueva pestaña de pagos de multas agregada
+        "💵 Pagos Multas",
+        "💰 Movimiento Caja"  # ✅ Nueva pestaña de movimiento de caja agregada
     ])
 
     with tab1:
@@ -71,10 +73,18 @@ def mostrar_gestion_integrada():
             st.error(f"Error al cargar módulo de multas: {e}")
             st.info("Por favor, usa el módulo individual de multas")
 
-    with tab7:  # ✅ Nueva pestaña para pagos de multas
+    with tab7:
         st.subheader("💵 Gestión de Pagos de Multas")
         try:
             mostrar_pago_multas()
         except Exception as e:
             st.error(f"Error al cargar módulo de pagos de multas: {e}")
             st.info("Por favor, usa el módulo individual de pagos de multas")
+
+    with tab8:  # ✅ Nueva pestaña para movimiento de caja
+        st.subheader("💰 Movimientos de Caja")
+        try:
+            mostrar_movimiento_caja()
+        except Exception as e:
+            st.error(f"Error al cargar módulo de movimiento de caja: {e}")
+            st.info("Por favor, usa el módulo individual de movimiento de caja")
