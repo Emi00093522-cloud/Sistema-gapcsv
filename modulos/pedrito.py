@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 # Importar módulos de cada panel
@@ -74,12 +75,49 @@ def panel_admin(usuario, dui):
 
     st.write(f"Administrador: **{usuario}** — DUI: **{dui}**")
 
-    # Mismos módulos que la Promotora - SOLO DISTRITOS
-    menu = st.tabs(["Distritos"])
+    # Menú con todas las funciones de Promotora y Secretaría
+    menu = st.tabs([
+        "Distritos", 
+        "Crear Grupo", 
+        "Miembros", 
+        "Reglamentos", 
+        "Reuniones", 
+        "Cierre de Ciclo", 
+        "Préstamos", 
+        "Ahorros"
+    ])
 
     with menu[0]:
         st.header("Gestión de Distritos")
         mostrar_distrito()
+
+    with menu[1]:
+        st.header("Crear Grupo")
+        mostrar_grupos()
+
+    with menu[2]:
+        st.header("Gestión de Miembros")
+        mostrar_miembros()
+
+    with menu[3]:
+        st.header("Reglamentos del Grupo")
+        mostrar_reglamentos()
+
+    with menu[4]:
+        st.header("Reuniones del Grupo")
+        mostrar_reuniones()
+
+    with menu[5]:
+        st.header("Cierre de Ciclo")
+        mostrar_ciclo()
+
+    with menu[6]:
+        st.header("Gestión de Préstamos")
+        mostrar_prestamos()
+        
+    with menu[7]: 
+        st.header("Gestión de Ahorros")
+        mostrar_ahorros()
 
 
 # -----------------------------
