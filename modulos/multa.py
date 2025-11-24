@@ -62,8 +62,7 @@ def mostrar_multas():
                 m.ID_Miembro, 
                 CONCAT(m.nombre, ' ', m.apellido) as nombre_completo,
                 COALESCE(mr.asistio, 0) as asistio,
-                mr.justificacion,
-                COALESCE(mr.llegada_tardia, 0) as llegada_tardia
+                mr.justificacion
             FROM Miembro m
             LEFT JOIN Miembroxreunion mr ON m.ID_Miembro = mr.ID_Miembro AND mr.ID_Reunion = %s
             WHERE m.ID_Grupo = %s
@@ -76,13 +75,13 @@ def mostrar_multas():
             st.warning("⚠️ No hay miembros registrados en este grupo.")
             return
 
-        # Clasificación:
+        # Clasificación basada en la asistencia y justificación
         miembros_presentes = [m for m in todos_miembros if m['asistio'] == 1]
         
-        # Miembros que serán multados: "No" en asistencia Y "Llegada tardía"
+        # Miembros que serán multados: "No" en asistencia SIN justificación
         miembros_a_multar = [
             m for m in todos_miembros
-            if m['asistio'] == 0 and m['llegada_tardia'] == 1
+            if m['asistio'] == 0 and (m['justificacion'] is None or m['justificacion'].strip() == "")
         ]
         
         # Miembros con "No" en asistencia pero con justificación (no se multan)
@@ -90,27 +89,19 @@ def mostrar_multas():
             m for m in todos_miembros
             if m['asistio'] == 0 and (m['justificacion'] is not None and m['justificacion'].strip() != "")
         ]
-        
-        # Miembros con "No" en asistencia sin justificación pero sin llegada tardía (no se multan)
-        miembros_ausentes_sin_multar = [
-            m for m in todos_miembros
-            if m['asistio'] == 0 and m['llegada_tardia'] == 0 and (m['justificacion'] is None or m['justificacion'].strip() == "")
-        ]
 
         # Mostrar métricas
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("✅ Presentes", len(miembros_presentes))
         with col2:
             st.metric("💰 A multar", len(miembros_a_multar))
         with col3:
             st.metric("📝 Con justificación", len(miembros_ausentes_con_justificacion))
-        with col4:
-            st.metric("❌ Ausentes sin multa", len(miembros_ausentes_sin_multar))
 
         # FORMULARIO DE MULTAS
         st.subheader("📊 Formulario de Multas")
-        st.write("### Registro de Multas por Inasistencia con Llegada Tardía")
+        st.write("### Registro de Multas por Inasistencia sin Justificación")
 
         cols = st.columns([3, 2, 2, 2])
         headers = ["Socio", "A pagar", "Pagada", "Estado"]
@@ -154,7 +145,7 @@ def mostrar_multas():
                     )
 
             with cols[3]:
-                st.write("Llegada tardía")
+                st.write("Sin justificación")
 
             multas_a_registrar.append({
                 "ID_Miembro": miembro["ID_Miembro"],
@@ -202,7 +193,7 @@ def mostrar_multas():
                     con.rollback()
                     st.error(f"❌ Error: {e}")
         else:
-            st.success("🎉 No hay miembros que cumplan los criterios para multa (No asistió + Llegada tardía).")
+            st.success("🎉 No hay miembros que cumplan los criterios para multa (No asistió sin justificación).")
 
         # GESTIÓN DE MULTAS EXISTENTES
         st.subheader("📋 Gestión de Multas Registradas")
