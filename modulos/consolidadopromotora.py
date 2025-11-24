@@ -4,258 +4,557 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import calendar
+from dateutil.relativedelta import relativedelta
 
 # =============================================
-#  VERSIÓN DEBUG - PARA IDENTIFICAR EL PROBLEMA
+#  CONFIGURACIÓN INICIAL
 # =============================================
 
-def debug_session_state():
-    """Muestra el estado actual de session_state para debugging"""
-    st.sidebar.write("### 🔍 DEBUG - Session State")
-    for key, value in st.session_state.items():
-        st.sidebar.write(f"**{key}:** {value}")
-
-def obtener_id_promotora_desde_usuario():
-    """
-    Obtiene el ID de promotora basado en el usuario logueado.
-    Versión debug que muestra qué está buscando.
-    """
-    st.write("### 🔍 PASO 1: Buscando ID de promotora")
-    
-    # Mostrar qué hay en session_state
-    st.write("**Session State actual:**")
-    st.json({k: v for k, v in st.session_state.items()})
-    
-    # Obtener el ID del usuario logueado
-    id_usuario = st.session_state.get("id_usuario")
-    st.write(f"**ID Usuario encontrado:** {id_usuario}")
-    
-    if not id_usuario:
-        st.error("❌ No hay 'id_usuario' en session_state")
-        return None
-    
+def verificar_modulos():
+    """Verifica que los módulos necesarios estén disponibles."""
     try:
         from modulos.config.conexion import obtener_conexion
-        
-        st.write("### 🔍 PASO 2: Consultando base de datos")
-        
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-        
-        # PRIMERO: Verificar si existe la tabla Promotora
-        cursor.execute("SHOW TABLES LIKE 'Promotora'")
-        tabla_existe = cursor.fetchone()
-        st.write(f"**¿Tabla Promotora existe?:** {bool(tabla_existe)}")
-        
-        if tabla_existe:
-            # Buscar la promotora asociada a este usuario
-            query = "SELECT * FROM Promotora WHERE ID_Usuario = %s"
-            st.write(f"**Query ejecutado:** {query % id_usuario}")
-            
-            cursor.execute(query, (id_usuario,))
-            resultado = cursor.fetchone()
-            
-            st.write("**Resultado de la consulta:**")
-            st.json(resultado if resultado else "NO HAY RESULTADOS")
-            
-            if resultado:
-                st.success(f"✅ Promotora encontrada: ID {resultado['ID_Promotora']}")
-                return resultado['ID_Promotora']
-            else:
-                st.error("❌ No se encontró promotora para este usuario")
-                st.info("""
-                **Posibles soluciones:**
-                1. El usuario no está registrado como promotora
-                2. El campo en la tabla se llama diferente (ej: id_usuario vs ID_Usuario)
-                3. No hay relación entre usuario y promotora
-                """)
-        else:
-            st.error("❌ La tabla 'Promotora' no existe en la base de datos")
-            
-        cursor.close()
-        con.close()
-        
-        return None
-        
-    except Exception as e:
-        st.error(f"❌ Error en la consulta: {e}")
-        import traceback
-        st.code(traceback.format_exc())
-        return None
+        st.sidebar.success("✅ Módulos de BD - CONECTADOS")
+        return True
+    except ImportError as e:
+        st.sidebar.error(f"❌ Error conectando a BD: {e}")
+        return False
 
-def obtener_grupos_promotora_debug(id_promotora):
-    """Versión debug para obtener grupos"""
-    st.write("### 🔍 PASO 3: Buscando grupos de la promotora")
-    st.write(f"**ID Promotora:** {id_promotora}")
-    
+# =============================================
+#  OBTENER GRUPOS DE LA PROMOTORA
+# =============================================
+
+def obtener_grupos_promotora(id_promotora):
+    """Obtiene todos los grupos asignados a una promotora."""
     try:
         from modulos.config.conexion import obtener_conexion
         
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
-        # Verificar estructura de la tabla Grupo
-        cursor.execute("DESCRIBE Grupo")
-        estructura_grupo = cursor.fetchall()
+        cursor.execute("""
+            SELECT 
+                g.ID_Grupo,
+                g.nombre_grupo,
+                g.fecha_creacion,
+                COUNT(m.ID_Miembro) as total_miembros
+            FROM Grupo g
+            LEFT JOIN Miembro m ON g.ID_Grupo = m.ID_Grupo AND m.ID_Estado = 1
+            WHERE g.ID_Promotora = %s
+            GROUP BY g.ID_Grupo, g.nombre_grupo, g.fecha_creacion
+            ORDER BY g.nombre_grupo
+        """, (id_promotora,))
         
-        st.write("**Estructura de la tabla Grupo:**")
-        st.dataframe(estructura_grupo)
-        
-        # Buscar grupos
-        query = "SELECT * FROM Grupo WHERE ID_Promotora = %s"
-        st.write(f"**Query ejecutado:** {query % id_promotora}")
-        
-        cursor.execute(query, (id_promotora,))
         grupos = cursor.fetchall()
-        
-        st.write(f"**Grupos encontrados:** {len(grupos)}")
-        if grupos:
-            st.dataframe(grupos)
-        else:
-            st.warning("⚠️ No se encontraron grupos para esta promotora")
-            
         cursor.close()
         con.close()
         
         return grupos
-        
     except Exception as e:
         st.error(f"❌ Error obteniendo grupos: {e}")
         return []
 
-def mostrar_consolidado_promotora_debug():
-    """Versión debug del consolidado"""
-    
-    st.title("🔍 Módulo de Consolidado - MODO DEBUG")
-    
-    # Mostrar estado de session_state
-    debug_session_state()
-    
-    st.write("---")
-    st.write("## 🚀 Iniciando proceso de consolidado...")
-    
-    # PASO 1: Obtener ID de promotora
-    id_promotora = obtener_id_promotora_desde_usuario()
-    
-    if not id_promotora:
-        st.error("""
-        ❌ **NO SE PUEDE CONTINUAR**
+# =============================================
+#  FUNCIONES PARA OBTENER DATOS POR MES Y GRUPO
+# =============================================
+
+def obtener_ahorros_por_mes_grupo(id_grupo, año, mes):
+    """Obtiene los ahorros de un grupo en un mes específico."""
+    try:
+        from modulos.config.conexion import obtener_conexion
         
-        **Problemas identificados:**
-        1. Usuario no tiene ID en session_state
-        2. Usuario no está registrado como promotora  
-        3. La tabla Promotora no existe o tiene diferente estructura
+        fecha_inicio = datetime(año, mes, 1)
+        ultimo_dia = calendar.monthrange(año, mes)[1]
+        fecha_fin = datetime(año, mes, ultimo_dia)
         
-        **Solución temporal para pruebas:**
-        """)
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
         
-        # Input manual para testing
-        id_promotora_manual = st.number_input(
-            "Ingresa manualmente un ID de promotora para testing:", 
-            min_value=1, value=1
-        )
+        cursor.execute("""
+            SELECT 
+                COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
+                COALESCE(SUM(a.monto_otros), 0) as total_otros,
+                COUNT(DISTINCT a.ID_Miembro) as miembros_ahorrando
+            FROM Ahorro a
+            JOIN Miembro m ON a.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s 
+            AND a.fecha BETWEEN %s AND %s
+        """, (id_grupo, fecha_inicio, fecha_fin))
         
-        if st.button("Usar este ID para testing"):
-            st.session_state.debug_promotora_id = id_promotora_manual
-            st.rerun()
-            
-        if "debug_promotora_id" in st.session_state:
-            id_promotora = st.session_state.debug_promotora_id
-            st.info(f"🔧 Usando ID de promotora manual: {id_promotora}")
-        else:
-            return
+        resultado = cursor.fetchone()
+        cursor.close()
+        con.close()
+        
+        total_ahorros = float(resultado['total_ahorros'] or 0)
+        total_otros = float(resultado['total_otros'] or 0)
+        
+        return total_ahorros + total_otros
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo ahorros: {e}")
+        return 0.0
+
+def obtener_prestamos_por_mes_grupo(id_grupo, año, mes):
+    """Obtiene los préstamos desembolsados de un grupo en un mes específico."""
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        fecha_inicio = datetime(año, mes, 1)
+        ultimo_dia = calendar.monthrange(año, mes)[1]
+        fecha_fin = datetime(año, mes, ultimo_dia)
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT 
+                COALESCE(SUM(p.monto), 0) as total_prestamos,
+                COUNT(*) as total_desembolsos
+            FROM Prestamo p
+            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s 
+            AND p.fecha_desembolso BETWEEN %s AND %s
+            AND p.ID_Estado_prestamo != 3  -- Excluir cancelados/rechazados
+        """, (id_grupo, fecha_inicio, fecha_fin))
+        
+        resultado = cursor.fetchone()
+        cursor.close()
+        con.close()
+        
+        return float(resultado['total_prestamos'] or 0)
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo préstamos: {e}")
+        return 0.0
+
+def obtener_pagos_prestamos_por_mes_grupo(id_grupo, año, mes):
+    """Obtiene los pagos de préstamos de un grupo en un mes específico."""
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        fecha_inicio = datetime(año, mes, 1)
+        ultimo_dia = calendar.monthrange(año, mes)[1]
+        fecha_fin = datetime(año, mes, ultimo_dia)
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT 
+                COALESCE(SUM(pp.monto_pagado), 0) as total_pagos,
+                COUNT(*) as total_pagos_realizados
+            FROM PagoPrestamo pp
+            JOIN Prestamo p ON pp.ID_Prestamo = p.ID_Prestamo
+            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s 
+            AND pp.fecha_pago BETWEEN %s AND %s
+        """, (id_grupo, fecha_inicio, fecha_fin))
+        
+        resultado = cursor.fetchone()
+        cursor.close()
+        con.close()
+        
+        return float(resultado['total_pagos'] or 0)
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo pagos de préstamos: {e}")
+        return 0.0
+
+def obtener_pagos_multas_por_mes_grupo(id_grupo, año, mes):
+    """Obtiene los pagos de multas de un grupo en un mes específico."""
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        fecha_inicio = datetime(año, mes, 1)
+        ultimo_dia = calendar.monthrange(año, mes)[1]
+        fecha_fin = datetime(año, mes, ultimo_dia)
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT 
+                COALESCE(SUM(pm.monto_pagado), 0) as total_multas,
+                COUNT(*) as total_multas_pagadas
+            FROM PagoMulta pm
+            JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s 
+            AND pm.fecha_pago BETWEEN %s AND %s
+        """, (id_grupo, fecha_inicio, fecha_fin))
+        
+        resultado = cursor.fetchone()
+        cursor.close()
+        con.close()
+        
+        return float(resultado['total_multas'] or 0)
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo pagos de multas: {e}")
+        return 0.0
+
+# =============================================
+#  CÁLCULO DE INGRESOS, EGRESOS Y BALANCE
+# =============================================
+
+def calcular_consolidado_mensual(id_grupo, año, mes):
+    """Calcula ingresos, egresos y balance para un grupo en un mes específico."""
     
-    # PASO 2: Obtener grupos
-    grupos = obtener_grupos_promotora_debug(id_promotora)
+    # INGRESOS
+    ahorros = obtener_ahorros_por_mes_grupo(id_grupo, año, mes)
+    pagos_multas = obtener_pagos_multas_por_mes_grupo(id_grupo, año, mes)
     
-    if not grupos:
-        st.error("❌ No hay grupos para mostrar")
+    # EGRESOS (préstamos desembolsados)
+    prestamos_desembolsados = obtener_prestamos_por_mes_grupo(id_grupo, año, mes)
+    
+    # PAGOS RECIBIDOS (ingresos por recuperación)
+    pagos_prestamos = obtener_pagos_prestamos_por_mes_grupo(id_grupo, año, mes)
+    
+    # CÁLCULOS FINALES
+    total_ingresos = ahorros + pagos_multas + pagos_prestamos
+    total_egresos = prestamos_desembolsados
+    balance = total_ingresos - total_egresos
+    
+    return {
+        'ingresos': total_ingresos,
+        'egresos': total_egresos,
+        'balance': balance,
+        'detalle_ingresos': {
+            'ahorros': ahorros,
+            'pagos_multas': pagos_multas,
+            'pagos_prestamos': pagos_prestamos
+        },
+        'detalle_egresos': {
+            'prestamos_desembolsados': prestamos_desembolsados
+        }
+    }
+
+def obtener_consolidado_anual(id_grupo, año):
+    """Obtiene el consolidado mensual para todo un año."""
+    consolidado_mensual = []
+    
+    for mes in range(1, 13):
+        datos_mes = calcular_consolidado_mensual(id_grupo, año, mes)
+        consolidado_mensual.append({
+            'mes': mes,
+            'nombre_mes': calendar.month_name[mes],
+            'año': año,
+            **datos_mes
+        })
+    
+    return consolidado_mensual
+
+# =============================================
+#  GRÁFICAS Y VISUALIZACIONES
+# =============================================
+
+def crear_grafica_ingresos_egresos_balance(df):
+    """Crea gráfica de líneas para ingresos, egresos y balance."""
+    fig = go.Figure()
+    
+    # Línea de ingresos
+    fig.add_trace(go.Scatter(
+        x=df['mes_año'],
+        y=df['ingresos'],
+        mode='lines+markers',
+        name='Ingresos',
+        line=dict(color='#2E8B57', width=3),
+        marker=dict(size=8)
+    ))
+    
+    # Línea de egresos
+    fig.add_trace(go.Scatter(
+        x=df['mes_año'],
+        y=df['egresos'],
+        mode='lines+markers',
+        name='Egresos',
+        line=dict(color='#DC143C', width=3),
+        marker=dict(size=8)
+    ))
+    
+    # Línea de balance
+    fig.add_trace(go.Scatter(
+        x=df['mes_año'],
+        y=df['balance'],
+        mode='lines+markers',
+        name='Balance',
+        line=dict(color='#1E90FF', width=3),
+        marker=dict(size=8)
+    ))
+    
+    fig.update_layout(
+        title='📈 Evolución Mensual: Ingresos, Egresos y Balance',
+        xaxis_title='Mes',
+        yaxis_title='Monto ($)',
+        hovermode='x unified',
+        height=400
+    )
+    
+    return fig
+
+def crear_grafica_composicion_ingresos(df_detalle):
+    """Crea gráfica de torta para la composición de ingresos."""
+    labels = ['Ahorros', 'Pagos de Multas', 'Pagos de Préstamos']
+    values = [
+        df_detalle['ahorros'],
+        df_detalle['pagos_multas'],
+        df_detalle['pagos_prestamos']
+    ]
+    
+    # Filtrar valores cero
+    filtered_labels = []
+    filtered_values = []
+    for label, value in zip(labels, values):
+        if value > 0:
+            filtered_labels.append(label)
+            filtered_values.append(value)
+    
+    if not filtered_values:
+        return None
+    
+    fig = px.pie(
+        names=filtered_labels,
+        values=filtered_values,
+        title='📊 Composición de Ingresos',
+        color_discrete_sequence=px.colors.qualitative.Set3
+    )
+    
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    return fig
+
+def crear_grafica_barras_comparativa(df_grupos):
+    """Crea gráfica de barras comparativa entre grupos."""
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        name='Ingresos',
+        x=df_grupos['nombre_grupo'],
+        y=df_grupos['ingresos'],
+        marker_color='#2E8B57'
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Egresos',
+        x=df_grupos['nombre_grupo'],
+        y=df_grupos['egresos'],
+        marker_color='#DC143C'
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Balance',
+        x=df_grupos['nombre_grupo'],
+        y=df_grupos['balance'],
+        marker_color='#1E90FF'
+    ))
+    
+    fig.update_layout(
+        title='📊 Comparativa de Grupos',
+        xaxis_title='Grupos',
+        yaxis_title='Monto ($)',
+        barmode='group',
+        height=400
+    )
+    
+    return fig
+
+# =============================================
+#  INTERFAZ PRINCIPAL
+# =============================================
+
+def mostrar_consolidado_promotora():
+    """Función principal para mostrar el consolidado de la promotora."""
+    
+    st.title("📊 Consolidado Mensual - Promotora")
+    
+    # Verificar que el usuario sea promotora
+    if st.session_state.get("user_type") != "promotora":
+        st.error("🔒 Esta funcionalidad es exclusiva para promotoras.")
         return
     
-    # PASO 3: Mostrar interfaz normal
-    st.success("✅ ¡Todo listo! Mostrando consolidado...")
-    st.write("---")
+    id_promotora = st.session_state.get("user_id")
+    if not id_promotora:
+        st.error("❌ No se pudo identificar a la promotora.")
+        return
     
-    # Aquí continuaría tu interfaz normal...
-    mostrar_interfaz_normal(grupos)
-
-def mostrar_interfaz_normal(grupos):
-    """Interfaz normal una vez que tenemos los datos"""
+    # Obtener grupos de la promotora
+    grupos = obtener_grupos_promotora(id_promotora)
+    if not grupos:
+        st.info("ℹ️ No tienes grupos asignados.")
+        return
     
-    st.title("📊 Consolidado de Grupos - Promotora")
+    st.sidebar.write("### ⚙️ Configuración del Reporte")
     
     # Selector de año
     año_actual = datetime.now().year
+    años = list(range(año_actual - 2, año_actual + 1))
     año_seleccionado = st.sidebar.selectbox(
         "Seleccionar Año",
-        [año_actual - 1, año_actual, año_actual + 1],
-        index=1
+        años,
+        index=años.index(año_actual)
     )
     
-    # Resumen simple
-    st.subheader("📈 Resumen de Grupos")
+    # Selector de vista
+    vista = st.sidebar.radio(
+        "Tipo de Vista",
+        ["📈 Vista Detallada por Grupo", "📊 Vista Comparativa entre Grupos"]
+    )
     
-    # Crear datos de ejemplo para demostración
-    datos_ejemplo = []
-    for grupo in grupos:
-        datos_ejemplo.append({
-            'Grupo': grupo.get('nombre_grupo', f"Grupo {grupo.get('ID_Grupo', 'N/A')}"),
-            'Miembros': grupo.get('total_miembros', 0),
-            'Ingresos Ejemplo': f"${len(grupo) * 1000:,.2f}",
-            'Estado': '🟢 Activo'
-        })
-    
-    df_resumen = pd.DataFrame(datos_ejemplo)
-    st.dataframe(df_resumen, use_container_width=True)
-    
-    # Gráfica de ejemplo
-    st.subheader("📊 Gráfica de Ejemplo")
-    
-    if len(grupos) > 0:
-        # Datos para gráfica
-        nombres_grupos = [g.get('nombre_grupo', f"Grupo {g.get('ID_Grupo')}") for g in grupos]
-        ingresos_ejemplo = [len(g) * 1000 for g in grupos]  # Datos de ejemplo
-        
-        fig = px.bar(
-            x=nombres_grupos,
-            y=ingresos_ejemplo,
-            title="Ingresos por Grupo (Ejemplo)",
-            labels={'x': 'Grupos', 'y': 'Ingresos ($)'},
-            color=ingresos_ejemplo,
-            color_continuous_scale='Viridis'
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+    if vista == "📈 Vista Detallada por Grupo":
+        mostrar_vista_detallada(grupos, año_seleccionado)
     else:
-        st.info("No hay suficientes datos para mostrar gráficas")
+        mostrar_vista_comparativa(grupos, año_seleccionado)
+
+def mostrar_vista_detallada(grupos, año):
+    """Muestra vista detallada para cada grupo."""
     
-    # Información para el usuario
-    st.info("""
-    **💡 Esta es una vista de demostración.**
-    Para ver datos reales, necesitamos:
-    1. Que tu usuario esté correctamente asociado a una promotora
-    2. Que la promotora tenga grupos asignados
-    3. Que existan datos financieros en las tablas correspondientes
-    """)
+    st.header("📈 Vista Detallada por Grupo")
+    
+    # Selector de grupo
+    nombres_grupos = [f"{g['nombre_grupo']} ({g['total_miembros']} miembros)" for g in grupos]
+    grupo_seleccionado = st.selectbox("Seleccionar Grupo", nombres_grupos)
+    
+    grupo_idx = nombres_grupos.index(grupo_seleccionado)
+    grupo = grupos[grupo_idx]
+    
+    st.subheader(f"📋 Consolidado Anual {año} - {grupo['nombre_grupo']}")
+    
+    # Obtener datos del año completo
+    with st.spinner("Calculando consolidado mensual..."):
+        consolidado_anual = obtener_consolidado_anual(grupo['ID_Grupo'], año)
+    
+    # Crear DataFrame para gráficas
+    df_mensual = pd.DataFrame(consolidado_anual)
+    df_mensual['mes_año'] = df_mensual['nombre_mes'] + ' ' + df_mensual['año'].astype(str)
+    
+    # Mostrar métricas principales
+    total_ingresos = df_mensual['ingresos'].sum()
+    total_egresos = df_mensual['egresos'].sum()
+    total_balance = df_mensual['balance'].sum()
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("💰 Ingresos Totales", f"${total_ingresos:,.2f}")
+    with col2:
+        st.metric("💸 Egresos Totales", f"${total_egresos:,.2f}")
+    with col3:
+        st.metric("⚖️ Balance Total", f"${total_balance:,.2f}", 
+                 delta=f"${total_balance:,.2f}")
+    
+    # Gráfica principal
+    st.plotly_chart(crear_grafica_ingresos_egresos_balance(df_mensual), 
+                   use_container_width=True)
+    
+    # Gráficas de composición (último mes con datos)
+    ultimo_mes_con_datos = None
+    for mes_data in reversed(consolidado_anual):
+        if mes_data['ingresos'] > 0:
+            ultimo_mes_con_datos = mes_data
+            break
+    
+    if ultimo_mes_con_datos:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            grafica_torta = crear_grafica_composicion_ingresos(
+                ultimo_mes_con_datos['detalle_ingresos']
+            )
+            if grafica_torta:
+                st.plotly_chart(grafica_torta, use_container_width=True)
+        
+        with col2:
+            # Tabla detallada del último mes
+            st.write(f"**📋 Detalle del Mes: {ultimo_mes_con_datos['nombre_mes']}**")
+            detalle_data = {
+                'Concepto': ['Ahorros', 'Pagos Multas', 'Pagos Préstamos', 'Préstamos Desembolsados'],
+                'Monto': [
+                    f"${ultimo_mes_con_datos['detalle_ingresos']['ahorros']:,.2f}",
+                    f"${ultimo_mes_con_datos['detalle_ingresos']['pagos_multas']:,.2f}",
+                    f"${ultimo_mes_con_datos['detalle_ingresos']['pagos_prestamos']:,.2f}",
+                    f"${ultimo_mes_con_datos['detalle_egresos']['prestamos_desembolsados']:,.2f}"
+                ]
+            }
+            st.dataframe(pd.DataFrame(detalle_data), use_container_width=True)
+    
+    # Tabla resumen anual
+    st.write("### 📊 Tabla Resumen Anual")
+    resumen_data = {
+        'Mes': [m['nombre_mes'] for m in consolidado_anual],
+        'Ingresos': [f"${m['ingresos']:,.2f}" for m in consolidado_anual],
+        'Egresos': [f"${m['egresos']:,.2f}" for m in consolidado_anual],
+        'Balance': [f"${m['balance']:,.2f}" for m in consolidado_anual],
+        'Estado': ['✅ Positivo' if m['balance'] >= 0 else '⚠️ Negativo' for m in consolidado_anual]
+    }
+    st.dataframe(pd.DataFrame(resumen_data), use_container_width=True)
+
+def mostrar_vista_comparativa(grupos, año):
+    """Muestra vista comparativa entre todos los grupos."""
+    
+    st.header("📊 Vista Comparativa entre Grupos")
+    
+    # Obtener datos de todos los grupos
+    datos_grupos = []
+    
+    with st.spinner("Recopilando datos de todos los grupos..."):
+        for grupo in grupos:
+            consolidado_anual = obtener_consolidado_anual(grupo['ID_Grupo'], año)
+            
+            # Calcular totales anuales
+            total_ingresos = sum(m['ingresos'] for m in consolidado_anual)
+            total_egresos = sum(m['egresos'] for m in consolidado_anual)
+            total_balance = sum(m['balance'] for m in consolidado_anual)
+            
+            datos_grupos.append({
+                'nombre_grupo': grupo['nombre_grupo'],
+                'total_miembros': grupo['total_miembros'],
+                'ingresos': total_ingresos,
+                'egresos': total_egresos,
+                'balance': total_balance
+            })
+    
+    df_grupos = pd.DataFrame(datos_grupos)
+    
+    # Gráfica comparativa
+    st.plotly_chart(crear_grafica_barras_comparativa(df_grupos), 
+                   use_container_width=True)
+    
+    # Tabla comparativa
+    st.write("### 📋 Tabla Comparativa de Grupos")
+    
+    tabla_comparativa = {
+        'Grupo': df_grupos['nombre_grupo'],
+        'Miembros': df_grupos['total_miembros'],
+        'Ingresos Totales': [f"${ing:,.2f}" for ing in df_grupos['ingresos']],
+        'Egresos Totales': [f"${egr:,.2f}" for egr in df_grupos['egresos']],
+        'Balance Total': [f"${bal:,.2f}" for bal in df_grupos['balance']],
+        'Rendimiento': [
+            '🟢 Alto' if bal > df_grupos['balance'].mean() * 1.5 else 
+            '🟡 Medio' if bal > 0 else 
+            '🔴 Bajo' for bal in df_grupos['balance']
+        ]
+    }
+    
+    st.dataframe(pd.DataFrame(tabla_comparativa), use_container_width=True)
+    
+    # Métricas generales
+    st.write("### 📈 Métricas Generales")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Grupos", len(grupos))
+    with col2:
+        st.metric("Ingresos Promedio", f"${df_grupos['ingresos'].mean():,.2f}")
+    with col3:
+        st.metric("Mejor Balance", f"${df_grupos['balance'].max():,.2f}")
+    with col4:
+        st.metric("Peor Balance", f"${df_grupos['balance'].min():,.2f}")
 
 # =============================================
-#  FUNCIÓN PRINCIPAL
+#  EJECUCIÓN PRINCIPAL
 # =============================================
-
-def main():
-    """Función principal"""
-    
-    # Verificar si estamos en modo debug
-    if st.sidebar.checkbox("🔍 Modo Debug", value=True):
-        mostrar_consolidado_promotora_debug()
-    else:
-        # Intentar modo normal
-        try:
-            from consolidados_original import mostrar_consolidado_promotora
-            mostrar_consolidado_promotora()
-        except:
-            st.error("No se pudo cargar el módulo normal. Usando modo debug.")
-            mostrar_consolidado_promotora_debug()
 
 if __name__ == "__main__":
-    main()
+    # Para testing - simular sesión de promotora
+    if "user_type" not in st.session_state:
+        st.session_state.user_type = "promotora"
+        st.session_state.user_id = 1  # ID de promotora de ejemplo
+    
+    mostrar_consolidado_promotora()
