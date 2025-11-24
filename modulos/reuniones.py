@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 from modulos.config.conexion import obtener_conexion
 import pandas as pd
 
@@ -13,17 +13,17 @@ def _get_cargo_detectado():
 def _tiene_rol_secretaria():
     return _get_cargo_detectado() == "SECRETARIA"
 
-def _obtener_fecha_inicio_ciclo_actual(id_grupo):
+def _obtener_reglamento_actual(id_grupo):
     """
-    Obtiene la fecha de inicio del ciclo actual desde la tabla Reglamento
+    Obtiene el reglamento actual con fecha_inicio_ciclo y duracion_ciclo
     """
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
-        # Buscar en Reglamento la fecha de inicio del ciclo actual para este grupo
+        # Buscar el reglamento más reciente para este grupo
         cursor.execute("""
-            SELECT fecha_inicio_ciclo 
+            SELECT fecha_inicio_ciclo, duracion_ciclo 
             FROM Reglamento 
             WHERE ID_Grupo = %s 
             ORDER BY fecha_actualizacion DESC 
@@ -31,26 +31,45 @@ def _obtener_fecha_inicio_ciclo_actual(id_grupo):
         """, (id_grupo,))
         
         resultado = cursor.fetchone()
-        if resultado and resultado['fecha_inicio_ciclo']:
-            fecha = resultado['fecha_inicio_ciclo']
-            if hasattr(fecha, 'year'):
-                return fecha.year
-            else:
-                # Si es string, extraer el año
-                return int(str(fecha)[:4])
-        
-        # Si no existe reglamento para este grupo, usar año actual
-        return datetime.now().year
+        return resultado
         
     except Exception as e:
-        st.error(f"❌ Error al obtener fecha inicio ciclo: {e}")
-        return datetime.now().year
+        st.error(f"❌ Error al obtener reglamento: {e}")
+        return None
     finally:
         try:
             cursor.close()
             con.close()
         except:
             pass
+
+def _calcular_ciclo_actual(reglamento):
+    """
+    Calcula el ciclo actual basado en fecha_inicio_ciclo y duracion_ciclo
+    """
+    if not reglamento or not reglamento.get('fecha_inicio_ciclo'):
+        return datetime.now().year
+    
+    fecha_inicio = reglamento['fecha_inicio_ciclo']
+    duracion_meses = reglamento.get('duracion_ciclo', 12)  # Default 12 meses
+    
+    # Si la fecha_inicio es string, convertir a datetime
+    if isinstance(fecha_inicio, str):
+        fecha_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d')
+    
+    # Calcular cuántos ciclos han pasado desde la fecha de inicio
+    hoy = datetime.now()
+    diferencia = hoy - fecha_inicio
+    meses_transcurridos = diferencia.days / 30.44  # Promedio de días por mes
+    
+    # Calcular número de ciclo (empezando desde 1)
+    numero_ciclo = int(meses_transcurridos / duracion_meses) + 1
+    
+    # El ciclo es el año de inicio + el número de ciclo
+    año_inicio = fecha_inicio.year
+    ciclo_actual = año_inicio + (numero_ciclo - 1)
+    
+    return ciclo_actual
 
 def _obtener_ultimo_ciclo_reuniones(id_grupo):
     """
@@ -61,15 +80,13 @@ def _obtener_ultimo_ciclo_reuniones(id_grupo):
         cursor = con.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT DISTINCT ciclo 
+            SELECT MAX(ciclo) as ultimo_ciclo 
             FROM Reunion 
-            WHERE ID_Grupo = %s 
-            ORDER BY ciclo DESC 
-            LIMIT 1
+            WHERE ID_Grupo = %s
         """, (id_grupo,))
         
         resultado = cursor.fetchone()
-        return resultado['ciclo'] if resultado else None
+        return resultado['ultimo_ciclo'] if resultado and resultado['ultimo_ciclo'] else None
         
     except Exception as e:
         st.error(f"❌ Error al obtener último ciclo reuniones: {e}")
@@ -86,19 +103,28 @@ def _detectar_y_crear_nuevo_ciclo(id_grupo):
     Detecta si hay un nuevo ciclo y crea las reuniones automáticamente
     """
     try:
-        # Obtener ciclo actual del reglamento
-        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual(id_grupo)
+        # Obtener reglamento actual
+        reglamento = _obtener_reglamento_actual(id_grupo)
+        
+        if not reglamento:
+            st.info("ℹ️ No se encontró reglamento para este grupo. Usando año actual.")
+            ciclo_actual = datetime.now().year
+        else:
+            # Calcular ciclo actual basado en reglamento
+            ciclo_actual = _calcular_ciclo_actual(reglamento)
         
         # Obtener último ciclo de reuniones existentes
         ultimo_ciclo_reuniones = _obtener_ultimo_ciclo_reuniones(id_grupo)
         
         # Debug info
-        st.sidebar.info(f"🔍 Debug Info:\n- Ciclo Reglamento: {ciclo_actual_reglamento}\n- Último Ciclo Reuniones: {ultimo_ciclo_reuniones}")
+        st.sidebar.info(f"🔍 Debug Info:\n- Ciclo Calculado: {ciclo_actual}\n- Último Ciclo Reuniones: {ultimo_ciclo_reuniones}")
         
-        # Si no hay reuniones o el ciclo del reglamento es mayor, crear nuevo ciclo
-        if not ultimo_ciclo_reuniones or ciclo_actual_reglamento > int(ultimo_ciclo_reuniones):
-            st.success(f"🔄 Detectado nuevo ciclo {ciclo_actual_reglamento}. Creando reuniones automáticamente...")
-            return _crear_reuniones_nuevo_ciclo(id_grupo, str(ciclo_actual_reglamento), ultimo_ciclo_reuniones)
+        # Si no hay reuniones o el ciclo actual es mayor, crear nuevo ciclo
+        if ultimo_ciclo_reuniones is None or ciclo_actual > ultimo_ciclo_reuniones:
+            st.success(f"🔄 Detectado nuevo ciclo {ciclo_actual}. Creando reuniones automáticamente...")
+            return _crear_reuniones_nuevo_ciclo(id_grupo, ciclo_actual, ultimo_ciclo_reuniones)
+        else:
+            st.info(f"ℹ️ Ciclo actual: {ciclo_actual}. No se detectaron cambios.")
         
         return False
         
@@ -131,7 +157,7 @@ def _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclo_anterior=None):
                 for reunion in reuniones_anteriores:
                     # Ajustar la fecha para el nuevo ciclo (sumar la diferencia de años)
                     fecha_original = reunion['fecha']
-                    diferencia_anios = int(nuevo_ciclo) - int(ciclo_anterior)
+                    diferencia_anios = nuevo_ciclo - ciclo_anterior
                     
                     if hasattr(fecha_original, 'year'):
                         nueva_fecha = fecha_original.replace(year=fecha_original.year + diferencia_anios)
@@ -160,7 +186,7 @@ def _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclo_anterior=None):
         else:
             # Si no hay ciclo anterior, crear reuniones mensuales por defecto
             for mes in range(1, 13):
-                fecha_reunion = datetime(int(nuevo_ciclo), mes, 15).date()  # Día 15 de cada mes
+                fecha_reunion = datetime(nuevo_ciclo, mes, 15).date()  # Día 15 de cada mes
                 
                 cursor.execute("""
                     INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion, total_presentes, ciclo)
@@ -283,15 +309,21 @@ def mostrar_reuniones():
             st.text_input("Grupo", nombre_grupo, disabled=True)
 
         # ======================================================
-        # 1. SELECTOR DE CICLO
+        # 1. SELECTOR DE CICLO Y INFO REGLAMENTO
         # ======================================================
         st.write("---")
         
+        # Obtener info del reglamento para mostrar
+        reglamento = _obtener_reglamento_actual(id_grupo)
         ciclos_disponibles = _obtener_ciclos_disponibles(id_grupo)
-        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual(id_grupo)
+        
+        if reglamento:
+            fecha_inicio = reglamento.get('fecha_inicio_ciclo', 'No definida')
+            duracion = reglamento.get('duracion_ciclo', 12)
+            st.info(f"📋 Reglamento: Inicio ciclo {fecha_inicio}, Duración: {duracion} meses")
         
         if not ciclos_disponibles:
-            ciclos_disponibles = [str(ciclo_actual_reglamento)]
+            ciclos_disponibles = [datetime.now().year]
         
         col_ciclo1, col_ciclo2 = st.columns([2, 1])
         with col_ciclo1:
@@ -304,7 +336,7 @@ def mostrar_reuniones():
         with col_ciclo2:
             st.write("")  # Espacio para alinear
             if st.button("🔄 Forzar Nuevo Ciclo", use_container_width=True):
-                nuevo_ciclo = str(ciclo_actual_reglamento)
+                nuevo_ciclo = datetime.now().year
                 if _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclos_disponibles[0] if ciclos_disponibles else None):
                     st.rerun()
 
