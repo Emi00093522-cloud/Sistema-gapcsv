@@ -1,17 +1,3 @@
-[file name]: image.png
-[file content begin]
-# Cierre de Ciclo - Resumen Financiero
-
-## Gestión de Cierre de Ciclo
-
-- **Fecha de Inicio del Grupo:** 2024-01-01  
-- **Duración Actual:** 120 días  
-
-
-[file content end]
-
-quiero que me agregues mejor un filtro donde pueda elegir inicio de ciclo y cierrre de ciclo, por fechas, y que me leas los datos establecidos dentro de ese rango
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -22,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(__file__))
 
 # =============================================
-# FUNCIONES EXISTENTES (con modificaciones para filtro de fechas)
+# FUNCIONES EXISTENTES (modificadas para filtro de fechas)
 # =============================================
 
 def verificar_modulos():
@@ -62,7 +48,7 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # Consulta base
+        # Consulta base con filtro de fechas
         query = """
             SELECT 
                 m.ID_Miembro,
@@ -311,10 +297,10 @@ def calcular_totales_reales(fecha_inicio=None, fecha_fin=None):
     """
     ahorros_data, multas_data, prestamos_data = obtener_datos_reales(fecha_inicio, fecha_fin)
     
-    # Si no hay datos reales, usar ejemplos
+    # Si no hay datos reales, mostrar advertencia
     if not ahorros_data and not multas_data and not prestamos_data:
         st.warning("⚠️ No se encontraron datos en el rango de fechas seleccionado")
-        return 0.00, 0.00, 0.00, 0.00  # capital, intereses
+        return 0.00, 0.00, 0.00, 0.00
     
     # Calcular ahorros totales
     ahorros_totales = 0
@@ -337,7 +323,7 @@ def calcular_totales_reales(fecha_inicio=None, fecha_fin=None):
     return ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses
 
 # =============================================
-# NUEVAS FUNCIONES PARA PESTAÑAS
+# NUEVAS FUNCIONES CON FILTRO DE FECHAS
 # =============================================
 
 def inicializar_session_state():
@@ -561,7 +547,7 @@ def pestaña_ciclo_activo():
     
     st.markdown("---")
     
-    # Botón principal para iniciar cierre
+    # Botón principal para generar resumen
     if st.button("🚀 Generar Resumen del Ciclo", type="primary", use_container_width=True):
         st.session_state.mostrar_resumen = True
     
