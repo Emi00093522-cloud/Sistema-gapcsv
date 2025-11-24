@@ -13,6 +13,213 @@ def _get_cargo_detectado():
 def _tiene_rol_secretaria():
     return _get_cargo_detectado() == "SECRETARIA"
 
+def _obtener_fecha_inicio_ciclo_actual():
+    """
+    Obtiene la fecha de inicio del ciclo actual desde el módulo de reglamento
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        # Buscar en ReglamentoGrupo la fecha de inicio del ciclo actual
+        cursor.execute("""
+            SELECT fecha_inicio_ciclo 
+            FROM ReglamentoGrupo 
+            ORDER BY fecha_actualizacion DESC 
+            LIMIT 1
+        """)
+        
+        resultado = cursor.fetchone()
+        if resultado and resultado['fecha_inicio_ciclo']:
+            fecha = resultado['fecha_inicio_ciclo']
+            if hasattr(fecha, 'year'):
+                return fecha.year
+            else:
+                # Si es string, extraer el año
+                return int(str(fecha)[:4])
+        
+        # Si no existe, usar año actual por defecto
+        return datetime.now().year
+        
+    except Exception as e:
+        # Si hay error, usar año actual
+        return datetime.now().year
+    finally:
+        try:
+            cursor.close()
+            con.close()
+        except:
+            pass
+
+def _obtener_ultimo_ciclo_reuniones(id_grupo):
+    """
+    Obtiene el último ciclo registrado en las reuniones del grupo
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT DISTINCT ciclo 
+            FROM Reunion 
+            WHERE ID_Grupo = %s 
+            ORDER BY ciclo DESC 
+            LIMIT 1
+        """, (id_grupo,))
+        
+        resultado = cursor.fetchone()
+        return resultado['ciclo'] if resultado else None
+        
+    except Exception as e:
+        st.error(f"❌ Error al obtener último ciclo: {e}")
+        return None
+    finally:
+        try:
+            cursor.close()
+            con.close()
+        except:
+            pass
+
+def _detectar_y_crear_nuevo_ciclo(id_grupo):
+    """
+    Detecta si hay un nuevo ciclo y crea las reuniones automáticamente
+    """
+    try:
+        # Obtener ciclo actual del reglamento
+        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual()
+        
+        # Obtener último ciclo de reuniones existentes
+        ultimo_ciclo_reuniones = _obtener_ultimo_ciclo_reuniones(id_grupo)
+        
+        # Si no hay reuniones o el ciclo del reglamento es mayor, crear nuevo ciclo
+        if not ultimo_ciclo_reuniones or ciclo_actual_reglamento > int(ultimo_ciclo_reuniones):
+            st.info(f"🔄 Detectado nuevo ciclo {ciclo_actual_reglamento}. Creando reuniones automáticamente...")
+            return _crear_reuniones_nuevo_ciclo(id_grupo, str(ciclo_actual_reglamento), ultimo_ciclo_reuniones)
+        
+        return False
+        
+    except Exception as e:
+        st.error(f"❌ Error al detectar nuevo ciclo: {e}")
+        return False
+
+def _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclo_anterior=None):
+    """
+    Crea reuniones para un nuevo ciclo basándose en las reuniones del ciclo anterior
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        reuniones_creadas = 0
+        
+        # Si hay ciclo anterior, usar sus reuniones como plantilla
+        if ciclo_anterior:
+            # Obtener reuniones del ciclo anterior
+            cursor.execute("""
+                SELECT fecha, Hora, lugar, ID_Estado_reunion
+                FROM Reunion 
+                WHERE ID_Grupo = %s AND ciclo = %s
+                ORDER BY fecha
+            """, (id_grupo, ciclo_anterior))
+            reuniones_anteriores = cursor.fetchall()
+            
+            if reuniones_anteriores:
+                for reunion in reuniones_anteriores:
+                    # Ajustar la fecha para el nuevo ciclo (sumar la diferencia de años)
+                    fecha_original = reunion['fecha']
+                    diferencia_anios = int(nuevo_ciclo) - int(ciclo_anterior)
+                    
+                    if hasattr(fecha_original, 'year'):
+                        nueva_fecha = fecha_original.replace(year=fecha_original.year + diferencia_anios)
+                    else:
+                        # Si es string, convertir a datetime
+                        if isinstance(fecha_original, str):
+                            fecha_dt = datetime.strptime(fecha_original, '%Y-%m-%d')
+                        else:
+                            fecha_dt = fecha_original
+                        nueva_fecha = fecha_dt.replace(year=fecha_dt.year + diferencia_anios)
+                    
+                    # Insertar nueva reunión para el nuevo ciclo
+                    cursor.execute("""
+                        INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion, total_presentes, ciclo)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        id_grupo, 
+                        nueva_fecha, 
+                        reunion['Hora'], 
+                        reunion['lugar'], 
+                        1,  # Estado: Programada por defecto
+                        0,  # Total presentes inicial
+                        nuevo_ciclo
+                    ))
+                    reuniones_creadas += 1
+        else:
+            # Si no hay ciclo anterior, crear reuniones mensuales por defecto
+            for mes in range(1, 13):
+                fecha_reunion = datetime(int(nuevo_ciclo), mes, 15).date()  # Día 15 de cada mes
+                
+                cursor.execute("""
+                    INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion, total_presentes, ciclo)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    id_grupo, 
+                    fecha_reunion, 
+                    "18:00:00",  # Hora por defecto
+                    "Sede del grupo",  # Lugar por defecto
+                    1,  # Programada
+                    0,  # Sin asistentes
+                    nuevo_ciclo
+                ))
+                reuniones_creadas += 1
+        
+        con.commit()
+        
+        if reuniones_creadas > 0:
+            st.success(f"✅ Se crearon {reuniones_creadas} reuniones para el ciclo {nuevo_ciclo}")
+        else:
+            st.info(f"ℹ️ No se crearon reuniones para el ciclo {nuevo_ciclo}")
+        
+        return True
+        
+    except Exception as e:
+        con.rollback()
+        st.error(f"❌ Error al crear reuniones para nuevo ciclo: {e}")
+        return False
+    finally:
+        try:
+            cursor.close()
+            con.close()
+        except:
+            pass
+
+def _obtener_ciclos_disponibles(id_grupo):
+    """
+    Obtiene todos los ciclos disponibles para un grupo
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT DISTINCT ciclo 
+            FROM Reunion 
+            WHERE ID_Grupo = %s 
+            ORDER BY ciclo DESC
+        """, (id_grupo,))
+        
+        ciclos = [row['ciclo'] for row in cursor.fetchall()]
+        return ciclos
+        
+    except Exception as e:
+        st.error(f"❌ Error al obtener ciclos: {e}")
+        return []
+    finally:
+        try:
+            cursor.close()
+            con.close()
+        except:
+            pass
+
 # ==========================================================
 #   MÓDULO PRINCIPAL
 # ==========================================================
@@ -33,6 +240,9 @@ def mostrar_reuniones():
     if id_grupo is None:
         st.error("⚠️ No tienes un grupo asociado. Crea primero un grupo en el módulo 'Grupos'.")
         return
+
+    # 🔥 2) DETECTAR Y CREAR NUEVO CICLO AUTOMÁTICAMENTE
+    _detectar_y_crear_nuevo_ciclo(id_grupo)
 
     # Conexión
     try:
@@ -67,23 +277,49 @@ def mostrar_reuniones():
         with colg2:
             st.text_input("Grupo", nombre_grupo, disabled=True)
 
+        # ======================================================
+        # 1. SELECTOR DE CICLO
+        # ======================================================
+        st.write("---")
+        
+        ciclos_disponibles = _obtener_ciclos_disponibles(id_grupo)
+        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual()
+        
+        if not ciclos_disponibles:
+            ciclos_disponibles = [str(ciclo_actual_reglamento)]
+        
+        col_ciclo1, col_ciclo2 = st.columns([2, 1])
+        with col_ciclo1:
+            ciclo_seleccionado = st.selectbox(
+                "Seleccionar Ciclo",
+                options=ciclos_disponibles,
+                index=0
+            )
+        
+        with col_ciclo2:
+            st.write("")  # Espacio para alinear
+            if st.button("🔄 Forzar Nuevo Ciclo", use_container_width=True):
+                nuevo_ciclo = str(ciclo_actual_reglamento + 1)
+                if _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclo_seleccionado):
+                    st.rerun()
+
         st.write("---")
 
         # ======================================================
-        # 3. CARGAR REUNIONES DEL GRUPO
+        # 2. CARGAR REUNIONES DEL GRUPO (FILTRADO POR CICLO)
         # ======================================================
         cursor.execute("""
-            SELECT ID_Reunion, fecha, Hora, lugar, total_presentes, ID_Estado_reunion
+            SELECT ID_Reunion, fecha, Hora, lugar, total_presentes, ID_Estado_reunion, ciclo
             FROM Reunion
-            WHERE ID_Grupo = %s
+            WHERE ID_Grupo = %s AND ciclo = %s
             ORDER BY fecha DESC, Hora DESC
-        """, (id_grupo,))
+        """, (id_grupo, ciclo_seleccionado))
         reuniones = cursor.fetchall()
 
-        st.subheader("📄 Reuniones registradas")
+        st.subheader(f"📄 Reuniones registradas - Ciclo {ciclo_seleccionado}")
 
         if not reuniones:
-            st.info("No hay reuniones registradas para este grupo.")
+            st.info("No hay reuniones registradas para este ciclo.")
         else:
             filas = []
             for r in reuniones:
@@ -102,19 +338,25 @@ def mostrar_reuniones():
                     else:
                         hora_str = str(hora_val)
 
-                # SOLO MOSTRAR FECHA, HORA Y LUGAR - ELIMINAR ID, ESTADO Y PRESENTES
+                # Obtener nombre del estado
+                estado_id = r.get("ID_Estado_reunion", 1)
+                estado_nombre = {1: "Programada", 2: "Realizada", 3: "Cancelada"}.get(estado_id, "Programada")
+
                 filas.append({
                     "Fecha": fecha_str,
                     "Hora": hora_str,
-                    "Lugar": r.get("lugar") or ""
+                    "Lugar": r.get("lugar") or "",
+                    "Estado": estado_nombre,
+                    "Asistentes": r.get("total_presentes", 0)
                 })
-            # Mostrar solo las columnas que quieres
+            
+            # Mostrar dataframe
             st.dataframe(pd.DataFrame(filas), use_container_width=True)
 
         st.write("---")
 
         # ======================================================
-        # 4. FORMULARIO: CREAR O EDITAR
+        # 3. FORMULARIO: CREAR O EDITAR
         # ======================================================
         st.subheader("✏️ Crear o Editar Reunión")
 
@@ -207,9 +449,9 @@ def mostrar_reuniones():
                     """, (fecha, hora_str_full, lugar, int(estado), int(total_presentes), id_reunion))
                 else:
                     cursor.execute("""
-                        INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion, total_presentes)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (id_grupo, fecha, hora_str_full, lugar, int(estado), int(total_presentes)))
+                        INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion, total_presentes, ciclo)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (id_grupo, fecha, hora_str_full, lugar, int(estado), int(total_presentes), ciclo_seleccionado))
 
                 con.commit()
                 st.success("✅ Reunión guardada correctamente.")
