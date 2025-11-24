@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, date
 from modulos.config.conexion import obtener_conexion
+from dateutil.relativedelta import relativedelta
 
 def inicializar_session_state():
     """Inicializa el estado de la sesión para grupos"""
@@ -8,6 +9,8 @@ def inicializar_session_state():
         st.session_state.mostrar_formulario_grupo = True
     if 'grupo_seleccionado' not in st.session_state:
         st.session_state.grupo_seleccionado = None
+    if 'creando_nuevo_ciclo' not in st.session_state:
+        st.session_state.creando_nuevo_ciclo = None
 
 def obtener_grupos_por_usuario(id_usuario: int):
     """
@@ -43,6 +46,104 @@ def obtener_grupos_por_usuario(id_usuario: int):
     except Exception as e:
         st.error(f"❌ Error al obtener grupos: {e}")
         return []
+
+    finally:
+        con.close()
+
+def obtener_ciclos_del_grupo(id_grupo: int):
+    """
+    Obtiene todos los ciclos asociados a un grupo
+    """
+    con = obtener_conexion()
+    if not con:
+        return []
+
+    try:
+        cursor = con.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                ID_Ciclo,
+                numero_ciclo,
+                fecha_inicio,
+                fecha_cierre,
+                duracion_meses,
+                CASE 
+                    WHEN ID_Estado_ciclo = 1 THEN 'Activo'
+                    ELSE 'Inactivo'
+                END as estado
+            FROM Ciclo
+            WHERE ID_Grupo = %s
+            ORDER BY numero_ciclo DESC
+        """, (id_grupo,))
+        
+        ciclos = cursor.fetchall()
+        return ciclos
+
+    except Exception as e:
+        st.error(f"❌ Error al obtener ciclos: {e}")
+        return []
+
+    finally:
+        con.close()
+
+def obtener_proximo_numero_ciclo(id_grupo: int):
+    """
+    Obtiene el próximo número de ciclo para un grupo
+    """
+    con = obtener_conexion()
+    if not con:
+        return 1
+
+    try:
+        cursor = con.cursor()
+        cursor.execute("""
+            SELECT MAX(numero_ciclo) as ultimo_ciclo
+            FROM Ciclo
+            WHERE ID_Grupo = %s
+        """, (id_grupo,))
+        
+        resultado = cursor.fetchone()
+        ultimo_ciclo = resultado[0] if resultado[0] is not None else 0
+        return ultimo_ciclo + 1
+
+    except Exception as e:
+        st.error(f"❌ Error al obtener próximo ciclo: {e}")
+        return 1
+
+    finally:
+        con.close()
+
+def crear_nuevo_ciclo(id_grupo: int, numero_ciclo: int, fecha_inicio: date, duracion_meses: int):
+    """
+    Crea un nuevo ciclo en la base de datos
+    """
+    con = obtener_conexion()
+    if not con:
+        return False
+
+    try:
+        cursor = con.cursor()
+        
+        # Calcular fecha de cierre basada en la duración
+        fecha_cierre = fecha_inicio + relativedelta(months=duracion_meses)
+        
+        # Insertar nuevo ciclo con estado Activo (1)
+        cursor.execute("""
+            INSERT INTO Ciclo 
+                (ID_Grupo, numero_ciclo, fecha_inicio, fecha_cierre, duracion_meses, 
+                 ID_Estado_ciclo, total_multas_utilizadas, ID_Reglamento, 
+                 total_ahorros, total_pago_prestamos)
+            VALUES 
+                (%s, %s, %s, %s, %s, 1, 0.00, 1, 0.00, 0.00)
+        """, (id_grupo, numero_ciclo, fecha_inicio, fecha_cierre, duracion_meses))
+        
+        con.commit()
+        return True
+
+    except Exception as e:
+        con.rollback()
+        st.error(f"❌ Error al crear nuevo ciclo: {e}")
+        return False
 
     finally:
         con.close()
@@ -169,6 +270,51 @@ def pestaña_registrar_grupo():
         except:
             pass
 
+def formulario_nuevo_ciclo(grupo):
+    """Muestra el formulario para crear un nuevo ciclo"""
+    st.subheader(f"🔄 Crear Nuevo Ciclo para: {grupo['nombre']}")
+    
+    with st.form(f"form_nuevo_ciclo_{grupo['ID_Grupo']}"):
+        # Obtener próximo número de ciclo
+        proximo_ciclo = obtener_proximo_numero_ciclo(grupo['ID_Grupo'])
+        
+        st.write(f"**Número del ciclo:** Ciclo {proximo_ciclo}")
+        
+        # Fecha de inicio del ciclo
+        fecha_inicio = st.date_input(
+            "Fecha de inicio del ciclo *",
+            value=datetime.now().date(),
+            min_value=date(1990, 1, 1),
+            max_value=date(2100, 12, 31)
+        )
+        
+        # Duración del ciclo
+        duracion = st.selectbox(
+            "Duración del ciclo *",
+            options=[6, 12],
+            format_func=lambda x: f"{x} meses"
+        )
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            crear_ciclo = st.form_submit_button("✅ Crear Nuevo Ciclo", use_container_width=True)
+        
+        with col2:
+            cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
+        
+        if crear_ciclo:
+            # Crear el nuevo ciclo en la base de datos
+            if crear_nuevo_ciclo(grupo['ID_Grupo'], proximo_ciclo, fecha_inicio, duracion):
+                st.success(f"🎉 ¡Ciclo {proximo_ciclo} creado exitosamente!")
+                st.info("📊 **Ya puedes comenzar a registrar datos en este nuevo ciclo**")
+                st.session_state.creando_nuevo_ciclo = None
+                st.rerun()
+        
+        if cancelar:
+            st.session_state.creando_nuevo_ciclo = None
+            st.rerun()
+
 def pestaña_mis_grupos():
     """Pestaña 2: Mostrar grupos registrados (editable) con opción de crear nuevo ciclo"""
     st.header("📋 Mis Grupos Registrados")
@@ -186,6 +332,13 @@ def pestaña_mis_grupos():
     if not grupos:
         st.info("ℹ️ No tienes grupos registrados. Crea tu primer grupo en la pestaña 'Registrar Grupo'.")
         return
+
+    # Verificar si estamos creando un nuevo ciclo
+    if st.session_state.creando_nuevo_ciclo is not None:
+        grupo_creando_ciclo = next((g for g in grupos if g['ID_Grupo'] == st.session_state.creando_nuevo_ciclo), None)
+        if grupo_creando_ciclo:
+            formulario_nuevo_ciclo(grupo_creando_ciclo)
+            return
 
     # Mostrar cada grupo en una tarjeta editable
     for grupo in grupos:
@@ -208,22 +361,30 @@ def pestaña_mis_grupos():
                 
                 with col_info3:
                     st.write(f"**🔢 ID Grupo:** {grupo['ID_Grupo']}")
+                
+                # Mostrar ciclos existentes del grupo
+                ciclos = obtener_ciclos_del_grupo(grupo['ID_Grupo'])
+                if ciclos:
+                    st.write("**📈 Ciclos del grupo:**")
+                    for ciclo in ciclos:
+                        estado_emoji = "🟢" if ciclo['estado'] == 'Activo' else "🔴"
+                        st.write(f"{estado_emoji} Ciclo {ciclo['numero_ciclo']} - {ciclo['duracion_meses']} meses - Inicio: {ciclo['fecha_inicio']}")
+                else:
+                    st.info("ℹ️ Este grupo no tiene ciclos creados aún.")
             
             with col2:
                 st.write("")  # Espacio
                 st.write("")  # Espacio
                 
                 # Botón para crear nuevo ciclo
-                if st.button(f"🔄 Nuevo Ciclo", key=f"ciclo_{grupo['ID_Grupo']}"):
-                    st.session_state.grupo_seleccionado = grupo['ID_Grupo']
-                    st.success(f"🎯 Preparando nuevo ciclo para: {grupo['nombre']}")
-                    # Aquí puedes agregar la lógica para crear un nuevo ciclo
+                if st.button(f"🔄 Nuevo Ciclo", key=f"ciclo_{grupo['ID_Grupo']}", use_container_width=True):
+                    st.session_state.creando_nuevo_ciclo = grupo['ID_Grupo']
+                    st.rerun()
                 
                 # Botón para editar grupo
-                if st.button(f"✏️ Editar", key=f"editar_{grupo['ID_Grupo']}"):
+                if st.button(f"✏️ Editar", key=f"editar_{grupo['ID_Grupo']}", use_container_width=True):
                     st.session_state.grupo_seleccionado = grupo['ID_Grupo']
                     st.info(f"✏️ Editando grupo: {grupo['nombre']}")
-                    # Aquí puedes agregar la lógica para editar el grupo
 
             # Línea separadora
             st.markdown("---")
