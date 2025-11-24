@@ -243,7 +243,7 @@ def calcular_totales_reales():
 
 def guardar_ciclo_en_bd(datos_ciclo):
     """
-    Guarda el ciclo cerrado en la base de datos - CORREGIDO para usar Cierre_de_ciclo
+    Guarda el ciclo cerrado en la base de datos - CORREGIDO CON CREACIÓN DE CICLO PRIMERO
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -251,7 +251,7 @@ def guardar_ciclo_en_bd(datos_ciclo):
         con = obtener_conexion()
         cursor = con.cursor()
         
-        # Obtener el número del próximo ciclo - CORREGIDO para usar Cierre_de_ciclo
+        # PRIMERO: Obtener el número del próximo ciclo desde Cierre_de_ciclo
         cursor.execute("""
             SELECT COALESCE(MAX(ID_Ciclo), 0) + 1 as siguiente_ciclo 
             FROM Cierre_de_ciclo 
@@ -261,7 +261,36 @@ def guardar_ciclo_en_bd(datos_ciclo):
         resultado = cursor.fetchone()
         numero_ciclo = resultado[0] if resultado else 1
         
-        # Insertar ciclo en la base de datos - CORREGIDO para usar Cierre_de_ciclo
+        # SEGUNDO: Crear el ciclo en la tabla Ciclo si no existe
+        cursor.execute("""
+            SELECT ID_Ciclo FROM Ciclo 
+            WHERE ID_Grupo = %s AND ID_Ciclo = %s
+        """, (datos_ciclo['id_grupo'], numero_ciclo))
+        
+        ciclo_existente = cursor.fetchone()
+        
+        if not ciclo_existente:
+            # Calcular fecha de inicio (30 días antes del cierre)
+            fecha_inicio = datos_ciclo['fecha_cierre'] - timedelta(days=30)
+            
+            # Crear el ciclo en la tabla Ciclo primero
+            cursor.execute("""
+                INSERT INTO Ciclo 
+                (ID_Ciclo, fecha_inicio, fecha_cierre, ID_Estado_ciclo, ID_Reglamento, 
+                 total_ahorros, total_pagos_prestamos, total_multas_utilizadas)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                numero_ciclo,
+                fecha_inicio,
+                datos_ciclo['fecha_cierre'],
+                2,  # ID_Estado_ciclo = 2 (Cerrado) - ajusta según tus estados
+                1,  # ID_Reglamento = 1 (por defecto) - ajusta según tu sistema
+                datos_ciclo['total_ahorros'],
+                datos_ciclo['total_prestamos'],  # Usamos prestamos_capital como pagos
+                datos_ciclo['total_multas']
+            ))
+        
+        # TERCERO: Insertar en Cierre_de_ciclo
         cursor.execute("""
             INSERT INTO Cierre_de_ciclo 
             (ID_Grupo, ID_Ciclo, fecha_cierre, total_ahorros, total_multas, total_prestamos, 
