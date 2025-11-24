@@ -45,19 +45,19 @@ def obtener_datos_prestamos_desde_bd():
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # Consulta para obtener préstamos del grupo
+        # ✅ CORREGIDO: Usar ID_Estado_prestamo en lugar de estado
         cursor.execute("""
             SELECT 
                 p.ID_Prestamo,
                 p.monto,
                 p.total_interes,
                 p.monto_total_pagar,
-                p.estado,
+                p.ID_Estado_prestamo,
                 m.nombre as nombre_miembro
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE m.ID_Grupo = %s 
-            AND p.estado IN ('Aprobado', 'Vigente', 'Pagado')
+            AND p.ID_Estado_prestamo != 3  -- ✅ Excluir préstamos cancelados/rechazados
         """, (id_grupo,))
         
         prestamos = cursor.fetchall()
@@ -71,7 +71,7 @@ def obtener_datos_prestamos_desde_bd():
                 
             resultado.append({
                 'monto': float(monto_total),
-                'estado': p['estado'],
+                'estado': p['ID_Estado_prestamo'],
                 'nombre_miembro': p['nombre_miembro']
             })
         
