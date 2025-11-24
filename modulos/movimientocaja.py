@@ -52,12 +52,12 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
     Obtiene el último saldo_final de la reunión anterior para este grupo
     """
     try:
-        # Buscar la reunión anterior para este grupo
+        # Buscar la reunión anterior para este grupo - USANDO EL NOMBRE CORRECTO DE TABLA
         cursor.execute("""
-            SELECT id_reunion 
-            FROM reuniones 
-            WHERE id_grupo = %s AND id_reunion < %s 
-            ORDER BY id_reunion DESC 
+            SELECT ID_Reunion 
+            FROM Reunion 
+            WHERE ID_Grupo = %s AND ID_Reunion < %s 
+            ORDER BY ID_Reunion DESC 
             LIMIT 1
         """, (id_grupo, id_reunion_actual))
         
@@ -71,7 +71,7 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
                 WHERE ID_Reunion = %s 
                 ORDER BY fecha DESC, ID_Movimiento_caja DESC 
                 LIMIT 1
-            """, (reunion_anterior['id_reunion'],))
+            """, (reunion_anterior['ID_Reunion'],))
             
             movimiento_anterior = cursor.fetchone()
             return movimiento_anterior['saldo_final'] if movimiento_anterior else 0
@@ -87,10 +87,11 @@ def obtener_tipo_movimiento_id(cursor, tipo_ingreso_egreso, categoria):
     Obtiene el ID_Tipo_movimiento basado en tipo y categoría
     """
     try:
+        # USANDO EL NOMBRE CORRECTO DE COLUMNAS
         cursor.execute("""
             SELECT ID_Tipo_movimiento 
             FROM Tipo_de_movimiento 
-            WHERE tipo_ingreso_egreso = %s AND nombre_movimiento = %s
+            WHERE tipo = %s AND nombre = %s
         """, (tipo_ingreso_egreso, categoria))
         
         resultado = cursor.fetchone()
@@ -107,13 +108,13 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
     movimientos = []
     
     try:
-        # 1. AHORROS (INGRESOS)
+        # 1. AHORROS (INGRESOS) - USANDO NOMBRES CORRECTOS DE TABLAS
         cursor.execute("""
-            SELECT monto, fecha, 'Ahorro' as categoria, 
-                   CONCAT('Ahorro de ', m.nombre) as descripcion,
+            SELECT Monto_Ahorro as monto, Fecha_Ahorro as fecha, 'Ahorro' as categoria, 
+                   CONCAT('Ahorro de ', m.Nombre) as descripcion,
                    'Ingreso' as tipo_ingreso_egreso
-            FROM ahorros a
-            JOIN miembros m ON a.ID_Miembro = m.ID_Miembro
+            FROM Ahorro a
+            JOIN Miembro m ON a.ID_Miembro = m.ID_Miembro
             WHERE a.ID_Reunion = %s
         """, (id_reunion,))
         ahorros = cursor.fetchall()
@@ -123,12 +124,12 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
         
         # 2. PRÉSTAMOS DESEMBOLSADOS (EGRESOS)
         cursor.execute("""
-            SELECT monto, fecha_desembolso as fecha, 'Préstamo' as categoria,
-                   CONCAT('Préstamo para ', m.nombre) as descripcion,
+            SELECT Monto_Prestamo as monto, Fecha_Desembolso as fecha, 'Préstamo' as categoria,
+                   CONCAT('Préstamo para ', m.Nombre) as descripcion,
                    'Egreso' as tipo_ingreso_egreso
-            FROM prestamos p
-            JOIN miembros m ON p.ID_Miembro = m.ID_Miembro
-            WHERE p.ID_Reunion = %s AND p.estado = 'APROBADO'
+            FROM Prestamo p
+            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+            WHERE p.ID_Reunion = %s AND p.Estado = 'APROBADO'
         """, (id_reunion,))
         prestamos = cursor.fetchall()
         for prestamo in prestamos:
@@ -137,12 +138,12 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
         
         # 3. PAGOS DE PRÉSTAMOS (INGRESOS)
         cursor.execute("""
-            SELECT monto_pagado as monto, fecha_pago as fecha, 'Pago Préstamo' as categoria,
-                   CONCAT('Pago préstamo de ', m.nombre) as descripcion,
+            SELECT Monto_Pagado as monto, Fecha_Pago as fecha, 'Pago Préstamo' as categoria,
+                   CONCAT('Pago préstamo de ', m.Nombre) as descripcion,
                    'Ingreso' as tipo_ingreso_egreso
-            FROM pagos_prestamos pp
-            JOIN prestamos p ON pp.ID_Prestamo = p.ID_Prestamo
-            JOIN miembros m ON p.ID_Miembro = m.ID_Miembro
+            FROM Pago_Prestamo pp
+            JOIN Prestamo p ON pp.ID_Prestamo = p.ID_Prestamo
+            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE pp.ID_Reunion = %s
         """, (id_reunion,))
         pagos_prestamos = cursor.fetchall()
@@ -152,12 +153,12 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
         
         # 4. PAGOS DE MULTAS (INGRESOS)
         cursor.execute("""
-            SELECT monto, fecha_pago as fecha, 'Pago Multa' as categoria,
-                   CONCAT('Pago multa de ', m.nombre) as descripcion,
+            SELECT Monto_Pagado as monto, Fecha_Pago as fecha, 'Pago Multa' as categoria,
+                   CONCAT('Pago multa de ', m.Nombre) as descripcion,
                    'Ingreso' as tipo_ingreso_egreso
-            FROM pagos_multas pm
-            JOIN multas mt ON pm.ID_Multa = mt.ID_Multa
-            JOIN miembros m ON mt.ID_Miembro = m.ID_Miembro
+            FROM Pago_Multa pm
+            JOIN Multa mt ON pm.ID_Multa = mt.ID_Multa
+            JOIN Miembro m ON mt.ID_Miembro = m.ID_Miembro
             WHERE pm.ID_Reunion = %s
         """, (id_reunion,))
         pagos_multas = cursor.fetchall()
@@ -301,9 +302,9 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
 def detalle_movimientos(cursor, id_reunion, saldo_anterior):
     st.subheader("📋 Detalle de Movimientos con Saldo Acumulado")
     
-    # Obtener movimientos de Movimiento_de_caja con información del tipo
+    # Obtener movimientos de Movimiento_de_caja con información del tipo - CORREGIDO
     cursor.execute("""
-        SELECT mc.*, tm.tipo_ingreso_egreso, tm.nombre_movimiento
+        SELECT mc.*, tm.tipo, tm.nombre as nombre_movimiento
         FROM Movimiento_de_caja mc
         JOIN Tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
         WHERE mc.ID_Reunion = %s 
@@ -339,11 +340,11 @@ def detalle_movimientos(cursor, id_reunion, saldo_anterior):
                 st.caption(f"📁 {mov['nombre_movimiento']} • 📅 {mov['fecha'].strftime('%d/%m/%Y')}")
             
             with col2:
-                tipo_color = "🟢" if mov['tipo_ingreso_egreso'] == "Ingreso" else "🔴"
-                st.write(f"{tipo_color} {mov['tipo_ingreso_egreso']}")
+                tipo_color = "🟢" if mov['tipo'] == "Ingreso" else "🔴"
+                st.write(f"{tipo_color} {mov['tipo']}")
             
             with col3:
-                monto_style = "color: green; font-weight: bold;" if mov['tipo_ingreso_egreso'] == "Ingreso" else "color: red; font-weight: bold;"
+                monto_style = "color: green; font-weight: bold;" if mov['tipo'] == "Ingreso" else "color: red; font-weight: bold;"
                 st.markdown(f"<p style='{monto_style}'>${mov['monto']:,.2f}</p>", unsafe_allow_html=True)
             
             with col4:
