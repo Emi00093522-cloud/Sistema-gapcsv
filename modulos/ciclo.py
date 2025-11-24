@@ -28,6 +28,59 @@ def verificar_modulos():
     except ImportError as e:
         st.sidebar.error(f"❌ pagoprestamo.py - ERROR: {e}")
 
+def obtener_ahorros_por_miembro_ciclo():
+    """
+    Obtiene los ahorros totales por miembro de TODAS las reuniones del ciclo
+    """
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        if 'reunion_actual' not in st.session_state:
+            st.error("No hay reunión activa seleccionada")
+            return []
+        
+        id_grupo = st.session_state.reunion_actual['id_grupo']
+        
+        # Consulta para obtener ahorros agrupados por miembro de TODAS las reuniones
+        cursor.execute("""
+            SELECT 
+                m.ID_Miembro,
+                m.nombre as nombre_miembro,
+                COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
+                COALESCE(SUM(a.monto_otros), 0) as total_otros,
+                COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) as total_general
+            FROM Miembro m
+            LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
+            LEFT JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
+            WHERE m.ID_Grupo = %s AND m.ID_Estado = 1
+            GROUP BY m.ID_Miembro, m.nombre
+            ORDER BY m.nombre
+        """, (id_grupo,))
+        
+        ahorros_miembros = cursor.fetchall()
+        
+        # Formatear resultados
+        resultado = []
+        for row in ahorros_miembros:
+            resultado.append({
+                'miembro': row['nombre_miembro'],
+                'total_ahorros': float(row['total_ahorros']),
+                'total_otros': float(row['total_otros']),
+                'total_general': float(row['total_general'])
+            })
+        
+        cursor.close()
+        con.close()
+        
+        return resultado
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo ahorros por miembro: {e}")
+        return []
+
 def obtener_total_miembros_activos():
     """
     Obtiene el total de miembros activos en el grupo
@@ -274,7 +327,44 @@ def mostrar_resumen_cierre():
     with col5:
         st.metric("TOTAL", f"${total_ingresos:,.2f}")
     
-    # NUEVA SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS
+    # NUEVA SECCIÓN: AHORROS POR MIEMBRO (CICLO COMPLETO)
+    st.write("### 📊 Ahorros por Miembro (Ciclo Completo)")
+    
+    # Obtener ahorros agrupados por miembro
+    ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo()
+    
+    if ahorros_por_miembro:
+        # Crear DataFrame para la tabla
+        df_ahorros_miembros = pd.DataFrame(ahorros_por_miembro)
+        
+        # Renombrar columnas para mejor presentación
+        df_ahorros_miembros = df_ahorros_miembros.rename(columns={
+            'miembro': 'Miembro',
+            'total_ahorros': 'Total Ahorros',
+            'total_otros': 'Total Otros',
+            'total_general': 'TOTAL'
+        })
+        
+        # Formatear columnas numéricas
+        df_ahorros_miembros['Total Ahorros'] = df_ahorros_miembros['Total Ahorros'].apply(lambda x: f"${x:,.2f}")
+        df_ahorros_miembros['Total Otros'] = df_ahorros_miembros['Total Otros'].apply(lambda x: f"${x:,.2f}")
+        df_ahorros_miembros['TOTAL'] = df_ahorros_miembros['TOTAL'].apply(lambda x: f"${x:,.2f}")
+        
+        # Mostrar tabla
+        st.dataframe(
+            df_ahorros_miembros,
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Mostrar total general de ahorros por miembros
+        total_general_miembros = sum(item['total_general'] for item in ahorros_por_miembro)
+        st.info(f"**💵 Total general de ahorros de todos los miembros: ${total_general_miembros:,.2f}**")
+        
+    else:
+        st.info("ℹ️ No se encontraron datos de ahorros por miembro")
+    
+    # SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS
     st.write("### 📊 Distribución de Beneficios")
     
     # Obtener total de miembros activos
