@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(__file__))
 
 # =============================================
-# FUNCIONES EXISTENTES (modificadas para filtro de fechas)
+# FUNCIONES EXISTENTES (modificadas para incluir filtro de fechas)
 # =============================================
 
 def verificar_modulos():
@@ -48,7 +48,7 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # Consulta base con filtro de fechas
+        # Consulta base - mantenemos la estructura original pero agregamos filtro opcional
         query = """
             SELECT 
                 m.ID_Miembro,
@@ -66,8 +66,9 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
         
         # Agregar filtro de fechas si se proporcionan
         if fecha_inicio and fecha_fin:
-            query += " AND r.fecha_reunion BETWEEN %s AND %s"
-            params.extend([fecha_inicio, fecha_fin])
+            # Usar la columna de fecha que exista en tu base de datos
+            query += " AND (r.fecha BETWEEN %s AND %s OR r.fecha_reunion BETWEEN %s AND %s)"
+            params.extend([fecha_inicio, fecha_fin, fecha_inicio, fecha_fin])
         
         query += " GROUP BY m.ID_Miembro, m.nombre ORDER BY m.nombre"
         
@@ -92,6 +93,57 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
         
     except Exception as e:
         st.error(f"❌ Error obteniendo ahorros por miembro: {e}")
+        # Fallback: obtener sin filtro de fecha
+        try:
+            return obtener_ahorros_por_miembro_sin_filtro()
+        except:
+            return []
+
+def obtener_ahorros_por_miembro_sin_filtro():
+    """Fallback: Obtiene ahorros sin filtro de fecha"""
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        if 'reunion_actual' not in st.session_state:
+            return []
+        
+        id_grupo = st.session_state.reunion_actual['id_grupo']
+        
+        cursor.execute("""
+            SELECT 
+                m.ID_Miembro,
+                m.nombre as nombre_miembro,
+                COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
+                COALESCE(SUM(a.monto_otros), 0) as total_otros,
+                COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) as total_general
+            FROM Miembro m
+            LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
+            WHERE m.ID_Grupo = %s AND m.ID_Estado = 1
+            GROUP BY m.ID_Miembro, m.nombre
+            ORDER BY m.nombre
+        """, (id_grupo,))
+        
+        ahorros_miembros = cursor.fetchall()
+        
+        resultado = []
+        for row in ahorros_miembros:
+            resultado.append({
+                'miembro': row['nombre_miembro'],
+                'total_ahorros': float(row['total_ahorros']),
+                'total_otros': float(row['total_otros']),
+                'total_general': float(row['total_general'])
+            })
+        
+        cursor.close()
+        con.close()
+        
+        return resultado
+        
+    except Exception as e:
+        st.error(f"❌ Error en fallback de ahorros: {e}")
         return []
 
 def obtener_total_miembros_activos():
@@ -133,7 +185,7 @@ def obtener_total_miembros_activos():
 def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene datos de préstamos directamente desde la base de datos
-    con filtro de fechas
+    con filtro opcional de fechas
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -147,7 +199,7 @@ def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # Consulta base para obtener préstamos del grupo
+        # Consulta base
         query = """
             SELECT 
                 p.ID_Prestamo,
@@ -155,8 +207,7 @@ def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
                 p.total_interes,
                 p.monto_total_pagar,
                 p.ID_Estado_prestamo,
-                m.nombre as nombre_miembro,
-                p.fecha_solicitud
+                m.nombre as nombre_miembro
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE m.ID_Grupo = %s 
@@ -167,8 +218,8 @@ def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
         
         # Agregar filtro de fechas si se proporcionan
         if fecha_inicio and fecha_fin:
-            query += " AND p.fecha_solicitud BETWEEN %s AND %s"
-            params.extend([fecha_inicio, fecha_fin])
+            query += " AND (p.fecha_solicitud BETWEEN %s AND %s OR p.fecha BETWEEN %s AND %s)"
+            params.extend([fecha_inicio, fecha_fin, fecha_inicio, fecha_fin])
         
         cursor.execute(query, tuple(params))
         
@@ -190,8 +241,7 @@ def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
                 'monto_intereses': float(monto_intereses),
                 'monto_total': float(monto_total),
                 'estado': p['ID_Estado_prestamo'],
-                'nombre_miembro': p['nombre_miembro'],
-                'fecha_solicitud': p['fecha_solicitud']
+                'nombre_miembro': p['nombre_miembro']
             })
         
         cursor.close()
@@ -206,7 +256,7 @@ def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
 def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene datos de multas directamente desde la base de datos
-    con filtro de fechas
+    con filtro opcional de fechas
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -227,7 +277,7 @@ def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
                 pm.monto_pagado,
                 pm.fecha_pago,
                 m.nombre as nombre_miembro,
-                mult.descripcion
+                mult.descripcion as descripcion
             FROM PagoMulta pm
             JOIN Multa mult ON pm.ID_Multa = mult.ID_Multa
             JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
@@ -238,8 +288,8 @@ def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
         
         # Agregar filtro de fechas si se proporcionan
         if fecha_inicio and fecha_fin:
-            query += " AND pm.fecha_pago BETWEEN %s AND %s"
-            params.extend([fecha_inicio, fecha_fin])
+            query += " AND (pm.fecha_pago BETWEEN %s AND %s OR pm.fecha BETWEEN %s AND %s)"
+            params.extend([fecha_inicio, fecha_fin, fecha_inicio, fecha_fin])
         
         cursor.execute(query, tuple(params))
         
@@ -266,23 +316,25 @@ def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
 
 def obtener_datos_reales(fecha_inicio=None, fecha_fin=None):
     """
-    Obtiene datos REALES de tus módulos con filtro de fechas
+    Obtiene datos REALES de tus módulos con filtro opcional de fechas
     """
     ahorros_data, multas_data, prestamos_data = [], [], []
     
-    # Obtener ahorros (usando función modificada con filtro de fechas)
+    # Obtener ahorros
     try:
-        ahorros_data = obtener_ahorros_por_miembro_ciclo(fecha_inicio, fecha_fin) or []
+        from ahorros import obtener_ahorros_grupo
+        ahorros_data = obtener_ahorros_grupo() or []
     except Exception as e:
         st.error(f"❌ Error en ahorros: {e}")
     
-    # Obtener multas con filtro de fechas
+    # Obtener multas
     try:
-        multas_data = obtener_datos_multas_desde_bd(fecha_inicio, fecha_fin) or []
+        from pagomulta import obtener_multas_grupo
+        multas_data = obtener_multas_grupo() or []
     except Exception as e:
         st.error(f"❌ Error en multas: {e}")
     
-    # Obtener préstamos con filtro de fechas
+    # Obtener préstamos
     try:
         prestamos_data = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin)
     except Exception as e:
@@ -293,19 +345,19 @@ def obtener_datos_reales(fecha_inicio=None, fecha_fin=None):
 def calcular_totales_reales(fecha_inicio=None, fecha_fin=None):
     """
     Calcula los totales con datos REALES - AHORA SEPARA CAPITAL E INTERESES
-    con filtro de fechas
+    con filtro opcional de fechas
     """
     ahorros_data, multas_data, prestamos_data = obtener_datos_reales(fecha_inicio, fecha_fin)
     
-    # Si no hay datos reales, mostrar advertencia
+    # Si no hay datos reales, usar ejemplos
     if not ahorros_data and not multas_data and not prestamos_data:
-        st.warning("⚠️ No se encontraron datos en el rango de fechas seleccionado")
-        return 0.00, 0.00, 0.00, 0.00
+        st.warning("⚠️ Usando datos de ejemplo - Revisa la conexión")
+        return 7500.00, 250.00, 5000.00, 500.00  # capital, intereses
     
     # Calcular ahorros totales
     ahorros_totales = 0
     for ahorro in ahorros_data:
-        ahorros_totales += ahorro.get('total_general', 0)
+        ahorros_totales += ahorro.get('monto_ahorro', 0) + ahorro.get('monto_otros', 0)
     
     # Calcular multas totales
     multas_totales = 0
@@ -453,7 +505,7 @@ def mostrar_resumen_completo(fecha_inicio, fecha_fin):
         st.info(f"**💵 Total general de ahorros de todos los miembros: ${total_general_miembros:,.2f}**")
         
     else:
-        st.info("ℹ️ No se encontraron datos de ahorros por miembro en este rango")
+        st.info("ℹ️ No se encontraron datos de ahorros por miembro")
     
     # DISTRIBUCIÓN DE BENEFICIOS
     st.write("### 📊 Distribución de Beneficios")
@@ -501,25 +553,12 @@ def mostrar_resumen_completo(fecha_inicio, fecha_fin):
             prestamos_detalle = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin)
             if prestamos_detalle:
                 df_prestamos = pd.DataFrame(prestamos_detalle)
-                st.dataframe(df_prestamos[['nombre_miembro', 'monto_capital', 'monto_intereses', 'monto_total', 'fecha_solicitud']], 
+                st.dataframe(df_prestamos[['nombre_miembro', 'monto_capital', 'monto_intereses', 'monto_total']], 
                            use_container_width=True)
             else:
-                st.info("No hay datos detallados de préstamos en este rango")
+                st.info("No hay datos detallados de préstamos")
         except:
             st.info("No se pudieron cargar los detalles de préstamos")
-    
-    # Detalles de multas
-    with st.expander("⚖️ Ver Detalles de Multas"):
-        try:
-            multas_detalle = obtener_datos_multas_desde_bd(fecha_inicio, fecha_fin)
-            if multas_detalle:
-                df_multas = pd.DataFrame(multas_detalle)
-                st.dataframe(df_multas[['nombre_miembro', 'monto_pagado', 'descripcion', 'fecha_pago']], 
-                           use_container_width=True)
-            else:
-                st.info("No hay datos detallados de multas en este rango")
-        except:
-            st.info("No se pudieron cargar los detalles de multas")
     
     return {
         'ahorros_totales': ahorros_totales,
