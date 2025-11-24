@@ -91,34 +91,33 @@ def obtener_total_ahorros_ciclo():
         st.error(f"❌ Error calculando total de ahorros: {e}")
         return 0.00
 
-def obtener_total_acumulado_miembro(id_miembro, fecha_reunion_actual):
+def obtener_saldo_inicial_corregido(id_miembro, fecha_reunion_actual):
     """
-    Obtiene la sumatoria de todos los ahorros y otros de un miembro
-    hasta la reunión anterior a la actual
+    Obtiene el saldo inicial CORREGIDO - saldo final de la reunión anterior
     """
     try:
         con = obtener_conexion()
         cursor = con.cursor()
         
-        # Obtener sumatoria de TODOS los ahorros históricos
+        # Obtener el saldo final de la reunión anterior MÁS RECIENTE
         cursor.execute("""
-            SELECT 
-                COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
-                COALESCE(SUM(a.monto_otros), 0) as total_otros
+            SELECT COALESCE(a.saldos_ahorros, 0) as saldo_final_anterior
             FROM Ahorro a
             JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
-            WHERE a.ID_Miembro = %s AND r.fecha < %s
+            WHERE a.ID_Miembro = %s 
+            AND r.fecha < %s
+            ORDER BY r.fecha DESC, a.ID_Ahorro DESC 
+            LIMIT 1
         """, (id_miembro, fecha_reunion_actual))
         
         resultado = cursor.fetchone()
-        total_ahorros = float(resultado[0]) if resultado else 0.00
-        total_otros = float(resultado[1]) if resultado else 0.00
+        saldo_inicial = float(resultado[0]) if resultado and resultado[0] is not None else 0.00
         
-        return total_ahorros, total_otros
+        return saldo_inicial
         
     except Exception as e:
-        st.error(f"❌ Error obteniendo total acumulado: {e}")
-        return 0.00, 0.00
+        st.error(f"❌ Error obteniendo saldo inicial: {e}")
+        return 0.00
     finally:
         if 'cursor' in locals():
             cursor.close()
@@ -217,20 +216,8 @@ def mostrar_ahorros():
                     st.write(f"**{nombre_miembro}**")
                 
                 with cols[1]:
-                    # OBTENER EL SALDO FINAL DE LA REUNIÓN ANTERIOR DEL MISMO MIEMBRO
-                    cursor.execute("""
-                        SELECT COALESCE(
-                            (SELECT a.saldos_ahorros 
-                             FROM Ahorro a
-                             JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
-                             WHERE a.ID_Miembro = %s 
-                             AND r.fecha < %s
-                             ORDER BY r.fecha DESC, a.ID_Ahorro DESC 
-                             LIMIT 1), 0) as saldo_final_anterior
-                    """, (id_miembro, fecha_reunion_actual))
-                    
-                    saldo_final_anterior_result = cursor.fetchone()
-                    saldo_inicial = float(saldo_final_anterior_result[0]) if saldo_final_anterior_result else 0.00
+                    # OBTENER EL SALDO INICIAL CORREGIDO
+                    saldo_inicial = obtener_saldo_inicial_corregido(id_miembro, fecha_reunion_actual)
                     
                     # Mostrar saldo inicial (saldo final de la reunión anterior)
                     st.write(f"${saldo_inicial:,.2f}")
@@ -272,7 +259,7 @@ def mostrar_ahorros():
                     retiros_activados[id_miembro] = retiro_activado
                     
                     if retiro_activado:
-                        # CALCULAR RETIRO: Saldo Inicial + Ahorros actuales + Otros actuales
+                        # CALCULAR RETIRO COMPLETO: Saldo Inicial + Ahorros actuales + Otros actuales
                         monto_retiros_calculado = saldo_inicial + monto_ahorro + monto_otros
                         
                         # Mostrar el monto de retiro calculado
@@ -288,10 +275,11 @@ def mostrar_ahorros():
                         montos_retiro_calculados[id_miembro] = 0.00
                 
                 with cols[5]:
-                    # CALCULAR Y MOSTRAR SALDO FINAL
+                    # CALCULAR Y MOSTRAR SALDO FINAL CORREGIDO
                     if retiro_activado:
-                        # Si hay retiro: Saldo Inicial + Ahorros + Otros - Retiro Total
-                        saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros_calculados.get(id_miembro, 0)
+                        # CORRECCIÓN: Si hay retiro, el saldo final debe ser CERO
+                        # Saldo Inicial + Ahorros + Otros - Retiro Total = 0
+                        saldo_final = 0.00
                     else:
                         # Sin retiro: Saldo Inicial + Ahorros + Otros
                         saldo_final = saldo_inicial + monto_ahorro + monto_otros
@@ -300,7 +288,7 @@ def mostrar_ahorros():
                     
                     # Mostrar saldo final con color según el resultado
                     if saldo_final == 0 and retiro_activado:
-                        st.success(f"**${saldo_final:,.2f}** 🏁")
+                        st.success(f"**${saldo_final:,.2f}** 🏁 RETIRADO")
                     elif saldo_final < 0:
                         st.error(f"**${saldo_final:,.2f}**")
                     else:
