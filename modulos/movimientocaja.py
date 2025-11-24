@@ -3,11 +3,11 @@ from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
 # =====================================================================================
-#  MÓDULO PRINCIPAL - MOVIMIENTO DE CAJA AUTOMÁTICO
+#  MÓDULO PRINCIPAL - MOVIMIENTO DE CAJA SIMPLIFICADO
 # =====================================================================================
 
 def mostrar_movimiento_caja():
-    st.header("💰 Movimientos de Caja - Sistema Automático")
+    st.header("💰 Movimientos de Caja - Resumen por Reunión")
 
     if 'reunion_actual' not in st.session_state:
         st.warning("⚠️ Primero debes seleccionar una reunión en el módulo de Asistencia.")
@@ -29,14 +29,8 @@ def mostrar_movimiento_caja():
         saldo_anterior = obtener_saldo_anterior(cursor, id_reunion, id_grupo)
         st.success(f"💰 **Saldo inicial: ${saldo_anterior:,.2f}**")
 
-        # Tabs
-        tab1, tab2 = st.tabs(["📊 Resumen Automático", "📋 Detalle de Movimientos"])
-
-        with tab1:
-            resumen_automatico(cursor, con, id_reunion, saldo_anterior)
-
-        with tab2:
-            detalle_movimientos(cursor, id_reunion, saldo_anterior)
+        # Obtener y mostrar resumen automático
+        resumen_automatico(cursor, con, id_reunion, saldo_anterior)
 
     except Exception as e:
         st.error(f"❌ Error general: {e}")
@@ -84,321 +78,215 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
         return 0
 
 # =====================================================================================
-#  OBTENER TOTALES POR REUNIÓN (CON NOMBRES EXACTOS DE TABLAS)
+#  OBTENER TOTALES POR REUNIÓN - SIMPLIFICADO
 # =====================================================================================
 
 def obtener_totales_reunion(cursor, id_reunion):
     try:
         totales = {
-            'total_ahorros': 0,
-            'total_prestamos': 0,
-            'total_pagos_prestamos': 0,
-            'total_pagos_multas': 0
+            'total_ingresos': 0,
+            'total_egresos': 0,
+            'detalle_ingresos': [],
+            'detalle_egresos': []
         }
         
-        # 1) TOTAL AHORROS
+        # =============================================================================
+        # INGRESOS - SUMAR TODOS LOS INGRESOS DE DIFERENTES MÓDULOS
+        # =============================================================================
+        
+        # 1) TOTAL AHORROS (INGRESO)
         cursor.execute("""
             SELECT COALESCE(SUM(Monto_Ahorro), 0) as total
             FROM Ahorro 
             WHERE ID_Reunion = %s
         """, (id_reunion,))
         resultado = cursor.fetchone()
-        totales['total_ahorros'] = float(resultado['total']) if resultado else 0
+        total_ahorros = float(resultado['total']) if resultado else 0
+        
+        if total_ahorros > 0:
+            totales['total_ingresos'] += total_ahorros
+            totales['detalle_ingresos'].append({
+                'concepto': 'Ahorros',
+                'monto': total_ahorros,
+                'descripcion': 'Total de ahorros de los miembros'
+            })
 
-        # 2) TOTAL PRÉSTAMOS - Usando columna 'monto'
+        # 2) TOTAL PAGOS PRÉSTAMOS (INGRESO)
+        try:
+            cursor.execute("""
+                SELECT COALESCE(SUM(monto_pagado), 0) as total
+                FROM Pago_prestamo 
+                WHERE ID_Reunion = %s
+            """, (id_reunion,))
+            resultado = cursor.fetchone()
+            total_pagos_prestamos = float(resultado['total']) if resultado else 0
+            
+            if total_pagos_prestamos > 0:
+                totales['total_ingresos'] += total_pagos_prestamos
+                totales['detalle_ingresos'].append({
+                    'concepto': 'Pagos de Préstamos',
+                    'monto': total_pagos_prestamos,
+                    'descripcion': 'Total de pagos recibidos de préstamos'
+                })
+        except Exception as e:
+            st.warning(f"ℹ️ No se pudieron obtener pagos de préstamos: {e}")
+
+        # 3) TOTAL PAGOS MULTAS (INGRESO)
+        try:
+            cursor.execute("""
+                SELECT COALESCE(SUM(monto_pagado), 0) as total
+                FROM PagoMulta 
+                WHERE ID_Reunion = %s
+            """, (id_reunion,))
+            resultado = cursor.fetchone()
+            total_pagos_multas = float(resultado['total']) if resultado else 0
+            
+            if total_pagos_multas > 0:
+                totales['total_ingresos'] += total_pagos_multas
+                totales['detalle_ingresos'].append({
+                    'concepto': 'Pagos de Multas',
+                    'monto': total_pagos_multas,
+                    'descripcion': 'Total de pagos recibidos por multas'
+                })
+        except Exception as e:
+            st.warning(f"ℹ️ No se pudieron obtener pagos de multas: {e}")
+
+        # =============================================================================
+        # EGRESOS - SUMAR TODOS LOS EGRESOS DE DIFERENTES MÓDULOS
+        # =============================================================================
+        
+        # 1) TOTAL PRÉSTAMOS APROBADOS (EGRESO)
         cursor.execute("""
             SELECT COALESCE(SUM(monto), 0) as total
             FROM Prestamo 
-            WHERE ID_Reunion = %s AND ID_Estado_prestamo = 1  -- 1 = APROBADO
+            WHERE ID_Reunion = %s AND ID_Estado_prestamo = 1
         """, (id_reunion,))
         resultado = cursor.fetchone()
-        totales['total_prestamos'] = float(resultado['total']) if resultado else 0
-
-        # 3) TOTAL PAGOS PRÉSTAMOS - Tabla Pago_prestamo (con p minúscula)
-        try:
-            cursor.execute("SHOW COLUMNS FROM Pago_prestamo")
-            columnas_pago = cursor.fetchall()
-            columnas_pago_nombres = [col['Field'] for col in columnas_pago]
-            
-            # Buscar la columna correcta para pago de préstamos
-            columna_monto_pago = None
-            posibles_nombres_pago = ['Monto_Pagado', 'monto_pagado', 'Monto', 'monto', 'cantidad', 'Cantidad']
-            
-            for nombre in posibles_nombres_pago:
-                if nombre in columnas_pago_nombres:
-                    columna_monto_pago = nombre
-                    break
-            
-            if columna_monto_pago:
-                cursor.execute(f"""
-                    SELECT COALESCE(SUM({columna_monto_pago}), 0) as total
-                    FROM Pago_prestamo 
-                    WHERE ID_Reunion = %s
-                """, (id_reunion,))
-                resultado = cursor.fetchone()
-                totales['total_pagos_prestamos'] = float(resultado['total']) if resultado else 0
-            else:
-                # Si no encontramos la columna, intentamos con monto_pagado (el más común)
-                try:
-                    cursor.execute("""
-                        SELECT COALESCE(SUM(monto_pagado), 0) as total
-                        FROM Pago_prestamo 
-                        WHERE ID_Reunion = %s
-                    """, (id_reunion,))
-                    resultado = cursor.fetchone()
-                    totales['total_pagos_prestamos'] = float(resultado['total']) if resultado else 0
-                except:
-                    st.error(f"❌ No se pudo obtener pagos de préstamos. Columnas disponibles: {columnas_pago_nombres}")
-                    totales['total_pagos_prestamos'] = 0
-        except Exception as e:
-            st.error(f"❌ Error al acceder a Pago_prestamo: {e}")
-            totales['total_pagos_prestamos'] = 0
-
-        # 4) TOTAL PAGOS MULTAS - Tabla PagoMulta (sin guión bajo)
-        try:
-            cursor.execute("SHOW COLUMNS FROM PagoMulta")
-            columnas_multa = cursor.fetchall()
-            columnas_multa_nombres = [col['Field'] for col in columnas_multa]
-            
-            # Buscar la columna correcta para pago de multas
-            columna_monto_multa = None
-            posibles_nombres_multa = ['Monto_Pagado', 'monto_pagado', 'Monto', 'monto', 'cantidad', 'Cantidad']
-            
-            for nombre in posibles_nombres_multa:
-                if nombre in columnas_multa_nombres:
-                    columna_monto_multa = nombre
-                    break
-            
-            if columna_monto_multa:
-                cursor.execute(f"""
-                    SELECT COALESCE(SUM({columna_monto_multa}), 0) as total
-                    FROM PagoMulta 
-                    WHERE ID_Reunion = %s
-                """, (id_reunion,))
-                resultado = cursor.fetchone()
-                totales['total_pagos_multas'] = float(resultado['total']) if resultado else 0
-            else:
-                # Intentar con monto_pagado
-                try:
-                    cursor.execute("""
-                        SELECT COALESCE(SUM(monto_pagado), 0) as total
-                        FROM PagoMulta 
-                        WHERE ID_Reunion = %s
-                    """, (id_reunion,))
-                    resultado = cursor.fetchone()
-                    totales['total_pagos_multas'] = float(resultado['total']) if resultado else 0
-                except:
-                    st.warning("ℹ️ No se pudo obtener pagos de multas")
-                    totales['total_pagos_multas'] = 0
-        except Exception as e:
-            st.warning(f"ℹ️ Tabla PagoMulta no encontrada o error de acceso: {e}")
-            totales['total_pagos_multas'] = 0
+        total_prestamos = float(resultado['total']) if resultado else 0
+        
+        if total_prestamos > 0:
+            totales['total_egresos'] += total_prestamos
+            totales['detalle_egresos'].append({
+                'concepto': 'Préstamos Otorgados',
+                'monto': total_prestamos,
+                'descripcion': 'Total de préstamos aprobados y desembolsados'
+            })
 
         return totales
 
     except Exception as e:
         st.error(f"Error al obtener totales de reunión: {e}")
-        return {'total_ahorros': 0, 'total_prestamos': 0, 'total_pagos_prestamos': 0, 'total_pagos_multas': 0}
+        return {'total_ingresos': 0, 'total_egresos': 0, 'detalle_ingresos': [], 'detalle_egresos': []}
 
 # =====================================================================================
-#  CREAR MOVIMIENTOS AUTOMÁTICOS
+#  RESUMEN AUTOMÁTICO SIMPLIFICADO
 # =====================================================================================
 
-def crear_movimientos_automaticos(cursor, con, id_reunion, totales, saldo_anterior):
+def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
+    st.subheader("📊 Resumen Automático de Movimientos")
+
+    # Obtener totales de la reunión
+    totales = obtener_totales_reunion(cursor, id_reunion)
+    
+    # Calcular saldo final
+    saldo_final = saldo_anterior + totales['total_ingresos'] - totales['total_egresos']
+
+    # Mostrar métricas principales
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("💰 Saldo Inicial", f"${saldo_anterior:,.2f}")
+    with col2:
+        st.metric("📈 Total Ingresos", f"${totales['total_ingresos']:,.2f}")
+    with col3:
+        st.metric("📉 Total Egresos", f"${totales['total_egresos']:,.2f}")
+    with col4:
+        st.metric("💵 Saldo Final", f"${saldo_final:,.2f}")
+
+    st.divider()
+
+    # Mostrar detalles de ingresos
+    if totales['detalle_ingresos']:
+        st.subheader("📈 Detalle de Ingresos")
+        for ingreso in totales['detalle_ingresos']:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{ingreso['concepto']}**")
+                st.caption(ingreso['descripcion'])
+            with col2:
+                st.success(f"💰 ${ingreso['monto']:,.2f}")
+    
+    # Mostrar detalles de egresos
+    if totales['detalle_egresos']:
+        st.subheader("📉 Detalle de Egresos")
+        for egreso in totales['detalle_egresos']:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{egreso['concepto']}**")
+                st.caption(egreso['descripcion'])
+            with col2:
+                st.error(f"📤 ${egreso['monto']:,.2f}")
+
+    # Botón para guardar el resumen en la base de datos
+    st.divider()
+    if st.button("💾 Guardar Resumen de Caja", type="primary"):
+        with st.spinner("Guardando resumen en el sistema..."):
+            guardar_resumen_caja(cursor, con, id_reunion, totales, saldo_anterior, saldo_final)
+            st.success("✅ Resumen de caja guardado correctamente!")
+            st.rerun()
+
+# =====================================================================================
+#  GUARDAR RESUMEN EN BASE DE DATOS
+# =====================================================================================
+
+def guardar_resumen_caja(cursor, con, id_reunion, totales, saldo_anterior, saldo_final):
     try:
         # Eliminar movimientos existentes para esta reunión
         cursor.execute("DELETE FROM Movimiento_de_caja WHERE ID_Reunion = %s", (id_reunion,))
         
-        saldo_actual = saldo_anterior
         fecha_actual = datetime.now()
-        
-        # MOVIMIENTO 1: AHORROS (INGRESO)
-        if totales['total_ahorros'] > 0:
-            saldo_actual += totales['total_ahorros']
+        saldo_actual = saldo_anterior
+
+        # Guardar cada ingreso individualmente
+        for ingreso in totales['detalle_ingresos']:
+            saldo_actual += ingreso['monto']
             cursor.execute("""
                 INSERT INTO Movimiento_de_caja 
                 (ID_Reunion, ID_Tipo_movimiento, monto, categoria, descripcion, fecha, saldo_final)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
                 id_reunion, 
-                1,  # ID para Ahorro
-                totales['total_ahorros'],
-                'Ahorro',
-                'Total de ahorros de la reunión',
+                1,  # ID para Ingreso
+                ingreso['monto'],
+                ingreso['concepto'],
+                ingreso['descripcion'],
                 fecha_actual,
                 saldo_actual
             ))
 
-        # MOVIMIENTO 2: PRÉSTAMOS (EGRESO)
-        if totales['total_prestamos'] > 0:
-            saldo_actual -= totales['total_prestamos']
+        # Guardar cada egreso individualmente
+        for egreso in totales['detalle_egresos']:
+            saldo_actual -= egreso['monto']
             cursor.execute("""
                 INSERT INTO Movimiento_de_caja 
                 (ID_Reunion, ID_Tipo_movimiento, monto, categoria, descripcion, fecha, saldo_final)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
                 id_reunion, 
-                2,  # ID para Préstamo
-                totales['total_prestamos'],
-                'Préstamo',
-                'Total de préstamos aprobados',
-                fecha_actual,
-                saldo_actual
-            ))
-
-        # MOVIMIENTO 3: PAGOS PRÉSTAMOS (INGRESO)
-        if totales['total_pagos_prestamos'] > 0:
-            saldo_actual += totales['total_pagos_prestamos']
-            cursor.execute("""
-                INSERT INTO Movimiento_de_caja 
-                (ID_Reunion, ID_Tipo_movimiento, monto, categoria, descripcion, fecha, saldo_final)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (
-                id_reunion, 
-                3,  # ID para Pago Préstamo
-                totales['total_pagos_prestamos'],
-                'Pago Préstamo',
-                'Total de pagos de préstamos',
-                fecha_actual,
-                saldo_actual
-            ))
-
-        # MOVIMIENTO 4: PAGOS MULTAS (INGRESO) - Solo si existe
-        if totales['total_pagos_multas'] > 0:
-            saldo_actual += totales['total_pagos_multas']
-            cursor.execute("""
-                INSERT INTO Movimiento_de_caja 
-                (ID_Reunion, ID_Tipo_movimiento, monto, categoria, descripcion, fecha, saldo_final)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (
-                id_reunion, 
-                4,  # ID para Pago Multa
-                totales['total_pagos_multas'],
-                'Pago Multa',
-                'Total de pagos de multas',
+                2,  # ID para Egreso
+                egreso['monto'],
+                egreso['concepto'],
+                egreso['descripcion'],
                 fecha_actual,
                 saldo_actual
             ))
 
         con.commit()
-        return saldo_actual
+        return True
 
     except Exception as e:
         con.rollback()
-        st.error(f"Error al crear movimientos automáticos: {e}")
-        return saldo_anterior
-
-# =====================================================================================
-#  RESUMEN AUTOMÁTICO
-# =====================================================================================
-
-def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
-    st.subheader("📊 Resumen Automático de Caja")
-
-    # Obtener totales de la reunión
-    totales = obtener_totales_reunion(cursor, id_reunion)
-    
-    # Mostrar resumen de totales
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📈 Ingresos")
-        st.info(f"💰 **Ahorros:** ${totales['total_ahorros']:,.2f}")
-        st.info(f"💳 **Pagos Préstamos:** ${totales['total_pagos_prestamos']:,.2f}")
-        
-        if totales['total_pagos_multas'] > 0:
-            st.info(f"⚖️ **Pagos Multas:** ${totales['total_pagos_multas']:,.2f}")
-        
-        total_ingresos = totales['total_ahorros'] + totales['total_pagos_prestamos'] + totales['total_pagos_multas']
-        st.success(f"**📊 TOTAL INGRESOS:** ${total_ingresos:,.2f}")
-
-    with col2:
-        st.subheader("📉 Egresos")
-        st.warning(f"📤 **Préstamos:** ${totales['total_prestamos']:,.2f}")
-        st.success(f"**📊 TOTAL EGRESOS:** ${totales['total_prestamos']:,.2f}")
-
-    # Calcular saldo final
-    total_ingresos = totales['total_ahorros'] + totales['total_pagos_prestamos'] + totales['total_pagos_multas']
-    total_egresos = totales['total_prestamos']
-    saldo_final_calculado = saldo_anterior + total_ingresos - total_egresos
-
-    # Mostrar métricas principales
-    st.divider()
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("💰 Saldo Inicial", f"${saldo_anterior:,.2f}")
-    with col2:
-        st.metric("📈 Total Ingresos", f"${total_ingresos:,.2f}")
-    with col3:
-        st.metric("📉 Total Egresos", f"${total_egresos:,.2f}")
-    with col4:
-        st.metric("💵 Saldo Final", f"${saldo_final_calculado:,.2f}")
-
-    # Botón para actualizar movimientos en base de datos
-    if st.button("🔄 Actualizar Movimientos de Caja", type="primary"):
-        with st.spinner("Actualizando movimientos en el sistema..."):
-            saldo_final = crear_movimientos_automaticos(cursor, con, id_reunion, totales, saldo_anterior)
-            st.success("✅ Movimientos de caja actualizados correctamente!")
-            st.rerun()
-
-# =====================================================================================
-#  DETALLE DE MOVIMIENTOS
-# =====================================================================================
-
-def detalle_movimientos(cursor, id_reunion, saldo_anterior):
-    st.subheader("📋 Detalle de Movimientos Registrados")
-
-    try:
-        cursor.execute("""
-            SELECT mc.*, tm.nombre AS nombre_movimiento
-            FROM Movimiento_de_caja mc
-            JOIN Tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
-            WHERE mc.ID_Reunion = %s
-            ORDER BY mc.fecha ASC, mc.ID_Movimiento_caja ASC
-        """, (id_reunion,))
-
-        movimientos = cursor.fetchall()
-
-        if not movimientos:
-            st.info("📭 No hay movimientos registrados para esta reunión.")
-            st.info("💡 Ve a la pestaña 'Resumen Automático' y haz clic en 'Actualizar Movimientos de Caja'")
-            return
-
-        st.write(f"**Saldo Inicial:** ${saldo_anterior:,.2f}")
-        st.divider()
-
-        saldo_actual = saldo_anterior
-        
-        for mov in movimientos:
-            # Determinar el tipo basado en la categoría
-            categoria = mov['categoria']
-            if categoria in ['Préstamo']:
-                tipo = "Egreso"
-                icono = "📤"
-                color = "red"
-            else:
-                tipo = "Ingreso"
-                icono = "💹"
-                color = "green"
-            
-            # Calcular saldo actual
-            if tipo == "Ingreso":
-                saldo_actual += float(mov['monto'])
-            else:
-                saldo_actual -= float(mov['monto'])
-            
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write(f"**{mov['descripcion']}**")
-                st.caption(f"📅 {mov['fecha'].strftime('%Y-%m-%d %H:%M')} — {mov['nombre_movimiento']} — {tipo}")
-            with col2:
-                st.write(f"<span style='color:{color}'>{icono} ${mov['monto']:,.2f}</span>", unsafe_allow_html=True)
-                st.write(f"💰 **${saldo_actual:,.2f}**")
-            
-            st.divider()
-
-    except Exception as e:
-        st.error(f"❌ Error al cargar detalle de movimientos: {e}")
+        st.error(f"Error al guardar resumen de caja: {e}")
+        return False
 
 # =====================================================================================
 #  EJECUTABLE
