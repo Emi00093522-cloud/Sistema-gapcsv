@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import sys
 import os
+from io import BytesIO
 
 # Agregar la ruta de tus módulos
 sys.path.append(os.path.dirname(__file__))
@@ -189,7 +190,6 @@ def obtener_datos_reales():
     try:
         from ahorros import obtener_ahorros_grupo
         ahorros_data = obtener_ahorros_grupo() or []
-        st.success(f"✅ Ahorros: {len(ahorros_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en ahorros: {e}")
     
@@ -197,14 +197,12 @@ def obtener_datos_reales():
     try:
         from pagomulta import obtener_multas_grupo
         multas_data = obtener_multas_grupo() or []
-        st.success(f"✅ Multas: {len(multas_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en multas: {e}")
     
     # Obtener préstamos
     try:
         prestamos_data = obtener_datos_prestamos_desde_bd()
-        st.success(f"✅ Préstamos: {len(prestamos_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en préstamos: {e}")
     
@@ -241,10 +239,114 @@ def calcular_totales_reales():
     
     return ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses
 
-def mostrar_informacion_ciclo():
-    st.header("🔒 Cierre de Ciclo - Resumen Financiero")
+def guardar_ciclo_en_bd(datos_ciclo):
+    """
+    Guarda el ciclo cerrado en la base de datos
+    """
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor()
+        
+        # Insertar ciclo en la base de datos
+        cursor.execute("""
+            INSERT INTO CiclosCerrados 
+            (id_grupo, fecha_cierre, total_ahorros, total_multas, total_prestamos, 
+             total_intereses, miembros_activos, distribucion_por_miembro, ahorros_por_miembro)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            datos_ciclo['id_grupo'],
+            datos_ciclo['fecha_cierre'],
+            datos_ciclo['total_ahorros'],
+            datos_ciclo['total_multas'],
+            datos_ciclo['total_prestamos'],
+            datos_ciclo['total_intereses'],
+            datos_ciclo['miembros_activos'],
+            datos_ciclo['distribucion_por_miembro'],
+            datos_ciclo['ahorros_por_miembro']
+        ))
+        
+        con.commit()
+        cursor.close()
+        con.close()
+        
+        return True
+    except Exception as e:
+        st.error(f"❌ Error guardando ciclo en BD: {e}")
+        return False
+
+def obtener_ciclos_historicos():
+    """
+    Obtiene todos los ciclos cerrados del grupo
+    """
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        if 'reunion_actual' not in st.session_state:
+            return []
+        
+        id_grupo = st.session_state.reunion_actual['id_grupo']
+        
+        cursor.execute("""
+            SELECT * FROM CiclosCerrados 
+            WHERE id_grupo = %s 
+            ORDER BY fecha_cierre DESC
+        """, (id_grupo,))
+        
+        ciclos = cursor.fetchall()
+        cursor.close()
+        con.close()
+        
+        return ciclos
+    except Exception as e:
+        st.error(f"❌ Error obteniendo ciclos históricos: {e}")
+        return []
+
+def generar_excel_ciclos():
+    """
+    Genera archivo Excel con todos los ciclos históricos
+    """
+    ciclos = obtener_ciclos_historicos()
     
-    st.subheader("📊 Gestión de Cierre de Ciclo")
+    if not ciclos:
+        # Crear DataFrame vacío si no hay ciclos
+        df = pd.DataFrame(columns=[
+            'Fecha Cierre', 'Total Ahorros', 'Total Multas', 
+            'Total Préstamos', 'Total Intereses', 'Miembros Activos', 
+            'Distribución por Miembro'
+        ])
+    else:
+        # Crear DataFrame con los ciclos
+        datos = []
+        for ciclo in ciclos:
+            datos.append({
+                'Fecha Cierre': ciclo['fecha_cierre'].strftime('%Y-%m-%d'),
+                'Total Ahorros': f"${ciclo['total_ahorros']:,.2f}",
+                'Total Multas': f"${ciclo['total_multas']:,.2f}",
+                'Total Préstamos': f"${ciclo['total_prestamos']:,.2f}",
+                'Total Intereses': f"${ciclo['total_intereses']:,.2f}",
+                'Miembros Activos': ciclo['miembros_activos'],
+                'Distribución por Miembro': f"${ciclo['distribucion_por_miembro']:,.2f}"
+            })
+        
+        df = pd.DataFrame(datos)
+    
+    # Crear archivo Excel en memoria
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Ciclos Cerrados', index=False)
+    
+    return output.getvalue()
+
+def mostrar_generar_cierre():
+    """
+    TAB 1: Formulario para generar nuevo cierre de ciclo
+    """
+    st.subheader("📋 Generar Nuevo Cierre de Ciclo")
     
     # Información básica
     col1, col2 = st.columns(2)
@@ -270,6 +372,9 @@ def mostrar_informacion_ciclo():
         mostrar_resumen_cierre()
 
 def mostrar_resumen_cierre():
+    """
+    Muestra el resumen completo del cierre de ciclo
+    """
     st.subheader("💰 Resumen Financiero del Ciclo")
     
     st.success("✅ Has seleccionado cerrar el ciclo. Calculando datos...")
@@ -387,6 +492,21 @@ def mostrar_resumen_cierre():
             - Total Miembros Activos: {total_miembros_activos}
             - Distribución: ${prestamos_intereses:,.2f} ÷ {total_miembros_activos} = **${distribucion_por_miembro:,.2f} por miembro**
             """)
+        
+        # Guardar datos para el cierre
+        datos_ciclo = {
+            'id_grupo': st.session_state.reunion_actual['id_grupo'],
+            'fecha_cierre': datetime.now(),
+            'total_ahorros': ahorros_totales,
+            'total_multas': multas_totales,
+            'total_prestamos': prestamos_capital,
+            'total_intereses': prestamos_intereses,
+            'miembros_activos': total_miembros_activos,
+            'distribucion_por_miembro': distribucion_por_miembro,
+            'ahorros_por_miembro': str(ahorros_por_miembro)  # Convertir a string para guardar
+        }
+        
+        st.session_state.datos_ciclo_actual = datos_ciclo
     
     elif total_miembros_activos == 0:
         st.warning("⚠️ No se encontraron miembros activos en el grupo")
@@ -412,9 +532,88 @@ def mostrar_resumen_cierre():
     st.write("### ✅ Confirmar Cierre Definitivo")
     
     if st.button("🔐 CONFIRMAR CIERRE DEL CICLO", type="primary", use_container_width=True):
-        st.success("🎉 ¡Ciclo cerrado exitosamente!")
-        st.balloons()
-        st.session_state.mostrar_resumen = False
+        if 'datos_ciclo_actual' in st.session_state:
+            # Guardar en base de datos
+            if guardar_ciclo_en_bd(st.session_state.datos_ciclo_actual):
+                st.success("🎉 ¡Ciclo cerrado exitosamente!")
+                st.balloons()
+                st.session_state.mostrar_resumen = False
+                # Recargar la página para mostrar el nuevo ciclo en el historial
+                st.rerun()
+            else:
+                st.error("❌ Error al guardar el ciclo en la base de datos")
+        else:
+            st.error("❌ No hay datos de ciclo para guardar")
+
+def mostrar_ciclos_historicos():
+    """
+    TAB 2: Mostrar todos los ciclos cerrados del grupo
+    """
+    st.subheader("📊 Histórico de Ciclos Cerrados")
+    
+    # Botón de descarga Excel SIEMPRE visible
+    st.download_button(
+        label="📥 Descargar Excel de Ciclos",
+        data=generar_excel_ciclos(),
+        file_name=f"ciclos_grupo_{datetime.now().strftime('%Y-%m-%d')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+    
+    st.markdown("---")
+    
+    # Obtener ciclos históricos
+    ciclos = obtener_ciclos_historicos()
+    
+    if ciclos:
+        # Crear tabla con los ciclos
+        datos_tabla = []
+        for ciclo in ciclos:
+            datos_tabla.append({
+                "Fecha de Cierre": ciclo['fecha_cierre'].strftime('%Y-%m-%d'),
+                "Total Ahorros": f"${ciclo['total_ahorros']:,.2f}",
+                "Total Multas": f"${ciclo['total_multas']:,.2f}",
+                "Total Préstamos": f"${ciclo['total_prestamos']:,.2f}",
+                "Total Intereses": f"${ciclo['total_intereses']:,.2f}",
+                "Miembros Activos": ciclo['miembros_activos'],
+                "Distribución": f"${ciclo['distribucion_por_miembro']:,.2f}"
+            })
+        
+        df_ciclos = pd.DataFrame(datos_tabla)
+        st.dataframe(df_ciclos, use_container_width=True, hide_index=True)
+        
+        # Mostrar estadísticas
+        st.write("### 📈 Estadísticas de Ciclos")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total de Ciclos", len(ciclos))
+        
+        with col2:
+            total_intereses = sum(ciclo['total_intereses'] for ciclo in ciclos)
+            st.metric("Intereses Totales", f"${total_intereses:,.2f}")
+        
+        with col3:
+            promedio_distribucion = sum(ciclo['distribucion_por_miembro'] for ciclo in ciclos) / len(ciclos)
+            st.metric("Distribución Promedio", f"${promedio_distribucion:,.2f}")
+    
+    else:
+        st.info("ℹ️ No hay ciclos cerrados registrados para este grupo")
+
+def mostrar_informacion_ciclo():
+    """
+    Función principal con estructura de tabs
+    """
+    st.header("🔒 Cierre de Ciclo - Resumen Financiero")
+    
+    # Crear tabs
+    tab1, tab2 = st.tabs(["📋 Generar Cierre de Ciclo", "📊 Ver Ciclos del Grupo"])
+    
+    with tab1:
+        mostrar_generar_cierre()
+    
+    with tab2:
+        mostrar_ciclos_historicos()
 
 # 🔥 FUNCIÓN QUE APP.PY ESTÁ BUSCANDO
 def mostrar_ciclo():
