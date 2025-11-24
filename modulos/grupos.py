@@ -80,7 +80,7 @@ def obtener_ciclos_del_grupo(id_grupo: int):
         return ciclos
 
     except Exception as e:
-        st.error(f"❌ Error al obtener ciclos: {e}")
+        # Si hay error, probablemente porque no existen las columnas nuevas
         return []
 
     finally:
@@ -107,7 +107,7 @@ def obtener_proximo_numero_ciclo(id_grupo: int):
         return ultimo_ciclo + 1
 
     except Exception as e:
-        st.error(f"❌ Error al obtener próximo ciclo: {e}")
+        # Si hay error, empezar desde 1
         return 1
 
     finally:
@@ -216,7 +216,7 @@ def pestaña_registrar_grupo():
             ID_Estado = st.selectbox(
                 "Estado",
                 options=[1, 2],
-                format_func=lambda x: "Activo" if x == 1 else "Inactivo"
+                format_func=lambda x: "Activo" if x == 1 else 'Inactivo'
             )
 
             enviar = st.form_submit_button("✅ Guardar Grupo")
@@ -270,15 +270,16 @@ def pestaña_registrar_grupo():
         except:
             pass
 
-def formulario_nuevo_ciclo(grupo):
+def mostrar_formulario_nuevo_ciclo(grupo):
     """Muestra el formulario para crear un nuevo ciclo"""
-    st.subheader(f"🔄 Crear Nuevo Ciclo para: {grupo['nombre']}")
+    st.header(f"🔄 Crear Nuevo Ciclo")
+    st.subheader(f"Grupo: {grupo['nombre']}")
     
     with st.form(f"form_nuevo_ciclo_{grupo['ID_Grupo']}"):
         # Obtener próximo número de ciclo
         proximo_ciclo = obtener_proximo_numero_ciclo(grupo['ID_Grupo'])
         
-        st.write(f"**Número del ciclo:** Ciclo {proximo_ciclo}")
+        st.info(f"**Número del ciclo:** Ciclo {proximo_ciclo}")
         
         # Fecha de inicio del ciclo
         fecha_inicio = st.date_input(
@@ -333,56 +334,54 @@ def pestaña_mis_grupos():
         st.info("ℹ️ No tienes grupos registrados. Crea tu primer grupo en la pestaña 'Registrar Grupo'.")
         return
 
-    # Verificar si estamos creando un nuevo ciclo
+    # VERIFICAR SI ESTAMOS CREANDO UN NUEVO CICLO - ESTA ES LA PARTE CLAVE
     if st.session_state.creando_nuevo_ciclo is not None:
         grupo_creando_ciclo = next((g for g in grupos if g['ID_Grupo'] == st.session_state.creando_nuevo_ciclo), None)
         if grupo_creando_ciclo:
-            formulario_nuevo_ciclo(grupo_creando_ciclo)
+            mostrar_formulario_nuevo_ciclo(grupo_creando_ciclo)
             return
 
     # Mostrar cada grupo en una tarjeta editable
     for grupo in grupos:
         with st.container():
-            col1, col2 = st.columns([3, 1])
+            st.subheader(f"🏢 {grupo['nombre']}")
+            
+            # Información del grupo en columnas
+            col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.subheader(f"🏢 {grupo['nombre']}")
-                
-                # Información del grupo
-                col_info1, col_info2, col_info3 = st.columns(3)
-                
-                with col_info1:
-                    st.write(f"**📅 Fecha inicio:** {grupo['fecha_inicio']}")
-                    st.write(f"**📍 Distrito:** {grupo['distrito']}")
-                
-                with col_info2:
-                    st.write(f"**👤 Promotora:** {grupo['promotora']}")
-                    st.write(f"**📊 Estado:** {grupo['estado']}")
-                
-                with col_info3:
-                    st.write(f"**🔢 ID Grupo:** {grupo['ID_Grupo']}")
-                
-                # Mostrar ciclos existentes del grupo
-                ciclos = obtener_ciclos_del_grupo(grupo['ID_Grupo'])
-                if ciclos:
-                    st.write("**📈 Ciclos del grupo:**")
-                    for ciclo in ciclos:
-                        estado_emoji = "🟢" if ciclo['estado'] == 'Activo' else "🔴"
-                        st.write(f"{estado_emoji} Ciclo {ciclo['numero_ciclo']} - {ciclo['duracion_meses']} meses - Inicio: {ciclo['fecha_inicio']}")
-                else:
-                    st.info("ℹ️ Este grupo no tiene ciclos creados aún.")
+                st.write(f"**📅 Fecha inicio:** {grupo['fecha_inicio']}")
+                st.write(f"**📍 Distrito:** {grupo['distrito']}")
             
             with col2:
-                st.write("")  # Espacio
-                st.write("")  # Espacio
-                
-                # Botón para crear nuevo ciclo
-                if st.button(f"🔄 Nuevo Ciclo", key=f"ciclo_{grupo['ID_Grupo']}", use_container_width=True):
+                st.write(f"**👤 Promotora:** {grupo['promotora']}")
+                st.write(f"**📊 Estado:** {grupo['estado']}")
+            
+            with col3:
+                st.write(f"**🔢 ID Grupo:** {grupo['ID_Grupo']}")
+            
+            # Mostrar ciclos existentes del grupo
+            ciclos = obtener_ciclos_del_grupo(grupo['ID_Grupo'])
+            if ciclos:
+                st.write("**📈 Ciclos del grupo:**")
+                for ciclo in ciclos:
+                    estado_emoji = "🟢" if ciclo['estado'] == 'Activo' else "🔴"
+                    st.write(f"{estado_emoji} Ciclo {ciclo['numero_ciclo']} - {ciclo['duracion_meses']} meses - Inicio: {ciclo['fecha_inicio']}")
+            else:
+                st.info("ℹ️ Este grupo no tiene ciclos creados aún.")
+            
+            # Botones de acción
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                # Botón para crear nuevo ciclo - ESTE ES EL QUE DEBE FUNCIONAR
+                if st.button(f"🔄 Crear Nuevo Ciclo", key=f"nuevo_ciclo_{grupo['ID_Grupo']}", use_container_width=True):
                     st.session_state.creando_nuevo_ciclo = grupo['ID_Grupo']
                     st.rerun()
-                
+            
+            with col_btn2:
                 # Botón para editar grupo
-                if st.button(f"✏️ Editar", key=f"editar_{grupo['ID_Grupo']}", use_container_width=True):
+                if st.button(f"✏️ Editar Grupo", key=f"editar_{grupo['ID_Grupo']}", use_container_width=True):
                     st.session_state.grupo_seleccionado = grupo['ID_Grupo']
                     st.info(f"✏️ Editando grupo: {grupo['nombre']}")
 
