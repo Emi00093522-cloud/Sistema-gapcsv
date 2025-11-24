@@ -5,6 +5,7 @@ import sys
 import os
 from io import BytesIO, StringIO
 import csv
+import json
 
 # Agregar la ruta de tus módulos
 sys.path.append(os.path.dirname(__file__))
@@ -242,7 +243,7 @@ def calcular_totales_reales():
 
 def guardar_ciclo_en_bd(datos_ciclo):
     """
-    Guarda el ciclo cerrado en la base de datos
+    Guarda el ciclo cerrado en la base de datos - CORREGIDO para usar Cierre_de_ciclo
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -250,20 +251,20 @@ def guardar_ciclo_en_bd(datos_ciclo):
         con = obtener_conexion()
         cursor = con.cursor()
         
-        # Obtener el número del próximo ciclo
+        # Obtener el número del próximo ciclo - CORREGIDO para usar Cierre_de_ciclo
         cursor.execute("""
-            SELECT COALESCE(MAX(numero_ciclo), 0) + 1 as siguiente_ciclo 
-            FROM CiclosCerrados 
-            WHERE id_grupo = %s
+            SELECT COALESCE(MAX(ID_Ciclo), 0) + 1 as siguiente_ciclo 
+            FROM Cierre_de_ciclo 
+            WHERE ID_Grupo = %s
         """, (datos_ciclo['id_grupo'],))
         
         resultado = cursor.fetchone()
         numero_ciclo = resultado[0] if resultado else 1
         
-        # Insertar ciclo en la base de datos
+        # Insertar ciclo en la base de datos - CORREGIDO para usar Cierre_de_ciclo
         cursor.execute("""
-            INSERT INTO CiclosCerrados 
-            (id_grupo, numero_ciclo, fecha_cierre, total_ahorros, total_multas, total_prestamos, 
+            INSERT INTO Cierre_de_ciclo 
+            (ID_Grupo, ID_Ciclo, fecha_cierre, total_ahorros, total_multas, total_prestamos, 
              total_intereses, miembros_activos, distribucion_por_miembro, ahorros_por_miembro)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
@@ -290,7 +291,7 @@ def guardar_ciclo_en_bd(datos_ciclo):
 
 def obtener_ciclos_historicos():
     """
-    Obtiene todos los ciclos cerrados del grupo
+    Obtiene todos los ciclos cerrados del grupo - CORREGIDO para usar Cierre_de_ciclo
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -304,9 +305,9 @@ def obtener_ciclos_historicos():
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
         cursor.execute("""
-            SELECT * FROM CiclosCerrados 
-            WHERE id_grupo = %s 
-            ORDER BY numero_ciclo DESC
+            SELECT * FROM Cierre_de_ciclo 
+            WHERE ID_Grupo = %s 
+            ORDER BY ID_Ciclo DESC
         """, (id_grupo,))
         
         ciclos = cursor.fetchall()
@@ -316,6 +317,7 @@ def obtener_ciclos_historicos():
         return ciclos
     except Exception as e:
         # Si la tabla no existe, retornar lista vacía
+        st.error(f"❌ Error obteniendo ciclos históricos: {e}")
         return []
 
 def generar_csv_ciclos():
@@ -340,7 +342,7 @@ def generar_csv_ciclos():
         if ciclos:
             for ciclo in ciclos:
                 writer.writerow([
-                    f"Ciclo {ciclo['numero_ciclo']}",
+                    f"Ciclo {ciclo['ID_Ciclo']}",
                     ciclo['fecha_cierre'].strftime('%Y-%m-%d') if ciclo['fecha_cierre'] else 'N/A',
                     f"${ciclo['total_ahorros']:,.2f}" if ciclo['total_ahorros'] is not None else '$0.00',
                     f"${ciclo['total_multas']:,.2f}" if ciclo['total_multas'] is not None else '$0.00',
@@ -530,7 +532,7 @@ def mostrar_resumen_cierre():
             'total_intereses': prestamos_intereses,
             'miembros_activos': total_miembros_activos,
             'distribucion_por_miembro': distribucion_por_miembro,
-            'ahorros_por_miembro': str(ahorros_por_miembro)  # Convertir a string para guardar
+            'ahorros_por_miembro': json.dumps(ahorros_por_miembro)  # Convertir a JSON para guardar
         }
         
         st.session_state.datos_ciclo_actual = datos_ciclo
@@ -609,7 +611,7 @@ def mostrar_tab_ciclos_finalizados():
         datos_tabla = []
         for ciclo in ciclos:
             datos_tabla.append({
-                "Ciclo": f"Ciclo {ciclo['numero_ciclo']}",
+                "Ciclo": f"Ciclo {ciclo['ID_Ciclo']}",
                 "Fecha de Cierre": ciclo['fecha_cierre'].strftime('%Y-%m-%d') if ciclo['fecha_cierre'] else 'N/A',
                 "Total Ahorros": f"${ciclo['total_ahorros']:,.2f}" if ciclo['total_ahorros'] is not None else '$0.00',
                 "Total Multas": f"${ciclo['total_multas']:,.2f}" if ciclo['total_multas'] is not None else '$0.00',
@@ -641,7 +643,7 @@ def mostrar_tab_ciclos_finalizados():
         # Mostrar detalles de cada ciclo en expanders
         st.write("### 🔍 Detalles por Ciclo")
         for ciclo in ciclos:
-            with st.expander(f"Ciclo {ciclo['numero_ciclo']} - {ciclo['fecha_cierre'].strftime('%d/%m/%Y') if ciclo['fecha_cierre'] else 'Fecha N/A'}"):
+            with st.expander(f"Ciclo {ciclo['ID_Ciclo']} - {ciclo['fecha_cierre'].strftime('%d/%m/%Y') if ciclo['fecha_cierre'] else 'Fecha N/A'}"):
                 col_det1, col_det2 = st.columns(2)
                 
                 with col_det1:
