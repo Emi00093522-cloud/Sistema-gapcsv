@@ -27,7 +27,7 @@ def mostrar_movimiento_caja():
             registrar_movimiento(cursor, con, id_reunion)
 
         with tab2:
-            ver_movimientos(cursor, id_reunion)
+            ver_movimientos(cursor, con, id_reunion)  # paso 'con' para poder eliminar
 
         with tab3:
             resumen_caja(cursor, id_reunion)
@@ -37,9 +37,15 @@ def mostrar_movimiento_caja():
 
     finally:
         if "cursor" in locals():
-            cursor.close()
+            try:
+                cursor.close()
+            except:
+                pass
         if "con" in locals():
-            con.close()
+            try:
+                con.close()
+            except:
+                pass
 
 def registrar_movimiento(cursor, con, id_reunion):
     st.subheader("➕ Registrar Nuevo Movimiento")
@@ -48,7 +54,6 @@ def registrar_movimiento(cursor, con, id_reunion):
     cursor.execute("""
         SELECT ID_Tipo_movimiento, tipo_movimiento
         FROM Tipo_de_movimiento
-        WHERE IFNULL(estado,1) = 1
         ORDER BY tipo_movimiento
     """)
     tipos = cursor.fetchall()
@@ -66,7 +71,7 @@ def registrar_movimiento(cursor, con, id_reunion):
 
         with col1:
             tipo_seleccionado = st.selectbox("Tipo de movimiento *", tipo_options)
-            # Categoría ahora: texto libre (porque el catálogo ya no contiene categorías)
+            # Categoría ahora: texto libre (porque el catálogo solo indica Ingreso/Egreso)
             categoria = st.text_input("Categoría *", placeholder="Ej: Cuotas, Donación, Compra material...")
             monto = st.number_input("Monto ($) *",
                                    min_value=0.01,
@@ -115,7 +120,10 @@ def registrar_movimiento(cursor, con, id_reunion):
                 con.rollback()
                 st.error(f"❌ Error al registrar el movimiento: {e}")
 
-def ver_movimientos(cursor, id_reunion):
+def ver_movimientos(cursor, con, id_reunion):
+    """
+    Mostrar movimientos y permitir eliminar.
+    """
     st.subheader("📋 Movimientos Registrados")
 
     # Filtros
@@ -179,8 +187,13 @@ def ver_movimientos(cursor, id_reunion):
                 st.write(f"**{desc}**")
                 fecha = mov.get('fecha')
                 try:
-                    st.caption(f"📁 {mov.get('categoria','')} • 📅 {fecha.strftime('%d/%m/%Y')}")
-                except:
+                    # fecha puede venir como date/datetime/string
+                    if hasattr(fecha, "strftime"):
+                        fecha_str = fecha.strftime('%d/%m/%Y')
+                    else:
+                        fecha_str = str(fecha)
+                    st.caption(f"📁 {mov.get('categoria','')} • 📅 {fecha_str}")
+                except Exception:
                     st.caption(f"📁 {mov.get('categoria','')} • 📅 {fecha}")
             with col2:
                 tipo_color = "🟢" if mov.get('tipo') == "Ingreso" else "🔴"
@@ -189,6 +202,7 @@ def ver_movimientos(cursor, id_reunion):
                 monto_style = "color: green; font-weight: bold;" if mov.get('tipo') == "Ingreso" else "color: red; font-weight: bold;"
                 st.markdown(f"<p style='{monto_style}'>${mov['monto']:,.2f}</p>", unsafe_allow_html=True)
             with col4:
+                # botón de eliminar: llama a eliminar_movimiento con cursor y con disponibles
                 if st.button("🗑️", key=f"delete_{mov['ID_Movimiento_caja']}"):
                     eliminar_movimiento(cursor, con, mov['ID_Movimiento_caja'])
             st.divider()
