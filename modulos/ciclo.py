@@ -303,7 +303,7 @@ def obtener_ciclos_historicos():
         
         return ciclos
     except Exception as e:
-        st.error(f"❌ Error obteniendo ciclos históricos: {e}")
+        # Si la tabla no existe, retornar lista vacía
         return []
 
 def generar_excel_ciclos():
@@ -598,7 +598,7 @@ def mostrar_ciclos_historicos():
             st.metric("Distribución Promedio", f"${promedio_distribucion:,.2f}")
     
     else:
-        st.info("ℹ️ No hay ciclos cerrados registrados para este grupo")
+        st.info("ℹ️ No se ha finalizado ningún ciclo todavía")
 
 def mostrar_informacion_ciclo():
     """
@@ -606,7 +606,7 @@ def mostrar_informacion_ciclo():
     """
     st.header("🔒 Cierre de Ciclo - Resumen Financiero")
     
-    # Crear tabs
+    # Crear tabs - SIEMPRE VISIBLES
     tab1, tab2 = st.tabs(["📋 Generar Cierre de Ciclo", "📊 Ver Ciclos del Grupo"])
     
     with tab1:
