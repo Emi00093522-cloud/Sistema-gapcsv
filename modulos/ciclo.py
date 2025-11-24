@@ -320,45 +320,51 @@ def obtener_ciclos_historicos():
 
 def generar_csv_ciclos():
     """
-    Genera archivo CSV con todos los ciclos históricos
+    Genera archivo CSV con todos los ciclos históricos - CORREGIDO
     """
     ciclos = obtener_ciclos_historicos()
     
-    if not ciclos:
-        # Crear CSV vacío si no hay ciclos
+    # Usar StringIO en lugar de BytesIO para texto
+    output = BytesIO()
+    
+    # SOLUCIÓN: Especificar encoding y manejar caracteres especiales
+    try:
+        # Intentar con utf-8 primero
         output = BytesIO()
         writer = csv.writer(output)
+        
+        # Escribir encabezados - SIN CARACTERES ESPECIALES PARA EVITAR ERRORES
         writer.writerow([
-            'Ciclo', 'Fecha Cierre', 'Total Ahorros', 'Total Multas', 
-            'Total Préstamos', 'Total Intereses', 'Miembros Activos', 
-            'Distribución por Miembro'
+            'Ciclo', 'Fecha Cierre', 'Total Ahorros', 'Total Multas',
+            'Total Prestamos', 'Total Intereses', 'Miembros Activos',
+            'Distribucion por Miembro'
         ])
+        
+        # Escribir datos si hay ciclos
+        if ciclos:
+            for ciclo in ciclos:
+                writer.writerow([
+                    f"Ciclo {ciclo['numero_ciclo']}",
+                    ciclo['fecha_cierre'].strftime('%Y-%m-%d') if ciclo['fecha_cierre'] else 'N/A',
+                    f"${ciclo['total_ahorros']:,.2f}" if ciclo['total_ahorros'] is not None else '$0.00',
+                    f"${ciclo['total_multas']:,.2f}" if ciclo['total_multas'] is not None else '$0.00',
+                    f"${ciclo['total_prestamos']:,.2f}" if ciclo['total_prestamos'] is not None else '$0.00',
+                    f"${ciclo['total_intereses']:,.2f}" if ciclo['total_intereses'] is not None else '$0.00',
+                    ciclo['miembros_activos'] if ciclo['miembros_activos'] is not None else 0,
+                    f"${ciclo['distribucion_por_miembro']:,.2f}" if ciclo['distribucion_por_miembro'] is not None else '$0.00'
+                ])
+        else:
+            # Escribir una fila vacía si no hay ciclos
+            writer.writerow(['No hay ciclos registrados', '', '', '', '', '', '', ''])
+        
         return output.getvalue()
-    else:
-        # Crear CSV con los ciclos
+        
+    except Exception as e:
+        # Fallback seguro en caso de cualquier error
+        st.error(f"❌ Error generando CSV: {e}")
         output = BytesIO()
         writer = csv.writer(output)
-        
-        # Escribir encabezados
-        writer.writerow([
-            'Ciclo', 'Fecha Cierre', 'Total Ahorros', 'Total Multas', 
-            'Total Préstamos', 'Total Intereses', 'Miembros Activos', 
-            'Distribución por Miembro'
-        ])
-        
-        # Escribir datos
-        for ciclo in ciclos:
-            writer.writerow([
-                f"Ciclo {ciclo['numero_ciclo']}",
-                ciclo['fecha_cierre'].strftime('%Y-%m-%d'),
-                f"${ciclo['total_ahorros']:,.2f}",
-                f"${ciclo['total_multas']:,.2f}",
-                f"${ciclo['total_prestamos']:,.2f}",
-                f"${ciclo['total_intereses']:,.2f}",
-                ciclo['miembros_activos'],
-                f"${ciclo['distribucion_por_miembro']:,.2f}"
-            ])
-        
+        writer.writerow(['Error', 'Al generar', 'CSV', 'Contacte', 'Al administrador', '', '', ''])
         return output.getvalue()
 
 # ======================================================
@@ -582,15 +588,18 @@ def mostrar_tab_ciclos_finalizados():
     """
     st.subheader("📊 Ciclos Finalizados del Grupo")
     
-    # Botón de descarga CSV SIEMPRE visible
-    csv_data = generar_csv_ciclos()
-    st.download_button(
-        label="📥 Descargar CSV de Ciclos",
-        data=csv_data,
-        file_name=f"ciclos_grupo_{datetime.now().strftime('%Y-%m-%d')}.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+    try:
+        # Botón de descarga CSV con manejo de errores
+        csv_data = generar_csv_ciclos()
+        st.download_button(
+            label="📥 Descargar CSV de Ciclos",
+            data=csv_data,
+            file_name=f"ciclos_grupo_{datetime.now().strftime('%Y-%m-%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"❌ Error al generar archivo CSV: {e}")
     
     st.markdown("---")
     
@@ -603,13 +612,13 @@ def mostrar_tab_ciclos_finalizados():
         for ciclo in ciclos:
             datos_tabla.append({
                 "Ciclo": f"Ciclo {ciclo['numero_ciclo']}",
-                "Fecha de Cierre": ciclo['fecha_cierre'].strftime('%Y-%m-%d'),
-                "Total Ahorros": f"${ciclo['total_ahorros']:,.2f}",
-                "Total Multas": f"${ciclo['total_multas']:,.2f}",
-                "Total Préstamos": f"${ciclo['total_prestamos']:,.2f}",
-                "Total Intereses": f"${ciclo['total_intereses']:,.2f}",
-                "Miembros Activos": ciclo['miembros_activos'],
-                "Distribución": f"${ciclo['distribucion_por_miembro']:,.2f}"
+                "Fecha de Cierre": ciclo['fecha_cierre'].strftime('%Y-%m-%d') if ciclo['fecha_cierre'] else 'N/A',
+                "Total Ahorros": f"${ciclo['total_ahorros']:,.2f}" if ciclo['total_ahorros'] is not None else '$0.00',
+                "Total Multas": f"${ciclo['total_multas']:,.2f}" if ciclo['total_multas'] is not None else '$0.00',
+                "Total Préstamos": f"${ciclo['total_prestamos']:,.2f}" if ciclo['total_prestamos'] is not None else '$0.00',
+                "Total Intereses": f"${ciclo['total_intereses']:,.2f}" if ciclo['total_intereses'] is not None else '$0.00',
+                "Miembros Activos": ciclo['miembros_activos'] if ciclo['miembros_activos'] is not None else 0,
+                "Distribución": f"${ciclo['distribucion_por_miembro']:,.2f}" if ciclo['distribucion_por_miembro'] is not None else '$0.00'
             })
         
         df_ciclos = pd.DataFrame(datos_tabla)
@@ -623,28 +632,29 @@ def mostrar_tab_ciclos_finalizados():
             st.metric("Total de Ciclos", len(ciclos))
         
         with col2:
-            total_intereses = sum(ciclo['total_intereses'] for ciclo in ciclos)
+            total_intereses = sum(ciclo['total_intereses'] for ciclo in ciclos if ciclo['total_intereses'] is not None)
             st.metric("Intereses Totales", f"${total_intereses:,.2f}")
         
         with col3:
-            promedio_distribucion = sum(ciclo['distribucion_por_miembro'] for ciclo in ciclos) / len(ciclos)
+            distribuciones_validas = [ciclo['distribucion_por_miembro'] for ciclo in ciclos if ciclo['distribucion_por_miembro'] is not None]
+            promedio_distribucion = sum(distribuciones_validas) / len(distribuciones_validas) if distribuciones_validas else 0
             st.metric("Distribución Promedio", f"${promedio_distribucion:,.2f}")
         
         # Mostrar detalles de cada ciclo en expanders
         st.write("### 🔍 Detalles por Ciclo")
         for ciclo in ciclos:
-            with st.expander(f"Ciclo {ciclo['numero_ciclo']} - {ciclo['fecha_cierre'].strftime('%d/%m/%Y')}"):
+            with st.expander(f"Ciclo {ciclo['numero_ciclo']} - {ciclo['fecha_cierre'].strftime('%d/%m/%Y') if ciclo['fecha_cierre'] else 'Fecha N/A'}"):
                 col_det1, col_det2 = st.columns(2)
                 
                 with col_det1:
-                    st.write(f"**Ahorros:** ${ciclo['total_ahorros']:,.2f}")
-                    st.write(f"**Multas:** ${ciclo['total_multas']:,.2f}")
-                    st.write(f"**Préstamos:** ${ciclo['total_prestamos']:,.2f}")
+                    st.write(f"**Ahorros:** ${ciclo['total_ahorros']:,.2f}" if ciclo['total_ahorros'] is not None else "**Ahorros:** $0.00")
+                    st.write(f"**Multas:** ${ciclo['total_multas']:,.2f}" if ciclo['total_multas'] is not None else "**Multas:** $0.00")
+                    st.write(f"**Préstamos:** ${ciclo['total_prestamos']:,.2f}" if ciclo['total_prestamos'] is not None else "**Préstamos:** $0.00")
                 
                 with col_det2:
-                    st.write(f"**Intereses:** ${ciclo['total_intereses']:,.2f}")
-                    st.write(f"**Miembros Activos:** {ciclo['miembros_activos']}")
-                    st.write(f"**Distribución:** ${ciclo['distribucion_por_miembro']:,.2f}")
+                    st.write(f"**Intereses:** ${ciclo['total_intereses']:,.2f}" if ciclo['total_intereses'] is not None else "**Intereses:** $0.00")
+                    st.write(f"**Miembros Activos:** {ciclo['miembros_activos']}" if ciclo['miembros_activos'] is not None else "**Miembros Activos:** 0")
+                    st.write(f"**Distribución:** ${ciclo['distribucion_por_miembro']:,.2f}" if ciclo['distribucion_por_miembro'] is not None else "**Distribución:** $0.00")
     
     else:
         st.info("ℹ️ No se ha finalizado ningún ciclo todavía. Ve a la pestaña 'Generar Cierre' para crear el primer ciclo.")
@@ -658,6 +668,11 @@ def mostrar_informacion_ciclo():
     Función principal con estructura de tabs
     """
     st.header("🔒 Cierre de Ciclo - Resumen Financiero")
+    
+    # Verificar si hay reunión activa
+    if 'reunion_actual' not in st.session_state:
+        st.error("❌ No hay reunión activa seleccionada. Por favor, selecciona una reunión primero.")
+        return
     
     # Crear tabs - SIEMPRE VISIBLES
     tab1, tab2 = st.tabs(["📋 Generar Cierre de Ciclo", "📊 Ciclos Finalizados"])
