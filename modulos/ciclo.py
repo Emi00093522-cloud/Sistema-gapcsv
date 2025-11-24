@@ -309,7 +309,7 @@ def obtener_ciclos_historicos():
 
 def generar_csv_ciclos():
     """
-    Genera archivo CSV con todos los ciclos históricos (alternativa a Excel)
+    Genera archivo CSV con todos los ciclos históricos
     """
     ciclos = obtener_ciclos_historicos()
     
@@ -558,10 +558,11 @@ def mostrar_ciclos_historicos():
     """
     st.subheader("📊 Histórico de Ciclos Cerrados")
     
-    # Botón de descarga CSV SIEMPRE visible (alternativa a Excel)
+    # Botón de descarga CSV SIEMPRE visible
+    csv_data = generar_csv_ciclos()
     st.download_button(
         label="📥 Descargar CSV de Ciclos",
-        data=generar_csv_ciclos(),
+        data=csv_data,
         file_name=f"ciclos_grupo_{datetime.now().strftime('%Y-%m-%d')}.csv",
         mime="text/csv",
         use_container_width=True
