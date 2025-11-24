@@ -78,13 +78,6 @@ def panel_admin(usuario, dui):
     # Menú con todas las funciones de Promotora y Secretaría
     menu = st.tabs([
         "Distritos", 
-        "Crear Grupo", 
-        "Miembros", 
-        "Reglamentos", 
-        "Reuniones", 
-        "Cierre de Ciclo", 
-        "Préstamos", 
-        "Ahorros"
     ])
 
     with menu[0]:
