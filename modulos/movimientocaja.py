@@ -78,7 +78,7 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
         return 0
 
 # =====================================================================================
-#  OBTENER TOTALES POR REUNIÓN - SIMPLIFICADO
+#  OBTENER TOTALES POR REUNIÓN - CON NOMBRES CORRECTOS
 # =====================================================================================
 
 def obtener_totales_reunion(cursor, id_reunion):
@@ -111,10 +111,10 @@ def obtener_totales_reunion(cursor, id_reunion):
                 'descripcion': 'Total de ahorros de los miembros'
             })
 
-        # 2) TOTAL PAGOS PRÉSTAMOS (INGRESO)
+        # 2) TOTAL PAGOS PRÉSTAMOS (INGRESO) - Usando total_cancelado
         try:
             cursor.execute("""
-                SELECT COALESCE(SUM(monto_pagado), 0) as total
+                SELECT COALESCE(SUM(total_cancelado), 0) as total
                 FROM Pago_prestamo 
                 WHERE ID_Reunion = %s
             """, (id_reunion,))
@@ -126,17 +126,17 @@ def obtener_totales_reunion(cursor, id_reunion):
                 totales['detalle_ingresos'].append({
                     'concepto': 'Pagos de Préstamos',
                     'monto': total_pagos_prestamos,
-                    'descripcion': 'Total de pagos recibidos de préstamos'
+                    'descripcion': 'Total de pagos recibidos de préstamos (capital + interés)'
                 })
         except Exception as e:
             st.warning(f"ℹ️ No se pudieron obtener pagos de préstamos: {e}")
 
-        # 3) TOTAL PAGOS MULTAS (INGRESO)
+        # 3) TOTAL PAGOS MULTAS (INGRESO) - Usando ID_Reunion_pago
         try:
             cursor.execute("""
                 SELECT COALESCE(SUM(monto_pagado), 0) as total
                 FROM PagoMulta 
-                WHERE ID_Reunion = %s
+                WHERE ID_Reunion_pago = %s
             """, (id_reunion,))
             resultado = cursor.fetchone()
             total_pagos_multas = float(resultado['total']) if resultado else 0
@@ -225,6 +225,16 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
                 st.caption(egreso['descripcion'])
             with col2:
                 st.error(f"📤 ${egreso['monto']:,.2f}")
+
+    # Mostrar información de consultas ejecutadas
+    with st.expander("🔍 Ver consultas ejecutadas"):
+        st.write("**Consultas utilizadas:**")
+        st.code("""
+        -- Ahorros: SUM(Monto_Ahorro) FROM Ahorro WHERE ID_Reunion = ?
+        -- Pagos Préstamos: SUM(total_cancelado) FROM Pago_prestamo WHERE ID_Reunion = ?
+        -- Pagos Multas: SUM(monto_pagado) FROM PagoMulta WHERE ID_Reunion_pago = ?
+        -- Préstamos: SUM(monto) FROM Prestamo WHERE ID_Reunion = ? AND ID_Estado_prestamo = 1
+        """)
 
     # Botón para guardar el resumen en la base de datos
     st.divider()
