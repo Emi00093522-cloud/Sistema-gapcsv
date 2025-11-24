@@ -53,7 +53,6 @@ def mostrar_movimiento_caja():
 # =====================================================================================
 
 def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
-
     try:
         cursor.execute("""
             SELECT ID_Reunion
@@ -89,21 +88,20 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
 # =====================================================================================
 
 def obtener_tipo_movimiento_id(cursor, tipo_ingreso_egreso, categoria):
-
     try:
         cursor.execute("""
             SELECT ID_Tipo_movimiento 
             FROM Tipo_de_movimiento
-            WHERE tipo = %s AND nombre = %s
-        """, (tipo_ingreso_egreso, categoria))
+            WHERE nombre = %s
+        """, (categoria,))
 
         resultado = cursor.fetchone()
 
-        return resultado['ID_Tipo_movimiento'] if resultado else None
+        return resultado['ID_Tipo_movimiento'] if resultado else 1
 
     except Exception as e:
         st.error(f"Error al obtener ID_Tipo_movimiento: {e}")
-        return None
+        return 1
 
 # =====================================================================================
 #  OBTENER TODOS LOS MOVIMIENTOS AUTOMÁTICOS
@@ -115,7 +113,7 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
     try:
         # 1) AHORROS - INGRESO
         cursor.execute("""
-            SELECT Monto_Ahorro AS monto, Fecha_Ahorro AS fecha,
+            SELECT Monto_Ahorro AS monto, NOW() AS fecha,
                    'Ahorro' AS categoria,
                    CONCAT('Ahorro de ', m.Nombre) AS descripcion,
                    'Ingreso' AS tipo_ingreso_egreso
@@ -126,13 +124,13 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
         ahorros = cursor.fetchall()
 
         for mov in ahorros:
-            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Ingreso", "Ahorro") or 1
+            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Ingreso", "Ahorro")
 
         movimientos.extend(ahorros)
 
         # 2) PRÉSTAMOS - EGRESO
         cursor.execute("""
-            SELECT Monto_Prestamo AS monto, Fecha_Desembolso AS fecha,
+            SELECT Monto_Prestamo AS monto, NOW() AS fecha,
                    'Préstamo' AS categoria,
                    CONCAT('Préstamo para ', m.Nombre) AS descripcion,
                    'Egreso' AS tipo_ingreso_egreso
@@ -143,13 +141,13 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
         prestamos = cursor.fetchall()
 
         for mov in prestamos:
-            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Egreso", "Préstamo") or 1
+            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Egreso", "Préstamo")
 
         movimientos.extend(prestamos)
 
         # 3) PAGO PRÉSTAMO - INGRESO
         cursor.execute("""
-            SELECT Monto_Pagado AS monto, Fecha_Pago AS fecha,
+            SELECT Monto_Pagado AS monto, NOW() AS fecha,
                    'Pago Préstamo' AS categoria,
                    CONCAT('Pago préstamo de ', m.Nombre) AS descripcion,
                    'Ingreso' AS tipo_ingreso_egreso
@@ -161,13 +159,13 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
         pagos_prestamo = cursor.fetchall()
 
         for mov in pagos_prestamo:
-            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Ingreso", "Pago Préstamo") or 1
+            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Ingreso", "Pago Préstamo")
 
         movimientos.extend(pagos_prestamo)
 
         # 4) PAGO MULTA - INGRESO
         cursor.execute("""
-            SELECT Monto_Pagado AS monto, Fecha_Pago AS fecha,
+            SELECT Monto_Pagado AS monto, NOW() AS fecha,
                    'Pago Multa' AS categoria,
                    CONCAT('Pago multa de ', m.Nombre) AS descripcion,
                    'Ingreso' AS tipo_ingreso_egreso
@@ -179,7 +177,7 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
         pagos_multas = cursor.fetchall()
 
         for mov in pagos_multas:
-            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Ingreso", "Pago Multa") or 1
+            mov["ID_Tipo_movimiento"] = obtener_tipo_movimiento_id(cursor, "Ingreso", "Pago Multa")
 
         movimientos.extend(pagos_multas)
 
@@ -194,20 +192,15 @@ def obtener_movimientos_automaticos(cursor, id_reunion):
 # =====================================================================================
 
 def actualizar_saldos_finales(cursor, con, id_reunion, movimientos, saldo_anterior):
-
     try:
+        # Eliminar movimientos existentes para esta reunión
         cursor.execute("DELETE FROM Movimiento_de_caja WHERE ID_Reunion = %s", (id_reunion,))
 
-        # Normalizar fechas
-        for mov in movimientos:
-            if isinstance(mov["fecha"], str):
-                mov["fecha"] = datetime.fromisoformat(mov["fecha"])
-            elif not isinstance(mov["fecha"], datetime):
-                mov["fecha"] = datetime.combine(mov["fecha"], datetime.min.time())
-
-        movimientos = sorted(movimientos, key=lambda x: x["fecha"])
+        # Usar fecha actual para todos los movimientos
+        fecha_actual = datetime.now()
         saldo_actual = saldo_anterior
 
+        # Insertar movimientos y calcular saldo
         for mov in movimientos:
             monto = float(mov["monto"])
 
@@ -226,7 +219,7 @@ def actualizar_saldos_finales(cursor, con, id_reunion, movimientos, saldo_anteri
                 monto,
                 mov["categoria"],
                 mov["descripcion"],
-                mov["fecha"].strftime("%Y-%m-%d %H:%M:%S"),
+                fecha_actual,
                 saldo_actual
             ))
 
@@ -243,7 +236,6 @@ def actualizar_saldos_finales(cursor, con, id_reunion, movimientos, saldo_anteri
 # =====================================================================================
 
 def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
-
     st.subheader("📊 Resumen Automático de Caja")
 
     movimientos = obtener_movimientos_automaticos(cursor, id_reunion)
@@ -253,49 +245,88 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
         return
 
     if st.button("🔄 Calcular Movimientos Automáticos", type="primary"):
+        with st.spinner("Calculando movimientos..."):
+            saldo_final = actualizar_saldos_finales(cursor, con, id_reunion, movimientos, saldo_anterior)
 
-        saldo_final = actualizar_saldos_finales(cursor, con, id_reunion, movimientos, saldo_anterior)
+            total_ingresos = sum(float(mov["monto"]) for mov in movimientos if mov["tipo_ingreso_egreso"] == "Ingreso")
+            total_egresos = sum(float(mov["monto"]) for mov in movimientos if mov["tipo_ingreso_egreso"] == "Egreso")
 
-        total_ingresos = sum(float(mov["monto"]) for mov in movimientos if mov["tipo_ingreso_egreso"] == "Ingreso")
-        total_egresos = sum(float(mov["monto"]) for mov in movimientos if mov["tipo_ingreso_egreso"] == "Egreso")
+            # Mostrar métricas
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("💰 Saldo Inicial", f"${saldo_anterior:,.2f}")
+            with col2:
+                st.metric("📈 Total Ingresos", f"${total_ingresos:,.2f}")
+            with col3:
+                st.metric("📉 Total Egresos", f"${total_egresos:,.2f}")
+            with col4:
+                st.metric("💵 Saldo Final", f"${saldo_final:,.2f}")
 
-        st.metric("💰 Saldo Inicial", f"${saldo_anterior:,.2f}")
-        st.metric("📈 Total Ingresos", f"${total_ingresos:,.2f}")
-        st.metric("📉 Total Egresos", f"${total_egresos:,.2f}")
-        st.metric("💵 Saldo Final", f"${saldo_final:,.2f}")
+            st.success("✔️ Movimientos actualizados correctamente.")
 
-        st.success("✔️ Movimientos actualizados correctamente.")
+            # Mostrar resumen de movimientos
+            st.subheader("📋 Resumen de Movimientos Procesados")
+            for mov in movimientos:
+                tipo_icono = "⬆️" if mov["tipo_ingreso_egreso"] == "Ingreso" else "⬇️"
+                st.write(f"{tipo_icono} **{mov['descripcion']}** - ${mov['monto']:,.2f}")
 
 # =====================================================================================
 #  DETALLE DE MOVIMIENTOS
 # =====================================================================================
 
 def detalle_movimientos(cursor, id_reunion, saldo_anterior):
-
     st.subheader("📋 Detalle de Movimientos")
 
-    cursor.execute("""
-        SELECT mc.*, tm.tipo, tm.nombre AS nombre_movimiento
-        FROM Movimiento_de_caja mc
-        JOIN Tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
-        WHERE mc.ID_Reunion = %s
-        ORDER BY mc.fecha ASC, mc.ID_Movimiento_caja ASC
-    """, (id_reunion,))
+    try:
+        cursor.execute("""
+            SELECT mc.*, tm.nombre AS nombre_movimiento
+            FROM Movimiento_de_caja mc
+            JOIN Tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
+            WHERE mc.ID_Reunion = %s
+            ORDER BY mc.fecha ASC, mc.ID_Movimiento_caja ASC
+        """, (id_reunion,))
 
-    movimientos = cursor.fetchall()
+        movimientos = cursor.fetchall()
 
-    if not movimientos:
-        st.info("No hay movimientos cargados todavía.")
-        return
+        if not movimientos:
+            st.info("No hay movimientos cargados todavía.")
+            return
 
-    st.write("**Saldo Inicial:**", f"${saldo_anterior:,.2f}")
-    st.divider()
-
-    for mov in movimientos:
-        st.write(f"**{mov['descripcion']}** — {mov['tipo']} — ${mov['monto']:,.2f} — 💰 {mov['saldo_final']:,.2f}")
-        st.caption(f"📅 {mov['fecha']} — {mov['nombre_movimiento']}")
+        st.write("**Saldo Inicial:**", f"${saldo_anterior:,.2f}")
         st.divider()
 
+        saldo_actual = saldo_anterior
+        
+        for mov in movimientos:
+            # Determinar el tipo basado en la categoría
+            categoria = mov['categoria']
+            if categoria in ['Préstamo']:
+                tipo = "Egreso"
+                icono = "📤"
+                color = "red"
+            else:
+                tipo = "Ingreso"
+                icono = "💹"
+                color = "green"
+            
+            # Calcular saldo actual
+            if tipo == "Ingreso":
+                saldo_actual += float(mov['monto'])
+            else:
+                saldo_actual -= float(mov['monto'])
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{mov['descripcion']}**")
+                st.caption(f"📅 {mov['fecha']} — {mov['nombre_movimiento']} — {tipo}")
+            with col2:
+                st.write(f"<span style='color:{color}'>{icono} ${mov['monto']:,.2f}</span>", unsafe_allow_html=True)
+                st.write(f"💰 **${saldo_actual:,.2f}**")
+            
+            st.divider()
+
+    except Exception as e:
+        st.error(f"❌ Error al cargar detalle de movimientos: {e}")
 
 # =====================================================================================
 #  EJECUTABLE
