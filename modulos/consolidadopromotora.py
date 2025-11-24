@@ -21,6 +21,53 @@ def verificar_modulos():
         return False
 
 # =============================================
+#  OBTENER DATOS DEL USUARIO PROMOTORA
+# =============================================
+
+def obtener_id_promotora_desde_usuario():
+    """
+    Obtiene el ID de promotora basado en el usuario logueado.
+    Esto asume que hay una relación entre usuarios y promotoras.
+    """
+    try:
+        # Obtener el ID del usuario logueado desde session_state
+        id_usuario = st.session_state.get("id_usuario")
+        if not id_usuario:
+            st.error("❌ No hay usuario logueado")
+            return None
+        
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        # Buscar la promotora asociada a este usuario
+        cursor.execute("""
+            SELECT p.ID_Promotora 
+            FROM Promotora p 
+            WHERE p.ID_Usuario = %s
+        """, (id_usuario,))
+        
+        resultado = cursor.fetchone()
+        cursor.close()
+        con.close()
+        
+        if resultado:
+            return resultado['ID_Promotora']
+        else:
+            st.error("❌ El usuario no está asociado a una promotora")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Error obteniendo ID de promotora: {e}")
+        return None
+
+def verificar_es_promotora():
+    """Verifica que el usuario logueado sea una promotora."""
+    id_promotora = obtener_id_promotora_desde_usuario()
+    return id_promotora is not None
+
+# =============================================
 #  OBTENER GRUPOS DE LA PROMOTORA
 # =============================================
 
@@ -35,7 +82,7 @@ def obtener_grupos_promotora(id_promotora):
         cursor.execute("""
             SELECT 
                 g.ID_Grupo,
-                g.nombre_grupo,
+                g.nombre as nombre_grupo,
                 g.fecha_creacion,
                 COUNT(m.ID_Miembro) as total_miembros
             FROM Grupo g
@@ -318,7 +365,7 @@ def crear_grafica_composicion_ingresos(df_detalle):
         color_discrete_sequence=px.colors.qualitative.Set3
     )
     
-    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_trace(textposition='inside', textinfo='percent+label')
     return fig
 
 def crear_grafica_barras_comparativa(df_grupos):
@@ -366,13 +413,13 @@ def mostrar_consolidado_promotora():
     st.title("📊 Consolidado Mensual - Promotora")
     
     # Verificar que el usuario sea promotora
-    if st.session_state.get("user_type") != "promotora":
+    if not verificar_es_promotora():
         st.error("🔒 Esta funcionalidad es exclusiva para promotoras.")
+        st.info("ℹ️ Tu usuario no está asociado a una promotora o no tienes grupos asignados.")
         return
     
-    id_promotora = st.session_state.get("user_id")
+    id_promotora = obtener_id_promotora_desde_usuario()
     if not id_promotora:
-        st.error("❌ No se pudo identificar a la promotora.")
         return
     
     # Obtener grupos de la promotora
@@ -552,9 +599,12 @@ def mostrar_vista_comparativa(grupos, año):
 # =============================================
 
 if __name__ == "__main__":
-    # Para testing - simular sesión de promotora
-    if "user_type" not in st.session_state:
-        st.session_state.user_type = "promotora"
-        st.session_state.user_id = 1  # ID de promotora de ejemplo
-    
+    # Para testing - simular que hay un usuario logueado
+    if "id_usuario" not in st.session_state:
+        st.warning("⚠️ Para probar, necesitas simular un usuario logueado")
+        st.info("ℹ️ En tu app real, esto vendrá de tu sistema de autenticación")
+        
+        # Simular usuario de prueba (eliminar en producción)
+        st.session_state.id_usuario = 1
+        
     mostrar_consolidado_promotora()
