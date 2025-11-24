@@ -32,6 +32,11 @@ def verificar_usuario(usuario, contrasena):
 
         cursor.execute(query, (usuario, contrasena_hash))
         result = cursor.fetchone()
+        
+        # Debug: mostrar datos obtenidos
+        if result:
+            st.write(f"🔍 Debug - Datos usuario: {result}")
+            
         return result
 
     except Exception as e:
@@ -175,21 +180,37 @@ def login():
                 id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
                 st.session_state["id_grupo"] = id_grupo
 
-                # (Opcional) Debug temporal
-                # st.write("Debug - id_grupo:", id_grupo)
+                # Debug temporal para verificar datos
+                st.write(f"🔍 Debug - Tipo de usuario: {datos_usuario['tipo_usuario']}")
+                st.write(f"🔍 Debug - Cargo: {datos_usuario['cargo']}")
+                st.write(f"🔍 Debug - ID Grupo: {id_grupo}")
 
-                # Obtener permisos
+                # Obtener permisos - MANEJO ESPECÍFICO PARA ADMINISTRADOR
                 from modulos.permisos import obtener_permisos_usuario
-                permisos = obtener_permisos_usuario(
-                    datos_usuario["ID_Usuario"],
-                    datos_usuario["tipo_usuario"],
-                    datos_usuario["cargo"]
-                )
+                
+                # Si es administrador, asignar permisos completos
+                if datos_usuario['tipo_usuario'].lower() == 'administrador':
+                    permisos = {
+                        'ver_panel_administrador': True,
+                        'gestionar_usuarios': True,
+                        'gestionar_grupos': True,
+                        'ver_reportes': True,
+                        'gestionar_todo': True
+                    }
+                    st.session_state["es_administrador"] = True
+                else:
+                    permisos = obtener_permisos_usuario(
+                        datos_usuario["ID_Usuario"],
+                        datos_usuario["tipo_usuario"],
+                        datos_usuario["cargo"]
+                    )
+                    st.session_state["es_administrador"] = False
+                
                 st.session_state["permisos_usuario"] = permisos
 
                 st.success(
                     f"Bienvenido, {datos_usuario['Usuario']} 👋 "
-                    f"(Cargo: {datos_usuario['cargo']})"
+                    f"(Tipo: {datos_usuario['tipo_usuario']}, Cargo: {datos_usuario['cargo']})"
                 )
 
                 st.rerun()
