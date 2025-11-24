@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import sys
 import os
 from io import BytesIO
+import csv
 
 # Agregar la ruta de tus módulos
 sys.path.append(os.path.dirname(__file__))
@@ -306,41 +307,47 @@ def obtener_ciclos_historicos():
         # Si la tabla no existe, retornar lista vacía
         return []
 
-def generar_excel_ciclos():
+def generar_csv_ciclos():
     """
-    Genera archivo Excel con todos los ciclos históricos
+    Genera archivo CSV con todos los ciclos históricos (alternativa a Excel)
     """
     ciclos = obtener_ciclos_historicos()
     
     if not ciclos:
-        # Crear DataFrame vacío si no hay ciclos
-        df = pd.DataFrame(columns=[
+        # Crear CSV vacío si no hay ciclos
+        output = BytesIO()
+        writer = csv.writer(output)
+        writer.writerow([
             'Fecha Cierre', 'Total Ahorros', 'Total Multas', 
             'Total Préstamos', 'Total Intereses', 'Miembros Activos', 
             'Distribución por Miembro'
         ])
+        return output.getvalue()
     else:
-        # Crear DataFrame con los ciclos
-        datos = []
-        for ciclo in ciclos:
-            datos.append({
-                'Fecha Cierre': ciclo['fecha_cierre'].strftime('%Y-%m-%d'),
-                'Total Ahorros': f"${ciclo['total_ahorros']:,.2f}",
-                'Total Multas': f"${ciclo['total_multas']:,.2f}",
-                'Total Préstamos': f"${ciclo['total_prestamos']:,.2f}",
-                'Total Intereses': f"${ciclo['total_intereses']:,.2f}",
-                'Miembros Activos': ciclo['miembros_activos'],
-                'Distribución por Miembro': f"${ciclo['distribucion_por_miembro']:,.2f}"
-            })
+        # Crear CSV con los ciclos
+        output = BytesIO()
+        writer = csv.writer(output)
         
-        df = pd.DataFrame(datos)
-    
-    # Crear archivo Excel en memoria
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Ciclos Cerrados', index=False)
-    
-    return output.getvalue()
+        # Escribir encabezados
+        writer.writerow([
+            'Fecha Cierre', 'Total Ahorros', 'Total Multas', 
+            'Total Préstamos', 'Total Intereses', 'Miembros Activos', 
+            'Distribución por Miembro'
+        ])
+        
+        # Escribir datos
+        for ciclo in ciclos:
+            writer.writerow([
+                ciclo['fecha_cierre'].strftime('%Y-%m-%d'),
+                f"${ciclo['total_ahorros']:,.2f}",
+                f"${ciclo['total_multas']:,.2f}",
+                f"${ciclo['total_prestamos']:,.2f}",
+                f"${ciclo['total_intereses']:,.2f}",
+                ciclo['miembros_activos'],
+                f"${ciclo['distribucion_por_miembro']:,.2f}"
+            ])
+        
+        return output.getvalue()
 
 def mostrar_generar_cierre():
     """
@@ -551,12 +558,12 @@ def mostrar_ciclos_historicos():
     """
     st.subheader("📊 Histórico de Ciclos Cerrados")
     
-    # Botón de descarga Excel SIEMPRE visible
+    # Botón de descarga CSV SIEMPRE visible (alternativa a Excel)
     st.download_button(
-        label="📥 Descargar Excel de Ciclos",
-        data=generar_excel_ciclos(),
-        file_name=f"ciclos_grupo_{datetime.now().strftime('%Y-%m-%d')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        label="📥 Descargar CSV de Ciclos",
+        data=generar_csv_ciclos(),
+        file_name=f"ciclos_grupo_{datetime.now().strftime('%Y-%m-%d')}.csv",
+        mime="text/csv",
         use_container_width=True
     )
     
