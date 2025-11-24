@@ -218,7 +218,7 @@ def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
         
         # Agregar filtro de fechas si se proporcionan
         if fecha_inicio and fecha_fin:
-            query += " AND (p.fecha_solicitud BETWEEN %s AND %s OR p.fecha BETWEEN %s AND %s)"
+            query += " AND (p.fecha_desembolso BETWEEN %s AND %s OR p.fecha BETWEEN %s AND %s)"
             params.extend([fecha_inicio, fecha_fin, fecha_inicio, fecha_fin])
         
         cursor.execute(query, tuple(params))
