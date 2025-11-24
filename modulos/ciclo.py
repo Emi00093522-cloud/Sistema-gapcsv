@@ -50,13 +50,13 @@ def verificar_grupo_usuario():
     return True
 
 # =============================================
-#  AHORROS
+#  AHORROS - FUNCIÓN CORREGIDA
 # =============================================
 
 def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene los ahorros totales por miembro dentro del rango de fechas
-    PARA EL GRUPO DEL USUARIO. El filtro se hace por Ahorro.fecha.
+    PARA EL GRUPO DEL USUARIO. El filtro se hace por Reunion.fecha.
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -77,17 +77,17 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
                 COALESCE(SUM(a.monto_otros), 0)                  AS total_otros,
                 COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) AS total_general
             FROM Miembro m
-            LEFT JOIN Ahorro a 
-                ON m.ID_Miembro = a.ID_Miembro
+            LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
+            LEFT JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
             WHERE m.ID_Grupo = %s
               AND m.ID_Estado = 1
         """
         
         params = [id_grupo]
         
-        # 🔎 Filtro por rango de fechas del CICLO (fecha_ahorro)
+        # 🔎 Filtro por rango de fechas del CICLO (fecha de la REUNIÓN)
         if fecha_inicio and fecha_fin:
-            query += " AND a.fecha BETWEEN %s AND %s"
+            query += " AND r.fecha BETWEEN %s AND %s"
             params.extend([fecha_inicio, fecha_fin])
         
         query += """
