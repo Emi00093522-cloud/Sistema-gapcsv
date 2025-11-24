@@ -89,17 +89,19 @@ def mostrar_asistencia():
                 # Nombre
                 col1.write(nombre)
 
-                # ----- MENÚ: SI / NO / JUSTIFICACIÓN -----
+                # ----- MENÚ: SI / NO / LLEGADA TARDÍA / JUSTIFICACIÓN -----
                 if asistio_prev == 1:
                     idx = 0  # SI
+                elif asistio_prev == 2:  # LLEGADA TARDÍA
+                    idx = 2
                 elif just_prev and asistio_prev == 0:
-                    idx = 2  # JUSTIFICACIÓN
+                    idx = 3  # JUSTIFICACIÓN
                 else:
                     idx = 1  # NO
 
                 asistio = col2.selectbox(
                     "Asistió",
-                    ["SI", "NO", "JUSTIFICACIÓN"],
+                    ["SI", "NO", "LLEGADA TARDÍA", "JUSTIFICACIÓN"],
                     index=idx,
                     key=f"asistio_{id_miembro}"
                 )
@@ -115,7 +117,14 @@ def mostrar_asistencia():
                 else:
                     col3.write("—")
 
-                checkboxes[id_miembro] = 1 if asistio == "SI" else 0
+                # Mapear opciones a valores numéricos
+                if asistio == "SI":
+                    checkboxes[id_miembro] = 1
+                elif asistio == "LLEGADA TARDÍA":
+                    checkboxes[id_miembro] = 2
+                else:  # NO o JUSTIFICACIÓN
+                    checkboxes[id_miembro] = 0
+                    
                 justificaciones[id_miembro] = justificacion
 
             guardar = st.form_submit_button("💾 Guardar asistencia")
@@ -124,6 +133,7 @@ def mostrar_asistencia():
             try:
                 for id_miembro in checkboxes.keys():
                     asistio_val = checkboxes[id_miembro]
+                    # Solo guardar justificación para NO o JUSTIFICACIÓN (asistio_val = 0)
                     just_val = justificaciones[id_miembro] if asistio_val == 0 else ""
 
                     # ¿Existe ya?
@@ -149,11 +159,11 @@ def mostrar_asistencia():
 
                 con.commit()
 
-                # Contar presentes
+                # Contar presentes (SI + LLEGADA TARDÍA)
                 cursor.execute("""
                     SELECT COUNT(*)
                     FROM Miembroxreunion
-                    WHERE ID_Reunion = %s AND asistio = 1
+                    WHERE ID_Reunion = %s AND (asistio = 1 OR asistio = 2)
                 """, (id_reunion,))
                 total_presentes = cursor.fetchone()[0]
 
