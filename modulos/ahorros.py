@@ -185,17 +185,19 @@ def mostrar_ahorros():
             st.markdown("### 💰 Control de Ahorros")
             
             # ENCABEZADO DE LA TABLA - UNA SOLA FILA PARA LOS TÍTULOS
-            cols_titulos = st.columns([2, 1, 1, 1, 1,1])
+            cols_titulos = st.columns([2, 1, 1, 1, 1, 1])
             with cols_titulos[0]:
                 st.markdown("**Socios/as**")
             with cols_titulos[1]:
-                st.markdown("**Saldo mín inicial**")
+                st.markdown("**Saldo inicial**")
             with cols_titulos[2]:
                 st.markdown("**Ahorro**")
             with cols_titulos[3]:
                 st.markdown("**Otras actividades**")
             with cols_titulos[4]:
                 st.markdown("**Retiros**")
+            with cols_titulos[5]:
+                st.markdown("**Saldo final**")
 
             # Diccionarios para almacenar los datos de cada miembro
             ahorros_data = {}
@@ -203,7 +205,8 @@ def mostrar_ahorros():
             retiros_data = {}
             saldos_iniciales = {}
             retiros_activados = {}
-            montos_retiro_calculados = {}  # Nuevo: para guardar el cálculo del retiro
+            montos_retiro_calculados = {}
+            saldos_finales = {}
 
             # FILAS PARA CADA MIEMBRO - UNA FILA POR MIEMBRO
             for id_miembro, nombre_miembro in miembros_presentes:
@@ -269,31 +272,40 @@ def mostrar_ahorros():
                     retiros_activados[id_miembro] = retiro_activado
                     
                     if retiro_activado:
-                        # OBTENER LOS TOTALES ACUMULADOS DE REUNIONES PASADAS (EXCLUYENDO LA ACTUAL)
-                        total_ahorros_pasados, total_otros_pasados = obtener_total_acumulado_miembro(id_miembro, fecha_reunion_actual)
+                        # CALCULAR RETIRO: Saldo Inicial + Ahorros actuales + Otros actuales
+                        monto_retiros_calculado = saldo_inicial + monto_ahorro + monto_otros
                         
-                        # INCLUIR LOS DATOS DE ESTA REUNIÓN TAMBIÉN
-                        total_ahorros_acumulados = total_ahorros_pasados + monto_ahorro
-                        total_otros_acumulados = total_otros_pasados + monto_otros
-                        
-                        # Calcular retiro: Saldo Inicial + Total Ahorros - Total Otros
-                        monto_retiros_calculado = saldo_inicial + total_ahorros_acumulados - total_otros_acumulados
-                        
-                        # Asegurarse de que no sea negativo
-                        monto_retiros_calculado = max(0.00, monto_retiros_calculado)
-                        
-                        # Mostrar el monto de retiro calculado (SOLO PARA MOSTRAR)
+                        # Mostrar el monto de retiro calculado
                         st.error(f"**-${monto_retiros_calculado:,.2f}**")
                         
-                        # Guardar el cálculo del retiro (pero NO restarlo del saldo)
+                        # Guardar el cálculo del retiro
                         montos_retiro_calculados[id_miembro] = monto_retiros_calculado
-                        retiros_data[id_miembro] = 0.00  # NO restar del cálculo normal
+                        retiros_data[id_miembro] = monto_retiros_calculado
                     else:
                         monto_retiros = 0.00
                         st.info("**$0.00**")
                         retiros_data[id_miembro] = 0.00
                         montos_retiro_calculados[id_miembro] = 0.00
                 
+                with cols[5]:
+                    # CALCULAR Y MOSTRAR SALDO FINAL
+                    if retiro_activado:
+                        # Si hay retiro: Saldo Inicial + Ahorros + Otros - Retiro Total
+                        saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros_calculados.get(id_miembro, 0)
+                    else:
+                        # Sin retiro: Saldo Inicial + Ahorros + Otros
+                        saldo_final = saldo_inicial + monto_ahorro + monto_otros
+                    
+                    saldos_finales[id_miembro] = saldo_final
+                    
+                    # Mostrar saldo final con color según el resultado
+                    if saldo_final == 0 and retiro_activado:
+                        st.success(f"**${saldo_final:,.2f}** 🏁")
+                    elif saldo_final < 0:
+                        st.error(f"**${saldo_final:,.2f}**")
+                    else:
+                        st.success(f"**${saldo_final:,.2f}**")
+
                 # Línea separadora entre miembros
                 st.markdown("---")
 
@@ -307,16 +319,13 @@ def mostrar_ahorros():
                     for id_miembro, nombre_miembro in miembros_presentes:
                         monto_ahorro = ahorros_data.get(id_miembro, 0)
                         monto_otros = otros_data.get(id_miembro, 0)
-                        monto_retiros = retiros_data.get(id_miembro, 0)  # Siempre 0 cuando hay retiro activado
+                        monto_retiros = retiros_data.get(id_miembro, 0)
                         saldo_inicial = saldos_iniciales.get(id_miembro, 0)
                         retiro_activado = retiros_activados.get(id_miembro, False)
-                        monto_retiro_calculado = montos_retiro_calculados.get(id_miembro, 0)
-                        
-                        # CALCULAR EL SALDO FINAL - SIEMPRE NORMAL (sin restar el retiro calculado)
-                        saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
+                        saldo_final = saldos_finales.get(id_miembro, 0)
                         
                         # Solo guardar si hay al menos un monto ingresado o retiro
-                        if monto_ahorro > 0 or monto_otros > 0 or monto_retiro_calculado > 0:
+                        if monto_ahorro > 0 or monto_otros > 0 or monto_retiros > 0:
                             # Verificar si ya existe un registro para este miembro en esta reunión
                             cursor.execute("""
                                 SELECT COUNT(*) FROM Ahorro 
@@ -335,12 +344,12 @@ def mostrar_ahorros():
                                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                                 """, (
                                     id_miembro, id_reunion, fecha_ahorro, 
-                                    monto_ahorro, monto_otros, monto_retiro_calculado,  # Guardar el retiro calculado
+                                    monto_ahorro, monto_otros, monto_retiros,
                                     saldo_final, saldo_inicial
                                 ))
                                 registros_guardados += 1
                                 if retiro_activado:
-                                    st.success(f"✅ {nombre_miembro}: ${saldo_inicial:,.2f} + ${monto_ahorro:,.2f} + ${monto_otros:,.2f} = ${saldo_final:,.2f} | Retiro: ${monto_retiro_calculado:,.2f}")
+                                    st.success(f"✅ {nombre_miembro}: ${saldo_inicial:,.2f} + ${monto_ahorro:,.2f} + ${monto_otros:,.2f} - ${monto_retiros:,.2f} = ${saldo_final:,.2f} (RETIRADO)")
                                 else:
                                     st.success(f"✅ {nombre_miembro}: ${saldo_inicial:,.2f} + ${monto_ahorro:,.2f} + ${monto_otros:,.2f} = ${saldo_final:,.2f}")
                             else:
@@ -351,13 +360,13 @@ def mostrar_ahorros():
                                         saldos_ahorros = %s, saldo_inicial = %s, fecha = %s
                                     WHERE ID_Miembro = %s AND ID_Reunion = %s
                                 """, (
-                                    monto_ahorro, monto_otros, monto_retiro_calculado,  # Guardar el retiro calculado
+                                    monto_ahorro, monto_otros, monto_retiros,
                                     saldo_final, saldo_inicial, fecha_ahorro,
                                     id_miembro, id_reunion
                                 ))
                                 registros_guardados += 1
                                 if retiro_activado:
-                                    st.success(f"✅ {nombre_miembro}: Registro actualizado - Saldo: ${saldo_final:,.2f} | Retiro: ${monto_retiro_calculado:,.2f}")
+                                    st.success(f"✅ {nombre_miembro}: Registro actualizado - ${saldo_inicial:,.2f} + ${monto_ahorro:,.2f} + ${monto_otros:,.2f} - ${monto_retiros:,.2f} = ${saldo_final:,.2f} (RETIRADO)")
                                 else:
                                     st.success(f"✅ {nombre_miembro}: Registro actualizado - ${saldo_final:,.2f}")
 
