@@ -166,7 +166,7 @@ if st.session_state["sesion_iniciada"]:
         panel_presidente()
     elif tipo == "promotora" or cargo == "PROMOTORA":
         panel_promotora(usuario)
-    elif cargo == "administrador":
+    elif cargo == "ADMINISTRADOR":
         panel_admin()
     else:
         st.error("⚠️ Tipo de usuario no reconocido.")
