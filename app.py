@@ -17,13 +17,6 @@ except ImportError:
     def mostrar_ciclo():
         st.warning("Módulo de Cierre de Ciclo en desarrollo")
 
-# AGREGAR ESTA IMPORTACIÓN PARA EL MÓDULO DE GRÁFICAS
-try:
-    from modulos.graficas import mostrar_consolidado_financiero
-except ImportError:
-    def mostrar_consolidado_financiero():
-        st.warning("Módulo de Gráficas en desarrollo")
-
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
@@ -115,8 +108,7 @@ def panel_promotora(usuario):
         "📈 Dashboard",
         "👩‍💼 Registro Promotora",
         "🏛️ Distrito",
-        "📊 Gráficas Financieras",  # NUEVA PESTAÑA AGREGADA
-        "🔄 Cierre de Ciclo",
+        "🔄 Cierre de Ciclo",  # Para promotora si es necesario
         "🚪 Cerrar sesión"
     ])
 
@@ -126,10 +118,9 @@ def panel_promotora(usuario):
 
     with tabs[1]: mostrar_promotora()
     with tabs[2]: mostrar_distrito()
-    with tabs[3]: mostrar_consolidado_financiero()  # NUEVA PESTAÑA
-    with tabs[4]: mostrar_ciclo()
+    with tabs[3]: mostrar_ciclo()  # Cierre de ciclo para promotora
 
-    with tabs[5]:
+    with tabs[4]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -143,9 +134,8 @@ def panel_admin():
 
     tabs = st.tabs([
         "📊 Consolidado Distritos",
-        "🧑‍💻 Registrar Usuario", 
-        "📈 Gráficas Financieras",  # NUEVA PESTAÑA AGREGADA
-        "🔄 Cierre de Ciclo",
+        "🧑‍💻 Registrar Usuario",
+        "🔄 Cierre de Ciclo",  # Para administradora
         "🚪 Cerrar sesión"
     ])
 
@@ -153,10 +143,9 @@ def panel_admin():
         st.info("📊 Aquí irá el consolidado general por distrito.")
 
     with tabs[1]: registrar_usuario()
-    with tabs[2]: mostrar_consolidado_financiero()  # NUEVA PESTAÑA
-    with tabs[3]: mostrar_ciclo()
+    with tabs[2]: mostrar_ciclo()  # Cierre de ciclo para administradora
 
-    with tabs[4]:
+    with tabs[3]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
