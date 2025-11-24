@@ -17,13 +17,14 @@ except ImportError:
     def mostrar_ciclo():
         st.warning("Módulo de Cierre de Ciclo en desarrollo")
 
-# Agregar importación del módulo consolidado_promotora
+# Agregar importación del módulo consolidado_administrador
 try:
-    from modulos.consolidado_promotora import mostrar_consolidado_promotora
+    from modulos.consolidadoadministrador import mostrar_consolidado_distritos
 except ImportError:
     # Si el módulo no existe, creamos una función temporal
-    def mostrar_consolidado_promotora():
-        st.warning("Módulo de Consolidado Promotora en desarrollo")
+    def mostrar_consolidado_distritos():
+        st.warning("Módulo de Consolidado Administrador en desarrollo")
+
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
@@ -115,8 +116,7 @@ def panel_promotora(usuario):
         "📈 Dashboard",
         "👩‍💼 Registro Promotora",
         "🏛️ Distrito",
-        "📊 Consolidado Grupos",  # Nueva pestaña agregada
-        "🔄 Cierre de Ciclo",
+        "🔄 Cierre de Ciclo",  # Para promotora si es necesario
         "🚪 Cerrar sesión"
     ])
 
@@ -126,10 +126,9 @@ def panel_promotora(usuario):
 
     with tabs[1]: mostrar_promotora()
     with tabs[2]: mostrar_distrito()
-    with tabs[3]: mostrar_consolidado_promotora()  # Nuevo módulo de consolidado
-    with tabs[4]: mostrar_ciclo()
+    with tabs[3]: mostrar_ciclo()  # Cierre de ciclo para promotora
 
-    with tabs[5]:
+    with tabs[4]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -148,9 +147,9 @@ def panel_admin():
         "🚪 Cerrar sesión"
     ])
 
-    with tabs[0]:
-        st.info("📊 Aquí irá el consolidado general por distrito.")
-
+    with tabs[0]: 
+        mostrar_consolidado_distritos()  # Ahora llama al módulo real
+    
     with tabs[1]: registrar_usuario()
     with tabs[2]: mostrar_ciclo()  # Cierre de ciclo para administradora
 
