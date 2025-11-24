@@ -307,10 +307,10 @@ def mostrar_resumen_cierre():
     df_resumen = pd.DataFrame(resumen_data)
     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
     
-    # Métricas - AHORA CON 5 COLUMNAS
+    # Métricas - AHORA CON 4 COLUMNAS (como en tu diseño original)
     st.write("### 📈 Métricas del Ciclo")
     
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Ahorros", f"${ahorros_totales:,.2f}")
@@ -324,38 +324,55 @@ def mostrar_resumen_cierre():
     with col4:
         st.metric("Intereses", f"${prestamos_intereses:,.2f}")
     
-    with col5:
-        st.metric("TOTAL", f"${total_ingresos:,.2f}")
-    
-    # NUEVA SECCIÓN: AHORROS POR MIEMBRO (CICLO COMPLETO)
+    # NUEVA SECCIÓN: AHORROS POR MIEMBRO (CICLO COMPLETO) - EXACTAMENTE COMO PEDISTE
     st.write("### 📊 Ahorros por Miembro (Ciclo Completo)")
     
     # Obtener ahorros agrupados por miembro
     ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo()
     
     if ahorros_por_miembro:
-        # Crear DataFrame para la tabla
-        df_ahorros_miembros = pd.DataFrame(ahorros_por_miembro)
+        # Crear tabla exactamente como la pediste
+        tabla_html = """
+        <style>
+        .tabla-ahorros {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+        .tabla-ahorros th {
+            background-color: #f0f2f6;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+            font-weight: bold;
+        }
+        .tabla-ahorros td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        </style>
+        <table class="tabla-ahorros">
+            <tr>
+                <th>Miembro</th>
+                <th>Total Ahorros</th>
+                <th>Total Otros</th>
+                <th>TOTAL</th>
+            </tr>
+        """
         
-        # Renombrar columnas para mejor presentación
-        df_ahorros_miembros = df_ahorros_miembros.rename(columns={
-            'miembro': 'Miembro',
-            'total_ahorros': 'Total Ahorros',
-            'total_otros': 'Total Otros',
-            'total_general': 'TOTAL'
-        })
+        for miembro in ahorros_por_miembro:
+            tabla_html += f"""
+            <tr>
+                <td>{miembro['miembro']}</td>
+                <td>${miembro['total_ahorros']:,.2f}</td>
+                <td>${miembro['total_otros']:,.2f}</td>
+                <td>${miembro['total_general']:,.2f}</td>
+            </tr>
+            """
         
-        # Formatear columnas numéricas
-        df_ahorros_miembros['Total Ahorros'] = df_ahorros_miembros['Total Ahorros'].apply(lambda x: f"${x:,.2f}")
-        df_ahorros_miembros['Total Otros'] = df_ahorros_miembros['Total Otros'].apply(lambda x: f"${x:,.2f}")
-        df_ahorros_miembros['TOTAL'] = df_ahorros_miembros['TOTAL'].apply(lambda x: f"${x:,.2f}")
+        tabla_html += "</table>"
         
-        # Mostrar tabla
-        st.dataframe(
-            df_ahorros_miembros,
-            use_container_width=True,
-            hide_index=True
-        )
+        st.markdown(tabla_html, unsafe_allow_html=True)
         
         # Mostrar total general de ahorros por miembros
         total_general_miembros = sum(item['total_general'] for item in ahorros_por_miembro)
@@ -364,7 +381,7 @@ def mostrar_resumen_cierre():
     else:
         st.info("ℹ️ No se encontraron datos de ahorros por miembro")
     
-    # SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS
+    # SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS (con checkboxes como en tu diseño)
     st.write("### 📊 Distribución de Beneficios")
     
     # Obtener total de miembros activos
@@ -374,19 +391,19 @@ def mostrar_resumen_cierre():
         # Calcular distribución
         distribucion_por_miembro = prestamos_intereses / total_miembros_activos
         
-        # Mostrar cálculo
-        col1, col2 = st.columns(2)
+        # Mostrar con checkboxes como en tu diseño original
+        col1, col2 = st.columns([2, 1])
         
         with col1:
-            st.info(f"**👥 Total de Miembros Activos:** {total_miembros_activos}")
+            st.checkbox("Distribución de Beneficios", disabled=True)
+            st.checkbox(f"Total de Miembros Activos: {total_miembros_activos}", value=True, disabled=True)
+            st.checkbox(f"Total de Intereses a Distribuir: ${prestamos_intereses:,.2f}", disabled=True)
         
         with col2:
-            st.info(f"**💰 Total de Intereses a Distribuir:** ${prestamos_intereses:,.2f}")
+            st.checkbox(f"A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}", value=True, disabled=True)
+            st.checkbox("Ver Cálculo Detallado", disabled=True)
         
-        # Resultado de la distribución
-        st.success(f"**🎯 A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}**")
-        
-        # Mostrar cálculo detallado
+        # Mostrar cálculo detallado en un expander
         with st.expander("🔍 Ver Cálculo Detallado"):
             st.write(f"""
             **Fórmula de distribución:**
