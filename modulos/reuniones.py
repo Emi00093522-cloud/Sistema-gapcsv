@@ -13,21 +13,22 @@ def _get_cargo_detectado():
 def _tiene_rol_secretaria():
     return _get_cargo_detectado() == "SECRETARIA"
 
-def _obtener_fecha_inicio_ciclo_actual():
+def _obtener_fecha_inicio_ciclo_actual(id_grupo):
     """
-    Obtiene la fecha de inicio del ciclo actual desde el módulo de reglamento
+    Obtiene la fecha de inicio del ciclo actual desde la tabla Reglamento
     """
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
-        # Buscar en ReglamentoGrupo la fecha de inicio del ciclo actual
+        # Buscar en Reglamento la fecha de inicio del ciclo actual para este grupo
         cursor.execute("""
             SELECT fecha_inicio_ciclo 
-            FROM ReglamentoGrupo 
+            FROM Reglamento 
+            WHERE ID_Grupo = %s 
             ORDER BY fecha_actualizacion DESC 
             LIMIT 1
-        """)
+        """, (id_grupo,))
         
         resultado = cursor.fetchone()
         if resultado and resultado['fecha_inicio_ciclo']:
@@ -38,11 +39,11 @@ def _obtener_fecha_inicio_ciclo_actual():
                 # Si es string, extraer el año
                 return int(str(fecha)[:4])
         
-        # Si no existe, usar año actual por defecto
+        # Si no existe reglamento para este grupo, usar año actual
         return datetime.now().year
         
     except Exception as e:
-        # Si hay error, usar año actual
+        st.error(f"❌ Error al obtener fecha inicio ciclo: {e}")
         return datetime.now().year
     finally:
         try:
@@ -71,7 +72,7 @@ def _obtener_ultimo_ciclo_reuniones(id_grupo):
         return resultado['ciclo'] if resultado else None
         
     except Exception as e:
-        st.error(f"❌ Error al obtener último ciclo: {e}")
+        st.error(f"❌ Error al obtener último ciclo reuniones: {e}")
         return None
     finally:
         try:
@@ -86,14 +87,17 @@ def _detectar_y_crear_nuevo_ciclo(id_grupo):
     """
     try:
         # Obtener ciclo actual del reglamento
-        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual()
+        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual(id_grupo)
         
         # Obtener último ciclo de reuniones existentes
         ultimo_ciclo_reuniones = _obtener_ultimo_ciclo_reuniones(id_grupo)
         
+        # Debug info
+        st.sidebar.info(f"🔍 Debug Info:\n- Ciclo Reglamento: {ciclo_actual_reglamento}\n- Último Ciclo Reuniones: {ultimo_ciclo_reuniones}")
+        
         # Si no hay reuniones o el ciclo del reglamento es mayor, crear nuevo ciclo
         if not ultimo_ciclo_reuniones or ciclo_actual_reglamento > int(ultimo_ciclo_reuniones):
-            st.info(f"🔄 Detectado nuevo ciclo {ciclo_actual_reglamento}. Creando reuniones automáticamente...")
+            st.success(f"🔄 Detectado nuevo ciclo {ciclo_actual_reglamento}. Creando reuniones automáticamente...")
             return _crear_reuniones_nuevo_ciclo(id_grupo, str(ciclo_actual_reglamento), ultimo_ciclo_reuniones)
         
         return False
@@ -176,10 +180,10 @@ def _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclo_anterior=None):
         
         if reuniones_creadas > 0:
             st.success(f"✅ Se crearon {reuniones_creadas} reuniones para el ciclo {nuevo_ciclo}")
+            return True
         else:
             st.info(f"ℹ️ No se crearon reuniones para el ciclo {nuevo_ciclo}")
-        
-        return True
+            return False
         
     except Exception as e:
         con.rollback()
@@ -242,7 +246,8 @@ def mostrar_reuniones():
         return
 
     # 🔥 2) DETECTAR Y CREAR NUEVO CICLO AUTOMÁTICAMENTE
-    _detectar_y_crear_nuevo_ciclo(id_grupo)
+    with st.spinner("Verificando si hay nuevo ciclo..."):
+        _detectar_y_crear_nuevo_ciclo(id_grupo)
 
     # Conexión
     try:
@@ -283,7 +288,7 @@ def mostrar_reuniones():
         st.write("---")
         
         ciclos_disponibles = _obtener_ciclos_disponibles(id_grupo)
-        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual()
+        ciclo_actual_reglamento = _obtener_fecha_inicio_ciclo_actual(id_grupo)
         
         if not ciclos_disponibles:
             ciclos_disponibles = [str(ciclo_actual_reglamento)]
@@ -299,8 +304,8 @@ def mostrar_reuniones():
         with col_ciclo2:
             st.write("")  # Espacio para alinear
             if st.button("🔄 Forzar Nuevo Ciclo", use_container_width=True):
-                nuevo_ciclo = str(ciclo_actual_reglamento + 1)
-                if _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclo_seleccionado):
+                nuevo_ciclo = str(ciclo_actual_reglamento)
+                if _crear_reuniones_nuevo_ciclo(id_grupo, nuevo_ciclo, ciclos_disponibles[0] if ciclos_disponibles else None):
                     st.rerun()
 
         st.write("---")
@@ -555,26 +560,6 @@ def mostrar_reuniones():
             with tab2:
                 st.subheader("💰 Gestión de Préstamos")
                 st.info("Funcionalidad de préstamos en desarrollo...")
-
-                with st.form("form_prestamo"):
-                    st.write("Registrar nuevo préstamo:")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        monto = st.number_input("Monto del préstamo", min_value=0.0, step=0.01)
-                        fecha_prestamo = st.date_input("Fecha del préstamo", datetime.now().date())
-                    
-                    with col2:
-                        plazo = st.selectbox("Plazo (meses)", [1, 3, 6, 12, 24, 36])
-                        tasa_interes = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
-                    
-                    descripcion = st.text_area("Descripción del préstamo")
-                    
-                    guardar_prestamo = st.form_submit_button("💾 Guardar Préstamo")
-                    
-                    if guardar_prestamo:
-                        st.success(f"Préstamo de ${monto} registrado correctamente")
-                        # Aquí iría la lógica para guardar en la base de datos
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
