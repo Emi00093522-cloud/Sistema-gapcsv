@@ -74,7 +74,12 @@ def panel_admin(usuario, dui):
 
     st.write(f"Administrador: **{usuario}** — DUI: **{dui}**")
 
-    st.info("Aquí irá toda la gestión del sistema.")  # temporal
+    # Mismos módulos que la Promotora - SOLO DISTRITOS
+    menu = st.tabs(["Distritos"])
+
+    with menu[0]:
+        st.header("Gestión de Distritos")
+        mostrar_distrito()
 
 
 # -----------------------------
