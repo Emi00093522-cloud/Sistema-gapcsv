@@ -23,7 +23,7 @@ def verificar_modulos():
         st.sidebar.error(f"❌ pagomulta.py - ERROR: {e}")
     
     try:
-        from pagoprestamo import mostrar_pago_prestamo  # ✅ USAR LA FUNCIÓN QUE SÍ EXISTE
+        from pagoprestamo import mostrar_pago_prestamo
         st.sidebar.success("✅ pagoprestamo.py - CONECTADO (usando mostrar_pago_prestamo)")
     except ImportError as e:
         st.sidebar.error(f"❌ pagoprestamo.py - ERROR: {e}")
@@ -45,7 +45,7 @@ def obtener_datos_prestamos_desde_bd():
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # ✅ CORREGIDO: Usar ID_Estado_prestamo en lugar de estado
+        # Consulta para obtener préstamos del grupo
         cursor.execute("""
             SELECT 
                 p.ID_Prestamo,
@@ -57,20 +57,26 @@ def obtener_datos_prestamos_desde_bd():
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE m.ID_Grupo = %s 
-            AND p.ID_Estado_prestamo != 3  -- ✅ Excluir préstamos cancelados/rechazados
+            AND p.ID_Estado_prestamo != 3  -- Excluir préstamos cancelados/rechazados
         """, (id_grupo,))
         
         prestamos = cursor.fetchall()
         
-        # Formatear resultados
+        # Formatear resultados - AHORA SEPARAMOS CAPITAL E INTERESES
         resultado = []
         for p in prestamos:
+            monto_capital = p.get('monto', 0)
+            monto_intereses = p.get('total_interes', 0)
             monto_total = p.get('monto_total_pagar', 0)
+            
+            # Si monto_total no existe, calcularlo
             if monto_total is None:
-                monto_total = p.get('monto', 0) + p.get('total_interes', 0)
+                monto_total = monto_capital + monto_intereses
                 
             resultado.append({
-                'monto': float(monto_total),
+                'monto_capital': float(monto_capital),
+                'monto_intereses': float(monto_intereses),
+                'monto_total': float(monto_total),
                 'estado': p['ID_Estado_prestamo'],
                 'nombre_miembro': p['nombre_miembro']
             })
@@ -117,14 +123,14 @@ def obtener_datos_reales():
 
 def calcular_totales_reales():
     """
-    Calcula los totales con datos REALES
+    Calcula los totales con datos REALES - AHORA SEPARA CAPITAL E INTERESES
     """
     ahorros_data, multas_data, prestamos_data = obtener_datos_reales()
     
     # Si no hay datos reales, usar ejemplos
     if not ahorros_data and not multas_data and not prestamos_data:
         st.warning("⚠️ Usando datos de ejemplo - Revisa la conexión")
-        return 7500.00, 250.00, 2300.00
+        return 7500.00, 250.00, 5000.00, 500.00  # capital, intereses
     
     # Calcular ahorros totales
     ahorros_totales = 0
@@ -136,12 +142,15 @@ def calcular_totales_reales():
     for multa in multas_data:
         multas_totales += multa.get('monto_pagado', 0)
     
-    # Calcular préstamos totales
-    prestamos_totales = 0
-    for prestamo in prestamos_data:
-        prestamos_totales += prestamo.get('monto', 0)
+    # Calcular préstamos - AHORA SEPARADOS
+    prestamos_capital = 0
+    prestamos_intereses = 0
     
-    return ahorros_totales, multas_totales, prestamos_totales
+    for prestamo in prestamos_data:
+        prestamos_capital += prestamo.get('monto_capital', 0)
+        prestamos_intereses += prestamo.get('monto_intereses', 0)
+    
+    return ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses
 
 def mostrar_informacion_ciclo():
     st.header("🔒 Cierre de Ciclo - Resumen Financiero")
@@ -176,26 +185,32 @@ def mostrar_resumen_cierre():
     
     st.success("✅ Has seleccionado cerrar el ciclo. Calculando datos...")
     
-    # Obtener datos
+    # Obtener datos - AHORA CON 4 VALORES
     with st.spinner("🔍 Calculando datos financieros..."):
-        ahorros_totales, multas_totales, prestamos_totales = calcular_totales_reales()
+        ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses = calcular_totales_reales()
     
-    total_ingresos = ahorros_totales + multas_totales + prestamos_totales
+    # Calcular total de préstamos (capital + intereses)
+    prestamos_total = prestamos_capital + prestamos_intereses
     
-    # Tabla resumen
+    # Calcular total general
+    total_ingresos = ahorros_totales + multas_totales + prestamos_total
+    
+    # Tabla resumen - AHORA CON 5 FILAS
     st.write("### 📋 Tabla de Consolidado")
     
     resumen_data = {
         "Concepto": [
             "💰 Total de Ahorros", 
             "⚖️ Total de Multas", 
-            "🏦 Total de Préstamos",
+            "🏦 Total Préstamos (Capital)",
+            "📈 Total Intereses",
             "💵 **TOTAL INGRESOS**"
         ],
         "Monto": [
             f"${ahorros_totales:,.2f}",
             f"${multas_totales:,.2f}",
-            f"${prestamos_totales:,.2f}",
+            f"${prestamos_capital:,.2f}",
+            f"${prestamos_intereses:,.2f}",
             f"**${total_ingresos:,.2f}**"
         ]
     }
@@ -203,10 +218,10 @@ def mostrar_resumen_cierre():
     df_resumen = pd.DataFrame(resumen_data)
     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
     
-    # Métricas
+    # Métricas - AHORA CON 5 COLUMNAS
     st.write("### 📈 Métricas del Ciclo")
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.metric("Ahorros", f"${ahorros_totales:,.2f}")
@@ -215,10 +230,26 @@ def mostrar_resumen_cierre():
         st.metric("Multas", f"${multas_totales:,.2f}")
     
     with col3:
-        st.metric("Préstamos", f"${prestamos_totales:,.2f}")
+        st.metric("Préstamos", f"${prestamos_capital:,.2f}")
     
     with col4:
+        st.metric("Intereses", f"${prestamos_intereses:,.2f}")
+    
+    with col5:
         st.metric("TOTAL", f"${total_ingresos:,.2f}")
+    
+    # Mostrar detalles de préstamos
+    with st.expander("📊 Ver Detalles de Préstamos"):
+        try:
+            prestamos_detalle = obtener_datos_prestamos_desde_bd()
+            if prestamos_detalle:
+                df_prestamos = pd.DataFrame(prestamos_detalle)
+                st.dataframe(df_prestamos[['nombre_miembro', 'monto_capital', 'monto_intereses', 'monto_total']], 
+                           use_container_width=True)
+            else:
+                st.info("No hay datos detallados de préstamos")
+        except:
+            st.info("No se pudieron cargar los detalles de préstamos")
     
     # Botón de confirmación
     st.markdown("---")
