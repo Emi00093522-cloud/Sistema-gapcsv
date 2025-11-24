@@ -125,6 +125,36 @@ def obtener_total_acumulado_miembro(id_miembro, fecha_reunion_actual):
         if 'con' in locals():
             con.close()
 
+def obtener_total_otros_acumulado_miembro(id_miembro):
+    """
+    Obtiene la sumatoria de TODOS los 'Otros' de un miembro
+    a lo largo de TODAS las reuniones (incluyendo la actual)
+    """
+    try:
+        con = obtener_conexion()
+        cursor = con.cursor()
+        
+        # Obtener sumatoria de TODOS los 'Otros' históricos
+        cursor.execute("""
+            SELECT COALESCE(SUM(a.monto_otros), 0) as total_otros
+            FROM Ahorro a
+            WHERE a.ID_Miembro = %s
+        """, (id_miembro,))
+        
+        resultado = cursor.fetchone()
+        total_otros = float(resultado[0]) if resultado else 0.00
+        
+        return total_otros
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo total de otros acumulado: {e}")
+        return 0.00
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'con' in locals():
+            con.close()
+
 def mostrar_ahorros():
     st.header("💰 Control de Ahorros")
 
@@ -312,8 +342,13 @@ def mostrar_ahorros():
                         retiro_activado = retiros_activados.get(id_miembro, False)
                         monto_retiro_calculado = montos_retiro_calculados.get(id_miembro, 0)
                         
-                        # CALCULAR EL SALDO FINAL - SIEMPRE NORMAL (sin restar el retiro calculado)
-                        saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
+                        # CALCULAR EL SALDO FINAL - DEPENDIENDO DE SI HAY RETIRO O NO
+                        if retiro_activado:
+                            # PARA MIEMBROS CON RETIRO: Saldo Final = Suma acumulada de TODOS sus "Otros"
+                            saldo_final = obtener_total_otros_acumulado_miembro(id_miembro) + monto_otros
+                        else:
+                            # PARA MIEMBROS SIN RETIRO: Cálculo normal
+                            saldo_final = saldo_inicial + monto_ahorro + monto_otros - monto_retiros
                         
                         # Solo guardar si hay al menos un monto ingresado o retiro
                         if monto_ahorro > 0 or monto_otros > 0 or monto_retiro_calculado > 0:
@@ -340,7 +375,8 @@ def mostrar_ahorros():
                                 ))
                                 registros_guardados += 1
                                 if retiro_activado:
-                                    st.success(f"✅ {nombre_miembro}: ${saldo_inicial:,.2f} + ${monto_ahorro:,.2f} + ${monto_otros:,.2f} = ${saldo_final:,.2f} | Retiro: ${monto_retiro_calculado:,.2f}")
+                                    total_otros_acumulado = obtener_total_otros_acumulado_miembro(id_miembro) + monto_otros
+                                    st.success(f"✅ {nombre_miembro}: RETIRO ACTIVADO | Nuevo Saldo Final (Total Otros): ${total_otros_acumulado:,.2f} | Retiro: ${monto_retiro_calculado:,.2f}")
                                 else:
                                     st.success(f"✅ {nombre_miembro}: ${saldo_inicial:,.2f} + ${monto_ahorro:,.2f} + ${monto_otros:,.2f} = ${saldo_final:,.2f}")
                             else:
@@ -357,7 +393,8 @@ def mostrar_ahorros():
                                 ))
                                 registros_guardados += 1
                                 if retiro_activado:
-                                    st.success(f"✅ {nombre_miembro}: Registro actualizado - Saldo: ${saldo_final:,.2f} | Retiro: ${monto_retiro_calculado:,.2f}")
+                                    total_otros_acumulado = obtener_total_otros_acumulado_miembro(id_miembro) + monto_otros
+                                    st.success(f"✅ {nombre_miembro}: Registro actualizado - RETIRO ACTIVADO | Nuevo Saldo Final (Total Otros): ${total_otros_acumulado:,.2f} | Retiro: ${monto_retiro_calculado:,.2f}")
                                 else:
                                     st.success(f"✅ {nombre_miembro}: Registro actualizado - ${saldo_final:,.2f}")
 
