@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import sys
 import os
-from io import BytesIO
+from io import BytesIO, StringIO
 import csv
 
 # Agregar la ruta de tus módulos
@@ -324,13 +324,9 @@ def generar_csv_ciclos():
     """
     ciclos = obtener_ciclos_historicos()
     
-    # Usar StringIO en lugar de BytesIO para texto
-    output = BytesIO()
-    
-    # SOLUCIÓN: Especificar encoding y manejar caracteres especiales
     try:
-        # Intentar con utf-8 primero
-        output = BytesIO()
+        # SOLUCIÓN: Usar StringIO para texto y luego convertir a bytes
+        output = StringIO()
         writer = csv.writer(output)
         
         # Escribir encabezados - SIN CARACTERES ESPECIALES PARA EVITAR ERRORES
@@ -357,15 +353,17 @@ def generar_csv_ciclos():
             # Escribir una fila vacía si no hay ciclos
             writer.writerow(['No hay ciclos registrados', '', '', '', '', '', '', ''])
         
-        return output.getvalue()
+        # SOLUCIÓN CLAVE: Convertir el texto a bytes antes de devolverlo
+        csv_text = output.getvalue()
+        return csv_text.encode('utf-8')
         
     except Exception as e:
         # Fallback seguro en caso de cualquier error
         st.error(f"❌ Error generando CSV: {e}")
-        output = BytesIO()
+        output = StringIO()
         writer = csv.writer(output)
         writer.writerow(['Error', 'Al generar', 'CSV', 'Contacte', 'Al administrador', '', '', ''])
-        return output.getvalue()
+        return output.getvalue().encode('utf-8')
 
 # ======================================================
 # TAB 1: VER Y GENERAR CIERRE DE CICLO
