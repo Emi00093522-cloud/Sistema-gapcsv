@@ -291,7 +291,7 @@ def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
                 pm.monto_pagado,
                 pm.fecha_pago,
                 m.nombre as nombre_miembro,
-                mult.descripcion as descripcion
+            
             FROM PagoMulta pm
             JOIN Multa mult ON pm.ID_Multa = mult.ID_Multa
             JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
