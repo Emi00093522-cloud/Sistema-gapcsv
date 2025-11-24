@@ -78,7 +78,7 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
         return 0
 
 # =====================================================================================
-#  OBTENER TOTALES POR REUNIÓN - CON NOMBRES CORRECTOS
+#  OBTENER TOTALES POR REUNIÓN - SIMPLIFICADO
 # =====================================================================================
 
 def obtener_totales_reunion(cursor, id_reunion):
@@ -91,7 +91,7 @@ def obtener_totales_reunion(cursor, id_reunion):
         }
         
         # =============================================================================
-        # INGRESOS - SUMAR TODOS LOS INGRESOS DE DIFERENTES MÓDULOS
+        # INGRESOS - SUMAR TODOS LOS INGRESOS
         # =============================================================================
         
         # 1) TOTAL AHORROS (INGRESO)
@@ -111,7 +111,7 @@ def obtener_totales_reunion(cursor, id_reunion):
                 'descripcion': 'Total de ahorros de los miembros'
             })
 
-        # 2) TOTAL PAGOS PRÉSTAMOS (INGRESO) - Usando total_cancelado
+        # 2) TOTAL PAGOS PRÉSTAMOS (INGRESO)
         try:
             cursor.execute("""
                 SELECT COALESCE(SUM(total_cancelado), 0) as total
@@ -126,12 +126,12 @@ def obtener_totales_reunion(cursor, id_reunion):
                 totales['detalle_ingresos'].append({
                     'concepto': 'Pagos de Préstamos',
                     'monto': total_pagos_prestamos,
-                    'descripcion': 'Total de pagos recibidos de préstamos (capital + interés)'
+                    'descripcion': 'Total de pagos recibidos de préstamos'
                 })
         except Exception as e:
             st.warning(f"ℹ️ No se pudieron obtener pagos de préstamos: {e}")
 
-        # 3) TOTAL PAGOS MULTAS (INGRESO) - Usando ID_Reunion_pago
+        # 3) TOTAL PAGOS MULTAS (INGRESO)
         try:
             cursor.execute("""
                 SELECT COALESCE(SUM(monto_pagado), 0) as total
@@ -152,10 +152,10 @@ def obtener_totales_reunion(cursor, id_reunion):
             st.warning(f"ℹ️ No se pudieron obtener pagos de multas: {e}")
 
         # =============================================================================
-        # EGRESOS - SUMAR TODOS LOS EGRESOS DE DIFERENTES MÓDULOS
+        # EGRESOS - SUMAR TODOS LOS PRÉSTAMOS COMO EGRESOS
         # =============================================================================
         
-        # 1) TOTAL PRÉSTAMOS APROBADOS (EGRESO)
+        # TOTAL PRÉSTAMOS APROBADOS (EGRESO)
         cursor.execute("""
             SELECT COALESCE(SUM(monto), 0) as total
             FROM Prestamo 
@@ -165,18 +165,12 @@ def obtener_totales_reunion(cursor, id_reunion):
         total_prestamos = float(resultado['total']) if resultado else 0
         
         if total_prestamos > 0:
-            totales['total_egresos'] += total_prestamos
+            totales['total_egresos'] = total_prestamos  # Solo préstamos como egresos
             totales['detalle_egresos'].append({
                 'concepto': 'Préstamos Otorgados',
                 'monto': total_prestamos,
-                'descripcion': 'Total de préstamos aprobados y desembolsados'
+                'descripcion': 'Total de préstamos aprobados en esta reunión'
             })
-
-        # Mostrar información de depuración
-        st.write("🔍 **Información de depuración:**")
-        st.write(f"- Total préstamos encontrados: ${total_prestamos:,.2f}")
-        st.write(f"- Total egresos calculados: ${totales['total_egresos']:,.2f}")
-        st.write(f"- Cantidad de egresos en detalle: {len(totales['detalle_egresos'])}")
 
         return totales
 
@@ -194,10 +188,11 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
     # Obtener totales de la reunión
     totales = obtener_totales_reunion(cursor, id_reunion)
     
-    # Calcular saldo final
+    # Calcular saldo final: Saldo Inicial + Ingresos - Egresos
     saldo_final = saldo_anterior + totales['total_ingresos'] - totales['total_egresos']
 
     # Mostrar métricas principales
+    st.write("### 📈 Resumen Financiero")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("💰 Saldo Inicial", f"${saldo_anterior:,.2f}")
@@ -211,40 +206,36 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
     st.divider()
 
     # Mostrar detalles de ingresos
+    st.write("### 💰 Detalle de Ingresos")
     if totales['detalle_ingresos']:
-        st.subheader("📈 Detalle de Ingresos")
         for ingreso in totales['detalle_ingresos']:
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.write(f"**{ingreso['concepto']}**")
                 st.caption(ingreso['descripcion'])
             with col2:
-                st.success(f"💰 ${ingreso['monto']:,.2f}")
+                st.success(f"${ingreso['monto']:,.2f}")
     else:
         st.info("📭 No hay ingresos registrados en esta reunión")
 
     # Mostrar detalles de egresos
+    st.write("### 📤 Detalle de Egresos")
     if totales['detalle_egresos']:
-        st.subheader("📉 Detalle de Egresos")
         for egreso in totales['detalle_egresos']:
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.write(f"**{egreso['concepto']}**")
                 st.caption(egreso['descripcion'])
             with col2:
-                st.error(f"📤 ${egreso['monto']:,.2f}")
+                st.error(f"${egreso['monto']:,.2f}")
     else:
-        st.info("📭 No hay egresos registrados en esta reunión")
+        st.info("📭 No hay egresos (préstamos) registrados en esta reunión")
 
-    # Mostrar información de consultas ejecutadas
-    with st.expander("🔍 Ver consultas ejecutadas"):
-        st.write("**Consultas utilizadas:**")
-        st.code("""
-        -- Ahorros: SUM(Monto_Ahorro) FROM Ahorro WHERE ID_Reunion = ?
-        -- Pagos Préstamos: SUM(total_cancelado) FROM Pago_prestamo WHERE ID_Reunion = ?
-        -- Pagos Multas: SUM(monto_pagado) FROM PagoMulta WHERE ID_Reunion_pago = ?
-        -- Préstamos: SUM(monto) FROM Prestamo WHERE ID_Reunion = ? AND ID_Estado_prestamo = 1
-        """)
+    # Mostrar fórmula del cálculo
+    st.divider()
+    st.write("### 🧮 Cálculo del Saldo Final")
+    st.write(f"**Saldo Final = Saldo Inicial + Total Ingresos - Total Egresos**")
+    st.write(f"**${saldo_final:,.2f} = ${saldo_anterior:,.2f} + ${totales['total_ingresos']:,.2f} - ${totales['total_egresos']:,.2f}**")
 
     # Botón para guardar el resumen en la base de datos
     st.divider()
