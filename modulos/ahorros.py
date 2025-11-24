@@ -127,26 +127,38 @@ def obtener_saldo_inicial_corregido(id_miembro, fecha_reunion_actual):
 def obtener_deuda_prestamo_pendiente(id_miembro, con):
     """
     Obtiene la deuda total pendiente de préstamos para un miembro
-    Basado en el catálogo ID_Estado_prestamo donde 3 = cancelado
+    Revisa SI TIENE CUALQUIER PRÉSTAMO sin pagar completamente a la fecha
     """
     try:
         cursor = con.cursor()
         
-        # Consulta que excluye préstamos cancelados (ID_Estado_prestamo = 3)
+        # CONSULTA CORREGIDA: Verificar TODOS los préstamos que no estén completamente pagados
         cursor.execute("""
             SELECT 
-                COALESCE(SUM(p.monto_total_pagar - (
-                    SELECT COALESCE(SUM(cp.total_pagado), 0) 
-                    FROM CuotaPrestamo cp 
-                    WHERE cp.ID_Prestamo = p.ID_Prestamo
-                )), 0) as deuda_pendiente
+                COALESCE(SUM(
+                    p.monto_total_pagar - 
+                    COALESCE((
+                        SELECT SUM(cp.total_pagado) 
+                        FROM CuotaPrestamo cp 
+                        WHERE cp.ID_Prestamo = p.ID_Prestamo
+                    ), 0)
+                ), 0) as deuda_pendiente
             FROM Prestamo p
             WHERE p.ID_Miembro = %s 
             AND p.ID_Estado_prestamo != 3  -- Excluir préstamos cancelados
-            AND p.monto_total_pagar > (
-                SELECT COALESCE(SUM(cp.total_pagado), 0) 
-                FROM CuotaPrestamo cp 
-                WHERE cp.ID_Prestamo = p.ID_Prestamo
+            AND (
+                -- Préstamos donde el total pagado es menor al monto total a pagar
+                COALESCE((
+                    SELECT SUM(cp.total_pagado) 
+                    FROM CuotaPrestamo cp 
+                    WHERE cp.ID_Prestamo = p.ID_Prestamo
+                ), 0) < p.monto_total_pagar
+                OR 
+                -- O préstamos que no tienen ninguna cuota registrada (préstamo nuevo)
+                NOT EXISTS (
+                    SELECT 1 FROM CuotaPrestamo cp 
+                    WHERE cp.ID_Prestamo = p.ID_Prestamo
+                )
             )
         """, (id_miembro,))
         
