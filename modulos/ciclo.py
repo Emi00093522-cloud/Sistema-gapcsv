@@ -31,6 +31,7 @@ def verificar_modulos():
 def obtener_total_miembros_activos():
     """
     Obtiene el total de miembros activos en el grupo
+    CORREGIDO: Usa ID_Estado = 1 para miembros activos
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -44,11 +45,11 @@ def obtener_total_miembros_activos():
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # Consulta para contar miembros activos del grupo
+        # ✅ CORREGIDO: Usar ID_Estado = 1 para miembros activos
         cursor.execute("""
             SELECT COUNT(*) as total_miembros
             FROM Miembro 
-            WHERE ID_Grupo = %s AND estado = 'Activo'
+            WHERE ID_Grupo = %s AND ID_Estado = 1
         """, (id_grupo,))
         
         resultado = cursor.fetchone()
