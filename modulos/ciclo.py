@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(__file__))
 
 # =============================================
-# FUNCIONES EXISTENTES (modificadas para incluir filtro de fechas)
+# FUNCIONES EXISTENTES (modificadas para usar el grupo del usuario)
 # =============================================
 
 def verificar_modulos():
@@ -32,21 +32,34 @@ def verificar_modulos():
     except ImportError as e:
         st.sidebar.error(f"❌ pagoprestamo.py - ERROR: {e}")
 
+def obtener_id_grupo_usuario():
+    """Obtiene el ID del grupo del usuario logueado"""
+    return st.session_state.get("id_grupo")
+
+def verificar_grupo_usuario():
+    """Verifica que el usuario tenga un grupo asociado"""
+    id_grupo = obtener_id_grupo_usuario()
+    if id_grupo is None:
+        st.error("⚠️ No tienes un grupo asociado. Crea primero un grupo en el módulo 'Grupos'.")
+        return False
+    return True
+
 def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene los ahorros totales por miembro de las reuniones dentro del rango de fechas
+    PARA EL GRUPO DEL USUARIO
     """
     try:
         from modulos.config.conexion import obtener_conexion
         
+        # Verificar que el usuario tenga grupo
+        if not verificar_grupo_usuario():
+            return []
+            
+        id_grupo = obtener_id_grupo_usuario()
+        
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
-        
-        if 'reunion_actual' not in st.session_state:
-            st.error("No hay reunión activa seleccionada")
-            return []
-        
-        id_grupo = st.session_state.reunion_actual['id_grupo']
         
         # Consulta base - mantenemos la estructura original pero agregamos filtro opcional
         query = """
@@ -100,17 +113,18 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
             return []
 
 def obtener_ahorros_por_miembro_sin_filtro():
-    """Fallback: Obtiene ahorros sin filtro de fecha"""
+    """Fallback: Obtiene ahorros sin filtro de fecha PARA EL GRUPO DEL USUARIO"""
     try:
         from modulos.config.conexion import obtener_conexion
         
+        # Verificar que el usuario tenga grupo
+        if not verificar_grupo_usuario():
+            return []
+            
+        id_grupo = obtener_id_grupo_usuario()
+        
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
-        
-        if 'reunion_actual' not in st.session_state:
-            return []
-        
-        id_grupo = st.session_state.reunion_actual['id_grupo']
         
         cursor.execute("""
             SELECT 
@@ -148,20 +162,20 @@ def obtener_ahorros_por_miembro_sin_filtro():
 
 def obtener_total_miembros_activos():
     """
-    Obtiene el total de miembros activos en el grupo
+    Obtiene el total de miembros activos en el grupo DEL USUARIO
     CORREGIDO: Usa ID_Estado = 1 para miembros activos
     """
     try:
         from modulos.config.conexion import obtener_conexion
         
+        # Verificar que el usuario tenga grupo
+        if not verificar_grupo_usuario():
+            return 0
+            
+        id_grupo = obtener_id_grupo_usuario()
+        
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
-        
-        if 'reunion_actual' not in st.session_state:
-            st.error("No hay reunión activa seleccionada")
-            return 0
-        
-        id_grupo = st.session_state.reunion_actual['id_grupo']
         
         # ✅ CORREGIDO: Usar ID_Estado = 1 para miembros activos
         cursor.execute("""
@@ -185,19 +199,19 @@ def obtener_total_miembros_activos():
 def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene datos de préstamos directamente desde la base de datos
-    con filtro opcional de fechas
+    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO
     """
     try:
         from modulos.config.conexion import obtener_conexion
         
+        # Verificar que el usuario tenga grupo
+        if not verificar_grupo_usuario():
+            return []
+            
+        id_grupo = obtener_id_grupo_usuario()
+        
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
-        
-        if 'reunion_actual' not in st.session_state:
-            st.error("No hay reunión activa seleccionada")
-            return []
-        
-        id_grupo = st.session_state.reunion_actual['id_grupo']
         
         # Consulta base
         query = """
@@ -256,19 +270,19 @@ def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
 def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene datos de multas directamente desde la base de datos
-    con filtro opcional de fechas
+    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO
     """
     try:
         from modulos.config.conexion import obtener_conexion
         
+        # Verificar que el usuario tenga grupo
+        if not verificar_grupo_usuario():
+            return []
+            
+        id_grupo = obtener_id_grupo_usuario()
+        
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
-        
-        if 'reunion_actual' not in st.session_state:
-            st.error("No hay reunión activa seleccionada")
-            return []
-        
-        id_grupo = st.session_state.reunion_actual['id_grupo']
         
         # Consulta para obtener multas del grupo
         query = """
@@ -317,7 +331,12 @@ def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
 def obtener_datos_reales(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene datos REALES de tus módulos con filtro opcional de fechas
+    PARA EL GRUPO DEL USUARIO
     """
+    # Verificar que el usuario tenga grupo
+    if not verificar_grupo_usuario():
+        return [], [], []
+        
     ahorros_data, multas_data, prestamos_data = [], [], []
     
     # Obtener ahorros
@@ -345,8 +364,12 @@ def obtener_datos_reales(fecha_inicio=None, fecha_fin=None):
 def calcular_totales_reales(fecha_inicio=None, fecha_fin=None):
     """
     Calcula los totales con datos REALES - AHORA SEPARA CAPITAL E INTERESES
-    con filtro opcional de fechas
+    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO
     """
+    # Verificar que el usuario tenga grupo
+    if not verificar_grupo_usuario():
+        return 0.00, 0.00, 0.00, 0.00
+        
     ahorros_data, multas_data, prestamos_data = obtener_datos_reales(fecha_inicio, fecha_fin)
     
     # Si no hay datos reales, usar ejemplos
@@ -430,7 +453,12 @@ def mostrar_filtro_fechas():
     return fecha_inicio, fecha_fin
 
 def mostrar_resumen_completo(fecha_inicio, fecha_fin):
-    """Muestra el resumen completo del ciclo con filtro de fechas"""
+    """Muestra el resumen completo del ciclo con filtro de fechas PARA EL GRUPO DEL USUARIO"""
+    
+    # Verificar que el usuario tenga grupo
+    if not verificar_grupo_usuario():
+        return None
+        
     st.subheader(f"💰 Resumen Financiero del Ciclo: {fecha_inicio} a {fecha_fin}")
     
     st.success("✅ Calculando datos para el rango seleccionado...")
@@ -575,8 +603,12 @@ def mostrar_resumen_completo(fecha_inicio, fecha_fin):
     }
 
 def pestaña_ciclo_activo():
-    """Pestaña 1: Ciclo Activo - Donde se calcula y cierra el ciclo actual"""
+    """Pestaña 1: Ciclo Activo - Donde se calcula y cierra el ciclo actual DEL GRUPO DEL USUARIO"""
     st.header("🔒 Cierre de Ciclo - Resumen Financiero")
+    
+    # Verificar que el usuario tenga grupo
+    if not verificar_grupo_usuario():
+        return
     
     # Mostrar filtro de fechas
     fecha_inicio, fecha_fin = mostrar_filtro_fechas()
@@ -594,6 +626,9 @@ def pestaña_ciclo_activo():
     if st.session_state.mostrar_resumen:
         datos_ciclo = mostrar_resumen_completo(fecha_inicio, fecha_fin)
         
+        if datos_ciclo is None:
+            return
+            
         # Botón de confirmación
         st.markdown("---")
         st.write("### ✅ Confirmar Cierre Definitivo")
@@ -619,8 +654,12 @@ def pestaña_ciclo_activo():
             st.info("📁 **Puedes ver el historial de ciclos cerrados en la pestaña 'Registro de Ciclos Cerrados'**")
 
 def pestaña_ciclos_cerrados():
-    """Pestaña 2: Registro de Ciclos Cerrados - Historial de ciclos finalizados"""
+    """Pestaña 2: Registro de Ciclos Cerrados - Historial de ciclos finalizados DEL GRUPO DEL USUARIO"""
     st.header("📁 Registro de Ciclos Cerrados")
+    
+    # Verificar que el usuario tenga grupo
+    if not verificar_grupo_usuario():
+        return
     
     if not st.session_state.ciclos_cerrados:
         st.info("ℹ️ No hay ciclos cerrados registrados. Los ciclos cerrados aparecerán aquí.")
@@ -694,7 +733,12 @@ def pestaña_ciclos_cerrados():
 # =============================================
 
 def mostrar_ciclo():
-    """Función principal que llama app.py - AHORA CON PESTAÑAS Y FILTRO DE FECHAS"""
+    """Función principal que llama app.py - AHORA SOLO PARA EL GRUPO DEL USUARIO"""
+    
+    # Verificar que el usuario tenga grupo
+    if not verificar_grupo_usuario():
+        return
+        
     verificar_modulos()
     inicializar_session_state()
     
