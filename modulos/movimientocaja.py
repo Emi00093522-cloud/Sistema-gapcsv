@@ -78,7 +78,7 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
         return 0
 
 # =====================================================================================
-#  OBTENER TOTALES POR REUNIÓN - CON DEPURACIÓN
+#  OBTENER TOTALES POR REUNIÓN - TODOS LOS PRÉSTAMOS COMO EGRESOS
 # =====================================================================================
 
 def obtener_totales_reunion(cursor, id_reunion):
@@ -152,10 +152,23 @@ def obtener_totales_reunion(cursor, id_reunion):
             st.warning(f"ℹ️ No se pudieron obtener pagos de multas: {e}")
 
         # =============================================================================
-        # EGRESOS - OBTENER PRÉSTAMOS DE LA REUNIÓN
+        # EGRESOS - SUMAR TODOS LOS PRÉSTAMOS SIN FILTRAR POR ESTADO
         # =============================================================================
         
-        # PRIMERO: Verificar qué préstamos existen en esta reunión
+        # OBTENER LA SUMA TOTAL DE TODOS LOS PRÉSTAMOS DE LA REUNIÓN
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total
+            FROM Prestamo 
+            WHERE ID_Reunion = %s
+        """, (id_reunion,))
+        resultado = cursor.fetchone()
+        total_prestamos = float(resultado['total']) if resultado else 0
+        
+        # MOSTRAR INFORMACIÓN DE DEPURACIÓN
+        st.write("🔍 **Información de Préstamos:**")
+        st.write(f"💰 **Total de préstamos en la reunión: ${total_prestamos:,.2f}**")
+        
+        # También mostrar el detalle de cada préstamo
         cursor.execute("""
             SELECT ID_Prestamo, monto, ID_Estado_prestamo
             FROM Prestamo 
@@ -163,33 +176,21 @@ def obtener_totales_reunion(cursor, id_reunion):
         """, (id_reunion,))
         prestamos = cursor.fetchall()
         
-        st.write("🔍 **Depuración - Préstamos encontrados:**")
-        st.write(f"- Cantidad de préstamos en la reunión: {len(prestamos)}")
+        if prestamos:
+            st.write("📋 **Detalle de préstamos:**")
+            for prestamo in prestamos:
+                st.write(f"  - Préstamo ID: {prestamo['ID_Prestamo']}, Monto: ${prestamo['monto']:,.2f}, Estado: {prestamo['ID_Estado_prestamo']}")
         
-        total_prestamos = 0
-        for prestamo in prestamos:
-            st.write(f"  - Préstamo ID: {prestamo['ID_Prestamo']}, Monto: ${prestamo['monto']:,.2f}, Estado: {prestamo['ID_Estado_prestamo']}")
-            if prestamo['ID_Estado_prestamo'] == 1:  # Solo sumar los aprobados
-                total_prestamos += float(prestamo['monto'])
-        
-        # SEGUNDO: Obtener la suma total de préstamos aprobados
-        cursor.execute("""
-            SELECT COALESCE(SUM(monto), 0) as total
-            FROM Prestamo 
-            WHERE ID_Reunion = %s AND ID_Estado_prestamo = 1
-        """, (id_reunion,))
-        resultado = cursor.fetchone()
-        total_prestamos_suma = float(resultado['total']) if resultado else 0
-        
-        st.write(f"💰 **Total de préstamos aprobados: ${total_prestamos_suma:,.2f}**")
-        
-        if total_prestamos_suma > 0:
-            totales['total_egresos'] = total_prestamos_suma
+        # AGREGAR PRÉSTAMOS COMO EGRESOS
+        if total_prestamos > 0:
+            totales['total_egresos'] = total_prestamos
             totales['detalle_egresos'].append({
                 'concepto': 'Préstamos Otorgados',
-                'monto': total_prestamos_suma,
-                'descripcion': 'Total de préstamos aprobados en esta reunión'
+                'monto': total_prestamos,
+                'descripcion': f'Total de {len(prestamos)} préstamos en esta reunión'
             })
+        else:
+            st.info("ℹ️ No se encontraron préstamos registrados en esta reunión")
 
         return totales
 
@@ -198,7 +199,7 @@ def obtener_totales_reunion(cursor, id_reunion):
         return {'total_ingresos': 0, 'total_egresos': 0, 'detalle_ingresos': [], 'detalle_egresos': []}
 
 # =====================================================================================
-#  RESUMEN AUTOMÁTICO CON DEPURACIÓN
+#  RESUMEN AUTOMÁTICO
 # =====================================================================================
 
 def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
