@@ -1,202 +1,261 @@
 import streamlit as st
-import hashlib
-from modulos.config.conexion import obtener_conexion
-from modulos.grupos import obtener_id_grupo_por_usuario
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+import calendar
 
+# =============================================
+#  VERSIÓN DEBUG - PARA IDENTIFICAR EL PROBLEMA
+# =============================================
 
-def verificar_usuario(usuario, contrasena):
-    """Verifica usuario y contraseña en la base de datos."""
-    con = obtener_conexion()
-    if not con:
-        st.error("⚠️ No se pudo conectar a la base de datos.")
-        return None
+def debug_session_state():
+    """Muestra el estado actual de session_state para debugging"""
+    st.sidebar.write("### 🔍 DEBUG - Session State")
+    for key, value in st.session_state.items():
+        st.sidebar.write(f"**{key}:** {value}")
 
-    try:
-        cursor = con.cursor(dictionary=True)
-
-        # Encriptar la contraseña para compararla con la guardada
-        contrasena_hash = hashlib.sha256(contrasena.encode()).hexdigest()
-
-        # Consulta: obtenemos usuario, tipo y cargo
-        query = """
-            SELECT 
-                u.ID_Usuario,
-                u.Usuario,
-                t.Tipo_usuario AS tipo_usuario,
-                c.tipo_de_cargo AS cargo
-            FROM Usuario u
-            INNER JOIN Tipo_de_usuario t ON u.ID_Tipo_usuario = t.ID_Tipo_usuario
-            INNER JOIN Cargo c ON u.ID_Cargo = c.ID_Cargo
-            WHERE u.Usuario = %s AND u.Contraseña = %s
-        """
-
-        cursor.execute(query, (usuario, contrasena_hash))
-        result = cursor.fetchone()
-        return result
-
-    except Exception as e:
-        st.error(f"❌ Error al verificar usuario: {e}")
-        return None
-    finally:
-        con.close()
-
-
-def restablecer_contrasena():
-    """Interfaz para restablecer contraseña"""
-    st.subheader("🔐 Restablecer Contraseña")
+def obtener_id_promotora_desde_usuario():
+    """
+    Obtiene el ID de promotora basado en el usuario logueado.
+    Versión debug que muestra qué está buscando.
+    """
+    st.write("### 🔍 PASO 1: Buscando ID de promotora")
     
-    with st.form("form_restablecer"):
-        st.write("**Ingresa tus datos para verificar identidad:**")
+    # Mostrar qué hay en session_state
+    st.write("**Session State actual:**")
+    st.json({k: v for k, v in st.session_state.items()})
+    
+    # Obtener el ID del usuario logueado
+    id_usuario = st.session_state.get("id_usuario")
+    st.write(f"**ID Usuario encontrado:** {id_usuario}")
+    
+    if not id_usuario:
+        st.error("❌ No hay 'id_usuario' en session_state")
+        return None
+    
+    try:
+        from modulos.config.conexion import obtener_conexion
         
-        usuario = st.text_input("Nombre de usuario*")
-        dui = st.text_input(
-            "DUI*", 
-            placeholder="00000000-0",
-            help="Formato: 8 dígitos, guión, 1 dígito"
+        st.write("### 🔍 PASO 2: Consultando base de datos")
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        # PRIMERO: Verificar si existe la tabla Promotora
+        cursor.execute("SHOW TABLES LIKE 'Promotora'")
+        tabla_existe = cursor.fetchone()
+        st.write(f"**¿Tabla Promotora existe?:** {bool(tabla_existe)}")
+        
+        if tabla_existe:
+            # Buscar la promotora asociada a este usuario
+            query = "SELECT * FROM Promotora WHERE ID_Usuario = %s"
+            st.write(f"**Query ejecutado:** {query % id_usuario}")
+            
+            cursor.execute(query, (id_usuario,))
+            resultado = cursor.fetchone()
+            
+            st.write("**Resultado de la consulta:**")
+            st.json(resultado if resultado else "NO HAY RESULTADOS")
+            
+            if resultado:
+                st.success(f"✅ Promotora encontrada: ID {resultado['ID_Promotora']}")
+                return resultado['ID_Promotora']
+            else:
+                st.error("❌ No se encontró promotora para este usuario")
+                st.info("""
+                **Posibles soluciones:**
+                1. El usuario no está registrado como promotora
+                2. El campo en la tabla se llama diferente (ej: id_usuario vs ID_Usuario)
+                3. No hay relación entre usuario y promotora
+                """)
+        else:
+            st.error("❌ La tabla 'Promotora' no existe en la base de datos")
+            
+        cursor.close()
+        con.close()
+        
+        return None
+        
+    except Exception as e:
+        st.error(f"❌ Error en la consulta: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+        return None
+
+def obtener_grupos_promotora_debug(id_promotora):
+    """Versión debug para obtener grupos"""
+    st.write("### 🔍 PASO 3: Buscando grupos de la promotora")
+    st.write(f"**ID Promotora:** {id_promotora}")
+    
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        # Verificar estructura de la tabla Grupo
+        cursor.execute("DESCRIBE Grupo")
+        estructura_grupo = cursor.fetchall()
+        
+        st.write("**Estructura de la tabla Grupo:**")
+        st.dataframe(estructura_grupo)
+        
+        # Buscar grupos
+        query = "SELECT * FROM Grupo WHERE ID_Promotora = %s"
+        st.write(f"**Query ejecutado:** {query % id_promotora}")
+        
+        cursor.execute(query, (id_promotora,))
+        grupos = cursor.fetchall()
+        
+        st.write(f"**Grupos encontrados:** {len(grupos)}")
+        if grupos:
+            st.dataframe(grupos)
+        else:
+            st.warning("⚠️ No se encontraron grupos para esta promotora")
+            
+        cursor.close()
+        con.close()
+        
+        return grupos
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo grupos: {e}")
+        return []
+
+def mostrar_consolidado_promotora_debug():
+    """Versión debug del consolidado"""
+    
+    st.title("🔍 Módulo de Consolidado - MODO DEBUG")
+    
+    # Mostrar estado de session_state
+    debug_session_state()
+    
+    st.write("---")
+    st.write("## 🚀 Iniciando proceso de consolidado...")
+    
+    # PASO 1: Obtener ID de promotora
+    id_promotora = obtener_id_promotora_desde_usuario()
+    
+    if not id_promotora:
+        st.error("""
+        ❌ **NO SE PUEDE CONTINUAR**
+        
+        **Problemas identificados:**
+        1. Usuario no tiene ID en session_state
+        2. Usuario no está registrado como promotora  
+        3. La tabla Promotora no existe o tiene diferente estructura
+        
+        **Solución temporal para pruebas:**
+        """)
+        
+        # Input manual para testing
+        id_promotora_manual = st.number_input(
+            "Ingresa manualmente un ID de promotora para testing:", 
+            min_value=1, value=1
         )
         
-        st.markdown("---")
-        st.write("**Ingresa tu nueva contraseña:**")
-        
-        nueva_contrasena = st.text_input("Nueva contraseña*", type="password")
-        confirmar_contrasena = st.text_input("Confirmar nueva contraseña*", type="password")
-        
-        submitted = st.form_submit_button("🔄 Restablecer Contraseña")
-        
-        if submitted:
-            if not usuario or not dui or not nueva_contrasena or not confirmar_contrasena:
-                st.error("❌ Todos los campos marcados con * son obligatorios.")
-                return
-                
-            if nueva_contrasena != confirmar_contrasena:
-                st.error("❌ Las contraseñas no coinciden.")
-                return
-                
-            # Validar formato del DUI
-            if not validar_formato_dui(dui):
-                st.error("❌ Formato de DUI inválido. Use: 00000000-0")
-                return
-                
-            con = obtener_conexion()
-            if not con:
-                st.error("⚠️ No se pudo conectar a la base de datos.")
-                return
-                
-            try:
-                cursor_verificar = con.cursor(dictionary=True)
-                
-                cursor_verificar.execute(
-                    "SELECT ID_Usuario, Usuario FROM Usuario WHERE Usuario = %s AND DUI = %s", 
-                    (usuario, dui)
-                )
-                usuario_valido = cursor_verificar.fetchone()
-                cursor_verificar.close()
-                
-                if not usuario_valido:
-                    st.error("❌ El usuario y DUI no coinciden o no existen en el sistema.")
-                    con.close()
-                    return
-                
-                cursor_actualizar = con.cursor()
-                nueva_contrasena_hash = hashlib.sha256(nueva_contrasena.encode()).hexdigest()
-                
-                cursor_actualizar.execute(
-                    "UPDATE Usuario SET Contraseña = %s WHERE Usuario = %s AND DUI = %s",
-                    (nueva_contrasena_hash, usuario, dui)
-                )
-                con.commit()
-                
-                if cursor_actualizar.rowcount > 0:
-                    st.success("✅ Contraseña restablecida exitosamente. Ya puedes iniciar sesión.")
-                    st.session_state["mostrar_restablecer"] = False
-                else:
-                    st.error("❌ No se pudo actualizar la contraseña. Verifica tus datos.")
-                
-                cursor_actualizar.close()
-                
-            except Exception as e:
-                st.error(f"❌ Error al restablecer contraseña: {e}")
-            finally:
-                con.close()
-
-
-def validar_formato_dui(dui):
-    """Valida el formato del DUI salvadoreño"""
-    import re
-    patron = r'^\d{8}-\d{1}$'
-    return bool(re.match(patron, dui))
-
-
-def login():
-    """Interfaz del login."""
-    st.title("Inicio de sesión 👩‍💼")
-    
-    # Botón volver al menú principal
-    if st.button("🏠 Volver al menú principal"):
-        st.session_state["pagina_actual"] = "inicio"
-        st.rerun()
-    
-    st.markdown("---")
-    
-    # Mostrar opción de restablecer contraseña si se solicita
-    if st.session_state.get("mostrar_restablecer", False):
-        restablecer_contrasena()
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("⬅️ Volver al login", use_container_width=True):
-                st.session_state["mostrar_restablecer"] = False
-                st.rerun()
-        with col2:
-            if st.button("🏠 Volver al menú principal", use_container_width=True):
-                st.session_state["pagina_actual"] = "inicio"
-                st.session_state["mostrar_restablecer"] = False
-                st.rerun()
-        return
-
-    usuario = st.text_input("Usuario", key="usuario_input")
-    contrasena = st.text_input("Contraseña", type="password", key="contrasena_input")
-
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("Iniciar sesión", use_container_width=True):
-            datos_usuario = verificar_usuario(usuario, contrasena)
-
-            if datos_usuario:
-                # Guardar datos básicos en sesión
-                st.session_state["sesion_iniciada"] = True
-                st.session_state["usuario"] = datos_usuario["Usuario"]
-                st.session_state["tipo_usuario"] = datos_usuario["tipo_usuario"]
-                st.session_state["cargo_de_usuario"] = datos_usuario["cargo"]
-                st.session_state["id_usuario"] = datos_usuario["ID_Usuario"]
-
-                # 👉 Obtener el grupo asociado a este usuario
-                id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
-                st.session_state["id_grupo"] = id_grupo
-
-                # (Opcional) Debug temporal
-                # st.write("Debug - id_grupo:", id_grupo)
-
-                # Obtener permisos
-                from modulos.permisos import obtener_permisos_usuario
-                permisos = obtener_permisos_usuario(
-                    datos_usuario["ID_Usuario"],
-                    datos_usuario["tipo_usuario"],
-                    datos_usuario["cargo"]
-                )
-                st.session_state["permisos_usuario"] = permisos
-
-                st.success(
-                    f"Bienvenido, {datos_usuario['Usuario']} 👋 "
-                    f"(Cargo: {datos_usuario['cargo']})"
-                )
-
-                st.rerun()
-            else:
-                st.error("❌ Usuario o contraseña incorrectos.")
-    
-    with col2:
-        if st.button("¿Olvidaste tu contraseña?", use_container_width=True):
-            st.session_state["mostrar_restablecer"] = True
+        if st.button("Usar este ID para testing"):
+            st.session_state.debug_promotora_id = id_promotora_manual
             st.rerun()
+            
+        if "debug_promotora_id" in st.session_state:
+            id_promotora = st.session_state.debug_promotora_id
+            st.info(f"🔧 Usando ID de promotora manual: {id_promotora}")
+        else:
+            return
+    
+    # PASO 2: Obtener grupos
+    grupos = obtener_grupos_promotora_debug(id_promotora)
+    
+    if not grupos:
+        st.error("❌ No hay grupos para mostrar")
+        return
+    
+    # PASO 3: Mostrar interfaz normal
+    st.success("✅ ¡Todo listo! Mostrando consolidado...")
+    st.write("---")
+    
+    # Aquí continuaría tu interfaz normal...
+    mostrar_interfaz_normal(grupos)
+
+def mostrar_interfaz_normal(grupos):
+    """Interfaz normal una vez que tenemos los datos"""
+    
+    st.title("📊 Consolidado de Grupos - Promotora")
+    
+    # Selector de año
+    año_actual = datetime.now().year
+    año_seleccionado = st.sidebar.selectbox(
+        "Seleccionar Año",
+        [año_actual - 1, año_actual, año_actual + 1],
+        index=1
+    )
+    
+    # Resumen simple
+    st.subheader("📈 Resumen de Grupos")
+    
+    # Crear datos de ejemplo para demostración
+    datos_ejemplo = []
+    for grupo in grupos:
+        datos_ejemplo.append({
+            'Grupo': grupo.get('nombre_grupo', f"Grupo {grupo.get('ID_Grupo', 'N/A')}"),
+            'Miembros': grupo.get('total_miembros', 0),
+            'Ingresos Ejemplo': f"${len(grupo) * 1000:,.2f}",
+            'Estado': '🟢 Activo'
+        })
+    
+    df_resumen = pd.DataFrame(datos_ejemplo)
+    st.dataframe(df_resumen, use_container_width=True)
+    
+    # Gráfica de ejemplo
+    st.subheader("📊 Gráfica de Ejemplo")
+    
+    if len(grupos) > 0:
+        # Datos para gráfica
+        nombres_grupos = [g.get('nombre_grupo', f"Grupo {g.get('ID_Grupo')}") for g in grupos]
+        ingresos_ejemplo = [len(g) * 1000 for g in grupos]  # Datos de ejemplo
+        
+        fig = px.bar(
+            x=nombres_grupos,
+            y=ingresos_ejemplo,
+            title="Ingresos por Grupo (Ejemplo)",
+            labels={'x': 'Grupos', 'y': 'Ingresos ($)'},
+            color=ingresos_ejemplo,
+            color_continuous_scale='Viridis'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No hay suficientes datos para mostrar gráficas")
+    
+    # Información para el usuario
+    st.info("""
+    **💡 Esta es una vista de demostración.**
+    Para ver datos reales, necesitamos:
+    1. Que tu usuario esté correctamente asociado a una promotora
+    2. Que la promotora tenga grupos asignados
+    3. Que existan datos financieros en las tablas correspondientes
+    """)
+
+# =============================================
+#  FUNCIÓN PRINCIPAL
+# =============================================
+
+def main():
+    """Función principal"""
+    
+    # Verificar si estamos en modo debug
+    if st.sidebar.checkbox("🔍 Modo Debug", value=True):
+        mostrar_consolidado_promotora_debug()
+    else:
+        # Intentar modo normal
+        try:
+            from consolidados_original import mostrar_consolidado_promotora
+            mostrar_consolidado_promotora()
+        except:
+            st.error("No se pudo cargar el módulo normal. Usando modo debug.")
+            mostrar_consolidado_promotora_debug()
+
+if __name__ == "__main__":
+    main()
