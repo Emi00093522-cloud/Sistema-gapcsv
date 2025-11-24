@@ -84,7 +84,7 @@ def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
         return 0
 
 # =====================================================================================
-#  OBTENER TOTALES POR REUNIÓN
+#  OBTENER TOTALES POR REUNIÓN (CORREGIDO CON NOMBRES EXACTOS)
 # =====================================================================================
 
 def obtener_totales_reunion(cursor, id_reunion):
@@ -96,7 +96,7 @@ def obtener_totales_reunion(cursor, id_reunion):
             'total_pagos_multas': 0
         }
         
-        # 1) TOTAL AHORROS
+        # 1) TOTAL AHORROS - Usando nombre correcto
         cursor.execute("""
             SELECT COALESCE(SUM(Monto_Ahorro), 0) as total
             FROM Ahorro 
@@ -105,32 +105,67 @@ def obtener_totales_reunion(cursor, id_reunion):
         resultado = cursor.fetchone()
         totales['total_ahorros'] = float(resultado['total']) if resultado else 0
 
-        # 2) TOTAL PRÉSTAMOS (solo los aprobados)
+        # 2) TOTAL PRÉSTAMOS - Usando columna 'monto' (no 'Monto_Prestamo')
         cursor.execute("""
-            SELECT COALESCE(SUM(Monto_Prestamo), 0) as total
+            SELECT COALESCE(SUM(monto), 0) as total
             FROM Prestamo 
-            WHERE ID_Reunion = %s AND Estado = 'APROBADO'
+            WHERE ID_Reunion = %s AND ID_Estado_prestamo = 1  -- 1 = APROBADO
         """, (id_reunion,))
         resultado = cursor.fetchone()
         totales['total_prestamos'] = float(resultado['total']) if resultado else 0
 
-        # 3) TOTAL PAGOS PRÉSTAMOS
-        cursor.execute("""
-            SELECT COALESCE(SUM(Monto_Pagado), 0) as total
-            FROM Pago_Prestamo 
-            WHERE ID_Reunion = %s
-        """, (id_reunion,))
-        resultado = cursor.fetchone()
-        totales['total_pagos_prestamos'] = float(resultado['total']) if resultado else 0
+        # 3) TOTAL PAGOS PRÉSTAMOS - Verificar nombre exacto
+        # Primero verificamos la estructura de Pago_Prestamo
+        cursor.execute("SHOW COLUMNS FROM Pago_Prestamo")
+        columnas_pago = cursor.fetchall()
+        columnas_pago_nombres = [col['Field'] for col in columnas_pago]
+        
+        # Buscar la columna correcta para pago de préstamos
+        columna_monto_pago = None
+        posibles_nombres_pago = ['Monto_Pagado', 'monto_pagado', 'Monto', 'monto', 'cantidad', 'Cantidad']
+        
+        for nombre in posibles_nombres_pago:
+            if nombre in columnas_pago_nombres:
+                columna_monto_pago = nombre
+                break
+        
+        if columna_monto_pago:
+            cursor.execute(f"""
+                SELECT COALESCE(SUM({columna_monto_pago}), 0) as total
+                FROM Pago_Prestamo 
+                WHERE ID_Reunion = %s
+            """, (id_reunion,))
+            resultado = cursor.fetchone()
+            totales['total_pagos_prestamos'] = float(resultado['total']) if resultado else 0
+        else:
+            st.error(f"❌ No se encontró columna de monto en Pago_Prestamo. Columnas disponibles: {columnas_pago_nombres}")
+            totales['total_pagos_prestamos'] = 0
 
-        # 4) TOTAL PAGOS MULTAS
-        cursor.execute("""
-            SELECT COALESCE(SUM(Monto_Pagado), 0) as total
-            FROM Pago_Multa 
-            WHERE ID_Reunion = %s
-        """, (id_reunion,))
-        resultado = cursor.fetchone()
-        totales['total_pagos_multas'] = float(resultado['total']) if resultado else 0
+        # 4) TOTAL PAGOS MULTAS - Verificar nombre exacto
+        cursor.execute("SHOW COLUMNS FROM Pago_Multa")
+        columnas_multa = cursor.fetchall()
+        columnas_multa_nombres = [col['Field'] for col in columnas_multa]
+        
+        # Buscar la columna correcta para pago de multas
+        columna_monto_multa = None
+        posibles_nombres_multa = ['Monto_Pagado', 'monto_pagado', 'Monto', 'monto', 'cantidad', 'Cantidad']
+        
+        for nombre in posibles_nombres_multa:
+            if nombre in columnas_multa_nombres:
+                columna_monto_multa = nombre
+                break
+        
+        if columna_monto_multa:
+            cursor.execute(f"""
+                SELECT COALESCE(SUM({columna_monto_multa}), 0) as total
+                FROM Pago_Multa 
+                WHERE ID_Reunion = %s
+            """, (id_reunion,))
+            resultado = cursor.fetchone()
+            totales['total_pagos_multas'] = float(resultado['total']) if resultado else 0
+        else:
+            st.error(f"❌ No se encontró columna de monto en Pago_Multa. Columnas disponibles: {columnas_multa_nombres}")
+            totales['total_pagos_multas'] = 0
 
         return totales
 
@@ -269,6 +304,18 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
         st.metric("📉 Total Egresos", f"${total_egresos:,.2f}")
     with col4:
         st.metric("💵 Saldo Final", f"${saldo_final_calculado:,.2f}")
+
+    # Mostrar información de depuración
+    with st.expander("🔍 Ver detalles de consultas"):
+        st.write("**Estructura de tablas encontradas:**")
+        st.write("- Prestamo: usando columna 'monto'")
+        st.write("- Ahorro: usando columna 'Monto_Ahorro'")
+        
+        cursor.execute("SHOW COLUMNS FROM Pago_Prestamo")
+        st.write("- Pago_Prestamo:", [col['Field'] for col in cursor.fetchall()])
+        
+        cursor.execute("SHOW COLUMNS FROM Pago_Multa")
+        st.write("- Pago_Multa:", [col['Field'] for col in cursor.fetchall()])
 
     # Botón para actualizar movimientos en base de datos
     if st.button("🔄 Actualizar Movimientos de Caja", type="primary"):
