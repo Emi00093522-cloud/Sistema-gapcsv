@@ -67,7 +67,7 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
         # Agregar filtro de fechas si se proporcionan
         if fecha_inicio and fecha_fin:
             # Usar la columna de fecha que exista en tu base de datos
-            query += " AND (r.fecha BETWEEN %s AND %s OR r.fecha_reunion BETWEEN %s AND %s)"
+            query += " AND (r.fecha BETWEEN %s AND %s OR r.fecha BETWEEN %s AND %s)"
             params.extend([fecha_inicio, fecha_fin, fecha_inicio, fecha_fin])
         
         query += " GROUP BY m.ID_Miembro, m.nombre ORDER BY m.nombre"
