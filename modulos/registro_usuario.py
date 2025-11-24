@@ -34,7 +34,7 @@ def registrar_usuario():
     for cargo in cargos:
         cargo_nombre = cargo["Cargo"].capitalize()
         if cargo_nombre in cargos_permitidos:
-            cargo_opciones_filtrados[f"{cargo_nombre} ({'editor' if cargo_nombre in ['Promotora', 'Secretaria'] else 'lector'})"] = cargo["ID_Cargo"]
+            cargo_opciones_filtrados[f"{cargo_nombre} ({'editor' if cargo_nombre in ['Promotora', 'Secretaria'] else 'editor'})"] = cargo["ID_Cargo"]
 
     # --- FORMULARIO ---
     usuario = st.text_input("Nombre de usuario")
@@ -58,11 +58,8 @@ def registrar_usuario():
         conexion.close()
         return
 
-    # 🔒 Asignar tipo automáticamente según el cargo seleccionado
-    if cargo_sel.lower() in ["administrador", "administradora"]:
-        tipo_sel = "Lector"
-    else:
-        tipo_sel = "Editor"  # Para Promotora y Secretaria
+    # 🔒 CORRECCIÓN: Asignar tipo EDITOR para todos los cargos
+    tipo_sel = "Editor"  # Todos los cargos serán editores
 
     # Mostrar tipo de usuario asignado (solo lectura)
     st.text_input("Tipo de usuario asignado", tipo_sel, disabled=True)
