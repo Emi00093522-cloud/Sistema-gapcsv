@@ -331,48 +331,16 @@ def mostrar_resumen_cierre():
     ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo()
     
     if ahorros_por_miembro:
-        # Crear tabla exactamente como la pediste
-        tabla_html = """
-        <style>
-        .tabla-ahorros {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1em 0;
+        # Crear tabla EXACTAMENTE como la pediste
+        tabla_data = {
+            "Miembro": [m['miembro'] for m in ahorros_por_miembro],
+            "Total Ahorros": [f"${m['total_ahorros']:,.2f}" for m in ahorros_por_miembro],
+            "Total Otros": [f"${m['total_otros']:,.2f}" for m in ahorros_por_miembro],
+            "TOTAL": [f"${m['total_general']:,.2f}" for m in ahorros_por_miembro]
         }
-        .tabla-ahorros th {
-            background-color: #f0f2f6;
-            padding: 10px;
-            text-align: left;
-            border: 1px solid #ddd;
-            font-weight: bold;
-        }
-        .tabla-ahorros td {
-            padding: 10px;
-            border: 1px solid #ddd;
-        }
-        </style>
-        <table class="tabla-ahorros">
-            <tr>
-                <th>Miembro</th>
-                <th>Total Ahorros</th>
-                <th>Total Otros</th>
-                <th>TOTAL</th>
-            </tr>
-        """
         
-        for miembro in ahorros_por_miembro:
-            tabla_html += f"""
-            <tr>
-                <td>{miembro['miembro']}</td>
-                <td>${miembro['total_ahorros']:,.2f}</td>
-                <td>${miembro['total_otros']:,.2f}</td>
-                <td>${miembro['total_general']:,.2f}</td>
-            </tr>
-            """
-        
-        tabla_html += "</table>"
-        
-        st.markdown(tabla_html, unsafe_allow_html=True)
+        df_tabla = pd.DataFrame(tabla_data)
+        st.dataframe(df_tabla, use_container_width=True, hide_index=True)
         
         # Mostrar total general de ahorros por miembros
         total_general_miembros = sum(item['total_general'] for item in ahorros_por_miembro)
