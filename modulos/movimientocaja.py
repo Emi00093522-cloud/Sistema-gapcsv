@@ -3,7 +3,7 @@ from modulos.config.conexion import obtener_conexion
 from datetime import datetime
 
 def mostrar_movimiento_caja():
-    st.header("💰 Movimientos de Caja")
+    st.header("💰 Movimientos de Caja - Sistema Automático")
 
     # Verificar si hay una reunión seleccionada
     if 'reunion_actual' not in st.session_state:
@@ -17,259 +17,323 @@ def mostrar_movimiento_caja():
         # Obtener la reunión del session_state
         reunion_info = st.session_state.reunion_actual
         id_reunion = reunion_info['id_reunion']
-        nombre_reunion = reunion_info.get('nombre_reunion', 'Reunión')
+        id_grupo = reunion_info['id_grupo']
+        nombre_reunion = reunion_info['nombre_reunion']
 
+        # Mostrar información de la reunión actual
         st.info(f"📅 **Reunión actual:** {nombre_reunion}")
 
-        tab1, tab2, tab3 = st.tabs(["📥 Registrar Movimiento", "📋 Ver Movimientos", "📊 Resumen de Caja"])
+        # OBTENER SALDO ANTERIOR (último saldo_final de la reunión anterior)
+        saldo_anterior = obtener_saldo_anterior(cursor, id_reunion, id_grupo)
+        
+        # Mostrar saldo anterior (saldo inicial de esta reunión)
+        st.success(f"💰 **Saldo inicial en caja fuerte: ${saldo_anterior:,.2f}**")
+
+        # Pestañas para diferentes funcionalidades
+        tab1, tab2 = st.tabs(["📊 Resumen Automático", "📋 Detalle de Movimientos"])
 
         with tab1:
-            registrar_movimiento(cursor, con, id_reunion)
+            resumen_automatico(cursor, con, id_reunion, saldo_anterior)
 
         with tab2:
-            ver_movimientos(cursor, con, id_reunion)  # paso 'con' para poder eliminar
-
-        with tab3:
-            resumen_caja(cursor, id_reunion)
+            detalle_movimientos(cursor, id_reunion, saldo_anterior)
 
     except Exception as e:
         st.error(f"❌ Error general: {e}")
 
     finally:
         if "cursor" in locals():
-            try:
-                cursor.close()
-            except:
-                pass
+            cursor.close()
         if "con" in locals():
-            try:
-                con.close()
-            except:
-                pass
+            con.close()
 
-def registrar_movimiento(cursor, con, id_reunion):
-    st.subheader("➕ Registrar Nuevo Movimiento")
-
-    # Obtener los tipos (Ingreso/Egreso) desde el catálogo Tipo_de_movimiento
-    cursor.execute("""
-        SELECT ID_Tipo_movimiento, tipo_movimiento
-        FROM Tipo_de_movimiento
-        ORDER BY tipo_movimiento
-    """)
-    tipos = cursor.fetchall()
-
-    if not tipos:
-        st.error("❌ No hay tipos (Ingreso/Egreso) configurados en el catálogo Tipo_de_movimiento.")
-        return
-
-    # Preparar opciones de tipo (Ingreso/Egreso) y mapping ID
-    tipo_options = [t['tipo_movimiento'] for t in tipos]
-    tipo_to_id = {t['tipo_movimiento']: t['ID_Tipo_movimiento'] for t in tipos}
-
-    with st.form("form_movimiento_caja"):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            tipo_seleccionado = st.selectbox("Tipo de movimiento *", tipo_options)
-            # Categoría ahora: texto libre (porque el catálogo solo indica Ingreso/Egreso)
-            categoria = st.text_input("Categoría *", placeholder="Ej: Cuotas, Donación, Compra material...")
-            monto = st.number_input("Monto ($) *",
-                                   min_value=0.01,
-                                   value=100.00,
-                                   step=10.00,
-                                   format="%.2f")
-
-        with col2:
-            fecha_movimiento = st.date_input("Fecha del movimiento *", value=datetime.now().date())
-            descripcion = st.text_area("Descripción (opcional)", placeholder="Notas adicionales...", max_chars=300, height=120)
-
-        enviar = st.form_submit_button("💾 Registrar Movimiento")
-
-        if enviar:
-            errores = []
-            if not categoria.strip():
-                errores.append("⚠ Debes indicar una categoría.")
-            if monto <= 0:
-                errores.append("⚠ El monto debe ser mayor a 0.")
-
-            if errores:
-                for e in errores:
-                    st.warning(e)
-                return
-
-            try:
-                ID_Tipo_movimiento = tipo_to_id.get(tipo_seleccionado)
-                categoria_final = categoria.strip()
-                descripcion_final = descripcion.strip() if descripcion else None
-
-                cursor.execute("""
-                    INSERT INTO movimiento_caja
-                    (ID_Reunion, ID_Tipo_movimiento, monto, categoria, descripcion, fecha)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (id_reunion, ID_Tipo_movimiento, monto, categoria_final, descripcion_final, fecha_movimiento))
-
-                con.commit()
-
-                st.success("✅ Movimiento registrado correctamente!")
-                st.info(f"- Tipo: **{tipo_seleccionado}** — Categoría: **{categoria_final}** — Monto: **${monto:,.2f}**")
-
-                if st.button("🆕 Registrar otro movimiento", key="nuevo_movimiento"):
-                    st.rerun()
-
-            except Exception as e:
-                con.rollback()
-                st.error(f"❌ Error al registrar el movimiento: {e}")
-
-def ver_movimientos(cursor, con, id_reunion):
+def obtener_saldo_anterior(cursor, id_reunion_actual, id_grupo):
     """
-    Mostrar movimientos y permitir eliminar.
+    Obtiene el último saldo_final de la reunión anterior para este grupo
     """
-    st.subheader("📋 Movimientos Registrados")
-
-    # Filtros
-    col1, col2 = st.columns(2)
-    with col1:
-        filtro_tipo = st.selectbox("Filtrar por tipo", ["Todos", "Ingreso", "Egreso"], key="filtro_tipo")
-    with col2:
+    try:
+        # Buscar la reunión anterior para este grupo
         cursor.execute("""
-            SELECT DISTINCT categoria 
-            FROM movimiento_caja 
-            WHERE ID_Reunion = %s
-            ORDER BY categoria
-        """, (id_reunion,))
-        categorias = cursor.fetchall()
-        categorias_lista = ["Todas"] + [c['categoria'] for c in categorias if c.get('categoria')]
-        filtro_categoria = st.selectbox("Filtrar por categoría", categorias_lista)
+            SELECT id_reunion 
+            FROM reuniones 
+            WHERE id_grupo = %s AND id_reunion < %s 
+            ORDER BY id_reunion DESC 
+            LIMIT 1
+        """, (id_grupo, id_reunion_actual))
+        
+        reunion_anterior = cursor.fetchone()
+        
+        if reunion_anterior:
+            # Obtener el último saldo_final de esa reunión
+            cursor.execute("""
+                SELECT saldo_final 
+                FROM movimiento_caja 
+                WHERE ID_Reunion = %s 
+                ORDER BY fecha DESC, ID_Movimiento_caja DESC 
+                LIMIT 1
+            """, (reunion_anterior['id_reunion'],))
+            
+            movimiento_anterior = cursor.fetchone()
+            return movimiento_anterior['saldo_final'] if movimiento_anterior else 0
+        else:
+            return 0  # Primera reunión del grupo
+            
+    except Exception as e:
+        st.error(f"Error al obtener saldo anterior: {e}")
+        return 0
 
-    # Query principal: join con Tipo_de_movimiento para obtener 'tipo_movimiento'
-    query = """
-        SELECT mc.*, tm.tipo_movimiento as tipo
-        FROM movimiento_caja mc
-        LEFT JOIN Tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
-        WHERE mc.ID_Reunion = %s
+def obtener_movimientos_automaticos(cursor, id_reunion):
     """
-    params = [id_reunion]
+    Obtiene todos los movimientos automáticos de los diferentes módulos
+    """
+    movimientos = []
+    
+    try:
+        # 1. AHORROS (INGRESOS)
+        cursor.execute("""
+            SELECT monto, fecha, 'Ahorro' as categoria, 
+                   CONCAT('Ahorro de ', m.nombre) as descripcion,
+                   'Ingreso' as tipo
+            FROM ahorros a
+            JOIN miembros m ON a.ID_Miembro = m.ID_Miembro
+            WHERE a.ID_Reunion = %s
+        """, (id_reunion,))
+        ahorros = cursor.fetchall()
+        movimientos.extend(ahorros)
+        
+        # 2. PRÉSTAMOS DESEMBOLSADOS (EGRESOS)
+        cursor.execute("""
+            SELECT monto, fecha_desembolso as fecha, 'Préstamo' as categoria,
+                   CONCAT('Préstamo para ', m.nombre) as descripcion,
+                   'Egreso' as tipo
+            FROM prestamos p
+            JOIN miembros m ON p.ID_Miembro = m.ID_Miembro
+            WHERE p.ID_Reunion = %s AND p.estado = 'APROBADO'
+        """, (id_reunion,))
+        prestamos = cursor.fetchall()
+        movimientos.extend(prestamos)
+        
+        # 3. PAGOS DE PRÉSTAMOS (INGRESOS)
+        cursor.execute("""
+            SELECT monto_pagado as monto, fecha_pago as fecha, 'Pago Préstamo' as categoria,
+                   CONCAT('Pago préstamo de ', m.nombre) as descripcion,
+                   'Ingreso' as tipo
+            FROM pagos_prestamos pp
+            JOIN prestamos p ON pp.ID_Prestamo = p.ID_Prestamo
+            JOIN miembros m ON p.ID_Miembro = m.ID_Miembro
+            WHERE pp.ID_Reunion = %s
+        """, (id_reunion,))
+        pagos_prestamos = cursor.fetchall()
+        movimientos.extend(pagos_prestamos)
+        
+        # 4. PAGOS DE MULTAS (INGRESOS)
+        cursor.execute("""
+            SELECT monto, fecha_pago as fecha, 'Pago Multa' as categoria,
+                   CONCAT('Pago multa de ', m.nombre) as descripcion,
+                   'Ingreso' as tipo
+            FROM pagos_multas pm
+            JOIN multas mt ON pm.ID_Multa = mt.ID_Multa
+            JOIN miembros m ON mt.ID_Miembro = m.ID_Miembro
+            WHERE pm.ID_Reunion = %s
+        """, (id_reunion,))
+        pagos_multas = cursor.fetchall()
+        movimientos.extend(pagos_multas)
+        
+        return movimientos
+        
+    except Exception as e:
+        st.error(f"Error al obtener movimientos automáticos: {e}")
+        return []
 
-    if filtro_tipo != "Todos":
-        query += " AND tm.tipo_movimiento = %s"
-        params.append(filtro_tipo)
+def actualizar_saldos_finales(cursor, con, id_reunion, movimientos, saldo_anterior):
+    """
+    Actualiza los saldos_finales en la tabla movimiento_caja
+    """
+    try:
+        # Ordenar movimientos por fecha
+        movimientos_ordenados = sorted(movimientos, key=lambda x: x['fecha'])
+        
+        saldo_actual = saldo_anterior
+        
+        # Actualizar o insertar cada movimiento con su saldo_final
+        for i, mov in enumerate(movimientos_ordenados):
+            if mov['tipo'] == 'Ingreso':
+                saldo_actual += mov['monto']
+            else:
+                saldo_actual -= mov['monto']
+            
+            # Verificar si ya existe este movimiento en movimiento_caja
+            cursor.execute("""
+                SELECT ID_Movimiento_caja FROM movimiento_caja 
+                WHERE ID_Reunion = %s AND descripcion = %s AND monto = %s
+            """, (id_reunion, mov['descripcion'], mov['monto']))
+            
+            existe = cursor.fetchone()
+            
+            if existe:
+                # Actualizar saldo_final del movimiento existente
+                cursor.execute("""
+                    UPDATE movimiento_caja 
+                    SET saldo_final = %s 
+                    WHERE ID_Movimiento_caja = %s
+                """, (saldo_actual, existe['ID_Movimiento_caja']))
+            else:
+                # Insertar nuevo movimiento con saldo_final
+                cursor.execute("""
+                    INSERT INTO movimiento_caja 
+                    (ID_Reunion, monto, categoria, descripcion, fecha, tipo, saldo_final)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (id_reunion, mov['monto'], mov['categoria'], mov['descripcion'], 
+                      mov['fecha'], mov['tipo'], saldo_actual))
+        
+        con.commit()
+        return saldo_actual  # Retorna el saldo final
+        
+    except Exception as e:
+        con.rollback()
+        st.error(f"Error al actualizar saldos: {e}")
+        return saldo_anterior
 
-    if filtro_categoria != "Todas":
-        query += " AND mc.categoria = %s"
-        params.append(filtro_categoria)
+def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
+    st.subheader("📊 Resumen Automático de Caja")
+    
+    # Obtener movimientos automáticos
+    movimientos = obtener_movimientos_automaticos(cursor, id_reunion)
+    
+    if not movimientos:
+        st.info("📭 No hay movimientos registrados en los módulos para esta reunión")
+        return saldo_anterior
+    
+    # Actualizar saldos finales en la base de datos
+    saldo_final = actualizar_saldos_finales(cursor, con, id_reunion, movimientos, saldo_anterior)
+    
+    # Calcular totales para mostrar
+    total_ingresos = sum(mov['monto'] for mov in movimientos if mov['tipo'] == 'Ingreso')
+    total_egresos = sum(mov['monto'] for mov in movimientos if mov['tipo'] == 'Egreso')
+    
+    # Mostrar fórmula del cuadre
+    st.info("""
+    **🧮 Fórmula del Cuadre Automático:**
+    ```
+    SALDO FINAL = Saldo Inicial + Total Ingresos - Total Egresos
+    ```
+    **Los movimientos vienen automáticamente de:**
+    - ✅ Módulo de Ahorros
+    - ✅ Módulo de Préstamos  
+    - ✅ Módulo de Pagos de Préstamos
+    - ✅ Módulo de Pagos de Multas
+    """)
+    
+    # Mostrar métricas principales
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("💰 Saldo Inicial", f"${saldo_anterior:,.2f}")
+    
+    with col2:
+        st.metric("📈 Total Ingresos", f"${total_ingresos:,.2f}")
+    
+    with col3:
+        st.metric("📉 Total Egresos", f"${total_egresos:,.2f}")
+    
+    with col4:
+        balance_color = "normal" if saldo_final >= 0 else "inverse"
+        st.metric("💵 Saldo Final", f"${saldo_final:,.2f}", delta_color=balance_color)
+    
+    # Mostrar cálculo detallado
+    st.divider()
+    st.write("**🧾 Desglose automático del cálculo:**")
+    
+    st.write(f"**Saldo inicial de caja fuerte:** ${saldo_anterior:,.2f}")
+    st.write(f"**+ Total ingresos (Ahorros + Pagos):** ${total_ingresos:,.2f}")
+    st.write(f"**- Total egresos (Préstamos):** ${total_egresos:,.2f}")
+    st.write(f"**= Saldo final para caja fuerte:** **${saldo_final:,.2f}**")
+    
+    # Mostrar resumen por categoría
+    st.divider()
+    st.write("**📈 Resumen por Categoría:**")
+    
+    categorias = {}
+    for mov in movimientos:
+        categoria = mov['categoria']
+        if categoria not in categorias:
+            categorias[categoria] = {'ingresos': 0, 'egresos': 0, 'cantidad': 0}
+        
+        if mov['tipo'] == 'Ingreso':
+            categorias[categoria]['ingresos'] += mov['monto']
+        else:
+            categorias[categoria]['egresos'] += mov['monto']
+        categorias[categoria]['cantidad'] += 1
+    
+    for categoria, datos in categorias.items():
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.write(f"📁 {categoria}")
+        with col2:
+            if datos['ingresos'] > 0:
+                st.write(f"🟢 ${datos['ingresos']:,.2f}")
+            if datos['egresos'] > 0:
+                st.write(f"🔴 ${datos['egresos']:,.2f}")
+        with col3:
+            st.write(f"({datos['cantidad']} movimientos)")
+        st.divider()
+    
+    return saldo_final
 
-    query += " ORDER BY mc.fecha DESC, mc.ID_Movimiento_caja DESC"
-
-    cursor.execute(query, tuple(params))
+def detalle_movimientos(cursor, id_reunion, saldo_anterior):
+    st.subheader("📋 Detalle de Movimientos con Saldo Acumulado")
+    
+    # Obtener movimientos de movimiento_caja (ya con saldos_finales actualizados)
+    cursor.execute("""
+        SELECT * FROM movimiento_caja 
+        WHERE ID_Reunion = %s 
+        ORDER BY fecha ASC, ID_Movimiento_caja ASC
+    """, (id_reunion,))
+    
     movimientos = cursor.fetchall()
-
+    
     if not movimientos:
         st.info("📭 No hay movimientos registrados para esta reunión")
         return
-
-    # Totales calculados a partir del campo tipo (Ingreso/Egreso) obtenido del join
-    total_entradas = sum(m['monto'] for m in movimientos if m.get('tipo') == 'Ingreso')
-    total_salidas = sum(m['monto'] for m in movimientos if m.get('tipo') == 'Egreso')
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.metric("💰 Total Ingresos", f"${total_entradas:,.2f}")
-    with c2:
-        st.metric("💸 Total Egresos", f"${total_salidas:,.2f}")
-
+    
+    # Mostrar todos los movimientos con saldo acumulado
+    st.write("**📋 Evolución del Saldo:**")
+    
+    # Mostrar saldo inicial
+    col1, col2, col3 = st.columns([3, 1, 1])
+    with col1:
+        st.write("**💰 Saldo Inicial**")
+    with col2:
+        st.write("")
+    with col3:
+        st.write(f"**${saldo_anterior:,.2f}**")
     st.divider()
-
+    
+    saldo_acumulado = saldo_anterior
+    
     for mov in movimientos:
         with st.container():
-            col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+            
             with col1:
-                desc = mov.get('descripcion') or ""
-                st.write(f"**{desc}**")
-                fecha = mov.get('fecha')
-                try:
-                    # fecha puede venir como date/datetime/string
-                    if hasattr(fecha, "strftime"):
-                        fecha_str = fecha.strftime('%d/%m/%Y')
-                    else:
-                        fecha_str = str(fecha)
-                    st.caption(f"📁 {mov.get('categoria','')} • 📅 {fecha_str}")
-                except Exception:
-                    st.caption(f"📁 {mov.get('categoria','')} • 📅 {fecha}")
+                st.write(f"**{mov['descripcion']}**")
+                st.caption(f"📁 {mov['categoria']} • 📅 {mov['fecha'].strftime('%d/%m/%Y')}")
+            
             with col2:
-                tipo_color = "🟢" if mov.get('tipo') == "Ingreso" else "🔴"
-                st.write(f"{tipo_color} {mov.get('tipo') or 'N/A'}")
+                tipo_color = "🟢" if mov['tipo'] == "Ingreso" else "🔴"
+                st.write(f"{tipo_color} {mov['tipo']}")
+            
             with col3:
-                monto_style = "color: green; font-weight: bold;" if mov.get('tipo') == "Ingreso" else "color: red; font-weight: bold;"
+                monto_style = "color: green; font-weight: bold;" if mov['tipo'] == "Ingreso" else "color: red; font-weight: bold;"
                 st.markdown(f"<p style='{monto_style}'>${mov['monto']:,.2f}</p>", unsafe_allow_html=True)
+            
             with col4:
-                # botón de eliminar: llama a eliminar_movimiento con cursor y con disponibles
-                if st.button("🗑️", key=f"delete_{mov['ID_Movimiento_caja']}"):
-                    eliminar_movimiento(cursor, con, mov['ID_Movimiento_caja'])
+                # Mostrar saldo después de este movimiento
+                st.write(f"💰 ${mov['saldo_final']:,.2f}")
+            
             st.divider()
 
-def eliminar_movimiento(cursor, con, id_movimiento):
-    try:
-        cursor.execute("DELETE FROM movimiento_caja WHERE ID_Movimiento_caja = %s", (id_movimiento,))
-        con.commit()
-        st.success("✅ Movimiento eliminado correctamente")
-        st.rerun()
-    except Exception as e:
-        con.rollback()
-        st.error(f"❌ Error al eliminar el movimiento: {e}")
-
-def resumen_caja(cursor, id_reunion):
-    st.subheader("📊 Resumen de Caja")
-
-    cursor.execute("""
-        SELECT 
-            tm.tipo_movimiento AS tipo,
-            mc.categoria,
-            COUNT(*) as cantidad,
-            SUM(mc.monto) as total
-        FROM movimiento_caja mc
-        LEFT JOIN Tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
-        WHERE mc.ID_Reunion = %s
-        GROUP BY tm.tipo_movimiento, mc.categoria
-        ORDER BY tm.tipo_movimiento, total DESC
-    """, (id_reunion,))
-
-    resumen = cursor.fetchall()
-
-    if not resumen:
-        st.info("📭 No hay movimientos para mostrar en el resumen")
-        return
-
-    total_ingresos = sum(r['total'] for r in resumen if r.get('tipo') == 'Ingreso')
-    total_egresos = sum(r['total'] for r in resumen if r.get('tipo') == 'Egreso')
-    balance_final = (total_ingresos or 0) - (total_egresos or 0)
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("💰 Total Ingresos", f"${total_ingresos:,.2f}")
-    with col2:
-        st.metric("💸 Total Egresos", f"${total_egresos:,.2f}")
-    with col3:
-        delta_color = "normal" if balance_final >= 0 else "inverse"
-        st.metric("⚖️ Balance Final", f"${balance_final:,.2f}", delta=None, delta_color=delta_color)
-
-    st.divider()
-    st.subheader("📈 Detalle por Categoría")
-
-    # Agrupar y mostrar por tipo
-    for tipo in ['Ingreso', 'Egreso']:
-        filas = [r for r in resumen if r.get('tipo') == tipo]
-        if filas:
-            st.write(f"**{tipo}s**")
-            for r in filas:
-                col_a, col_b, col_c = st.columns([4,1,1])
-                with col_a:
-                    st.write(f"📁 {r.get('categoria') or 'Sin categoría'}")
-                with col_b:
-                    st.write(f"${r.get('total') or 0:,.2f}")
-                with col_c:
-                    st.write(f"({r.get('cantidad') or 0} movimientos)")
-            st.divider()
-
+# Para usar en tu app principal
 def main():
     mostrar_movimiento_caja()
 
