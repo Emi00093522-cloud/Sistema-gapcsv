@@ -7,6 +7,10 @@ import os
 # Agregar la ruta de tus módulos
 sys.path.append(os.path.dirname(__file__))
 
+# =============================================
+# FUNCIONES EXISTENTES (sin cambios)
+# =============================================
+
 def verificar_modulos():
     st.sidebar.write("### 🔧 Verificación de Módulos")
     
@@ -189,7 +193,6 @@ def obtener_datos_reales():
     try:
         from ahorros import obtener_ahorros_grupo
         ahorros_data = obtener_ahorros_grupo() or []
-        st.success(f"✅ Ahorros: {len(ahorros_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en ahorros: {e}")
     
@@ -197,14 +200,12 @@ def obtener_datos_reales():
     try:
         from pagomulta import obtener_multas_grupo
         multas_data = obtener_multas_grupo() or []
-        st.success(f"✅ Multas: {len(multas_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en multas: {e}")
     
     # Obtener préstamos
     try:
         prestamos_data = obtener_datos_prestamos_desde_bd()
-        st.success(f"✅ Préstamos: {len(prestamos_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en préstamos: {e}")
     
@@ -241,35 +242,21 @@ def calcular_totales_reales():
     
     return ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses
 
-def mostrar_informacion_ciclo():
-    st.header("🔒 Cierre de Ciclo - Resumen Financiero")
-    
-    st.subheader("📊 Gestión de Cierre de Ciclo")
-    
-    # Información básica
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.info("**📅 Fecha de Inicio del Grupo:** 2024-01-01")
-    
-    with col2:
-        st.info("**⏰ Duración Actual:** 120 días")
-    
-    st.markdown("---")
-    
-    # Inicializar el estado
+# =============================================
+# NUEVAS FUNCIONES PARA PESTAÑAS
+# =============================================
+
+def inicializar_session_state():
+    """Inicializa el estado de la sesión para las pestañas"""
+    if 'ciclos_cerrados' not in st.session_state:
+        st.session_state.ciclos_cerrados = []
     if 'mostrar_resumen' not in st.session_state:
         st.session_state.mostrar_resumen = False
-    
-    # Botón principal
-    if st.button("🚀 ¿Desea cerrar el ciclo? Sí", type="primary", use_container_width=True):
-        st.session_state.mostrar_resumen = True
-    
-    # Mostrar resumen si el usuario presionó "Sí"
-    if st.session_state.mostrar_resumen:
-        mostrar_resumen_cierre()
+    if 'ciclo_actual_numero' not in st.session_state:
+        st.session_state.ciclo_actual_numero = 1
 
-def mostrar_resumen_cierre():
+def mostrar_resumen_completo():
+    """Muestra el resumen completo del ciclo (igual que antes)"""
     st.subheader("💰 Resumen Financiero del Ciclo")
     
     st.success("✅ Has seleccionado cerrar el ciclo. Calculando datos...")
@@ -307,7 +294,7 @@ def mostrar_resumen_cierre():
     df_resumen = pd.DataFrame(resumen_data)
     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
     
-    # Métricas - AHORA CON 4 COLUMNAS (como en tu diseño original)
+    # Métricas - AHORA CON 4 COLUMNAS
     st.write("### 📈 Métricas del Ciclo")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -324,14 +311,12 @@ def mostrar_resumen_cierre():
     with col4:
         st.metric("Intereses", f"${prestamos_intereses:,.2f}")
     
-    # NUEVA SECCIÓN: AHORROS POR MIEMBRO (CICLO COMPLETO) - EXACTAMENTE COMO PEDISTE
+    # AHORROS POR MIEMBRO
     st.write("### 📊 Ahorros por Miembro (Ciclo Completo)")
     
-    # Obtener ahorros agrupados por miembro
     ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo()
     
     if ahorros_por_miembro:
-        # Crear tabla EXACTAMENTE como la pediste
         tabla_data = {
             "Miembro": [m['miembro'] for m in ahorros_por_miembro],
             "Total Ahorros": [f"${m['total_ahorros']:,.2f}" for m in ahorros_por_miembro],
@@ -342,24 +327,20 @@ def mostrar_resumen_cierre():
         df_tabla = pd.DataFrame(tabla_data)
         st.dataframe(df_tabla, use_container_width=True, hide_index=True)
         
-        # Mostrar total general de ahorros por miembros
         total_general_miembros = sum(item['total_general'] for item in ahorros_por_miembro)
         st.info(f"**💵 Total general de ahorros de todos los miembros: ${total_general_miembros:,.2f}**")
         
     else:
         st.info("ℹ️ No se encontraron datos de ahorros por miembro")
     
-    # SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS - MEJORADA CON TABLA BONITA
+    # DISTRIBUCIÓN DE BENEFICIOS
     st.write("### 📊 Distribución de Beneficios")
     
-    # Obtener total de miembros activos
     total_miembros_activos = obtener_total_miembros_activos()
     
     if total_miembros_activos > 0 and prestamos_intereses > 0:
-        # Calcular distribución
         distribucion_por_miembro = prestamos_intereses / total_miembros_activos
         
-        # TABLA BONITA PARA DISTRIBUCIÓN - SIN CHECKBOXES FEYOS
         distribucion_data = {
             "Concepto": [
                 "Total de Miembros Activos",
@@ -376,10 +357,8 @@ def mostrar_resumen_cierre():
         df_distribucion = pd.DataFrame(distribucion_data)
         st.dataframe(df_distribucion, use_container_width=True, hide_index=True)
         
-        # Mensaje de resultado
         st.success(f"**🎯 A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}**")
         
-        # Mostrar cálculo detallado en un expander
         with st.expander("🔍 Ver Cálculo Detallado"):
             st.write(f"""
             **Fórmula de distribución:**
@@ -394,7 +373,7 @@ def mostrar_resumen_cierre():
     elif prestamos_intereses == 0:
         st.info("ℹ️ No hay intereses para distribuir en este ciclo")
     
-    # Mostrar detalles de préstamos
+    # Detalles de préstamos
     with st.expander("📊 Ver Detalles de Préstamos"):
         try:
             prestamos_detalle = obtener_datos_prestamos_desde_bd()
@@ -407,20 +386,157 @@ def mostrar_resumen_cierre():
         except:
             st.info("No se pudieron cargar los detalles de préstamos")
     
-    # Botón de confirmación
-    st.markdown("---")
-    st.write("### ✅ Confirmar Cierre Definitivo")
-    
-    if st.button("🔐 CONFIRMAR CIERRE DEL CICLO", type="primary", use_container_width=True):
-        st.success("🎉 ¡Ciclo cerrado exitosamente!")
-        st.balloons()
-        st.session_state.mostrar_resumen = False
+    return {
+        'ahorros_totales': ahorros_totales,
+        'multas_totales': multas_totales,
+        'prestamos_capital': prestamos_capital,
+        'prestamos_intereses': prestamos_intereses,
+        'total_ingresos': total_ingresos,
+        'total_miembros_activos': total_miembros_activos,
+        'distribucion_por_miembro': distribucion_por_miembro if total_miembros_activos > 0 and prestamos_intereses > 0 else 0,
+        'ahorros_por_miembro': ahorros_por_miembro,
+        'fecha_cierre': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
-# 🔥 FUNCIÓN QUE APP.PY ESTÁ BUSCANDO
+def pestaña_ciclo_activo():
+    """Pestaña 1: Ciclo Activo - Donde se calcula y cierra el ciclo actual"""
+    st.header("🔒 Cierre de Ciclo - Resumen Financiero")
+    
+    st.subheader("📊 Gestión de Cierre de Ciclo")
+    
+    # Información básica
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.info("**📅 Fecha de Inicio del Grupo:** 2024-01-01")
+    
+    with col2:
+        st.info("**⏰ Duración Actual:** 120 días")
+    
+    st.markdown("---")
+    
+    # Botón principal para iniciar cierre
+    if st.button("🚀 ¿Desea cerrar el ciclo? Sí", type="primary", use_container_width=True):
+        st.session_state.mostrar_resumen = True
+    
+    # Mostrar resumen si el usuario presionó "Sí"
+    if st.session_state.mostrar_resumen:
+        datos_ciclo = mostrar_resumen_completo()
+        
+        # Botón de confirmación
+        st.markdown("---")
+        st.write("### ✅ Confirmar Cierre Definitivo")
+        
+        if st.button("🔐 CONFIRMAR CIERRE DEL CICLO", type="primary", use_container_width=True):
+            # Guardar ciclo en historial
+            ciclo_cerrado = {
+                'numero_ciclo': st.session_state.ciclo_actual_numero,
+                'datos': datos_ciclo,
+                'fecha_cierre': datos_ciclo['fecha_cierre']
+            }
+            st.session_state.ciclos_cerrados.append(ciclo_cerrado)
+            
+            # Incrementar número de ciclo para el próximo
+            st.session_state.ciclo_actual_numero += 1
+            st.session_state.mostrar_resumen = False
+            
+            st.success("🎉 ¡Ciclo cerrado exitosamente! Se ha iniciado un nuevo ciclo.")
+            st.balloons()
+            
+            # Mostrar en qué pestaña está el historial
+            st.info("📁 **Puedes ver el historial de ciclos cerrados en la pestaña 'Registro de Ciclos Cerrados'**")
+
+def pestaña_ciclos_cerrados():
+    """Pestaña 2: Registro de Ciclos Cerrados - Historial de ciclos finalizados"""
+    st.header("📁 Registro de Ciclos Cerrados")
+    
+    if not st.session_state.ciclos_cerrados:
+        st.info("ℹ️ No hay ciclos cerrados registrados. Los ciclos cerrados aparecerán aquí.")
+        return
+    
+    # Mostrar cada ciclo cerrado
+    for i, ciclo in enumerate(st.session_state.ciclos_cerrados):
+        with st.expander(f"📊 Ciclo {ciclo['numero_ciclo']} Finalizado - {ciclo['fecha_cierre']}", expanded=i==0):
+            datos = ciclo['datos']
+            
+            st.write(f"**Ciclo {ciclo['numero_ciclo']} - Cerrado el: {ciclo['fecha_cierre']}**")
+            
+            # Tabla de consolidado
+            st.write("#### 📋 Tabla de Consolidado")
+            resumen_data = {
+                "Concepto": [
+                    "💰 Total de Ahorros", 
+                    "⚖️ Total de Multas", 
+                    "🏦 Total Préstamos (Capital)",
+                    "📈 Total Intereses",
+                    "💵 **TOTAL INGRESOS**"
+                ],
+                "Monto": [
+                    f"${datos['ahorros_totales']:,.2f}",
+                    f"${datos['multas_totales']:,.2f}",
+                    f"${datos['prestamos_capital']:,.2f}",
+                    f"${datos['prestamos_intereses']:,.2f}",
+                    f"**${datos['total_ingresos']:,.2f}**"
+                ]
+            }
+            
+            df_resumen = pd.DataFrame(resumen_data)
+            st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+            
+            # Métricas
+            st.write("#### 📈 Métricas del Ciclo")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Ahorros", f"${datos['ahorros_totales']:,.2f}")
+            
+            with col2:
+                st.metric("Multas", f"${datos['multas_totales']:,.2f}")
+            
+            with col3:
+                st.metric("Préstamos", f"${datos['prestamos_capital']:,.2f}")
+            
+            with col4:
+                st.metric("Intereses", f"${datos['prestamos_intereses']:,.2f}")
+            
+            # Ahorros por miembro
+            if datos['ahorros_por_miembro']:
+                st.write("#### 📊 Ahorros por Miembro")
+                tabla_data = {
+                    "Miembro": [m['miembro'] for m in datos['ahorros_por_miembro']],
+                    "Total Ahorros": [f"${m['total_ahorros']:,.2f}" for m in datos['ahorros_por_miembro']],
+                    "Total Otros": [f"${m['total_otros']:,.2f}" for m in datos['ahorros_por_miembro']],
+                    "TOTAL": [f"${m['total_general']:,.2f}" for m in datos['ahorros_por_miembro']]
+                }
+                
+                df_tabla = pd.DataFrame(tabla_data)
+                st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+            
+            # Distribución de beneficios
+            if datos['distribucion_por_miembro'] > 0:
+                st.write("#### 📊 Distribución de Beneficios")
+                st.info(f"**Distribución por miembro: ${datos['distribucion_por_miembro']:,.2f}**")
+
+# =============================================
+# FUNCIÓN PRINCIPAL
+# =============================================
+
 def mostrar_ciclo():
-    """Función que llama app.py"""
+    """Función principal que llama app.py - AHORA CON PESTAÑAS"""
     verificar_modulos()
-    mostrar_informacion_ciclo()
+    inicializar_session_state()
+    
+    # Crear pestañas
+    tab1, tab2 = st.tabs([
+        "🔒 Cierre de Ciclo Activo", 
+        "📁 Registro de Ciclos Cerrados"
+    ])
+    
+    with tab1:
+        pestaña_ciclo_activo()
+    
+    with tab2:
+        pestaña_ciclos_cerrados()
 
 if __name__ == "__main__":
     mostrar_ciclo()
