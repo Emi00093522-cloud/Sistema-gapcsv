@@ -56,7 +56,7 @@ def verificar_grupo_usuario():
 def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene los ahorros totales por miembro dentro del rango de fechas
-    PARA EL GRUPO DEL USUARIO. El filtro se hace por Ahorro.fecha_ahorro.
+    PARA EL GRUPO DEL USUARIO. El filtro se hace por Ahorro.fecha.
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -87,7 +87,7 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
         
         # 🔎 Filtro por rango de fechas del CICLO (fecha_ahorro)
         if fecha_inicio and fecha_fin:
-            query += " AND a.fecha_ahorro BETWEEN %s AND %s"
+            query += " AND a.fecha BETWEEN %s AND %s"
             params.extend([fecha_inicio, fecha_fin])
         
         query += """
