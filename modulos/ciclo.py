@@ -330,80 +330,67 @@ def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
 
 def obtener_datos_reales(fecha_inicio=None, fecha_fin=None):
     """
-    Obtiene datos REALES de tus módulos con filtro opcional de fechas
-    PARA EL GRUPO DEL USUARIO, usando solo consultas ya segmentadas.
-    - Ahorros: usa obtener_ahorros_por_miembro_ciclo (agrupado por miembro)
-    - Multas: usa obtener_datos_multas_desde_bd
-    - Préstamos: usa obtener_datos_prestamos_desde_bd
+    Obtiene datos REALES de ahorros, multas y préstamos
+    SOLO del grupo del usuario y SOLO dentro del rango de fechas.
     """
     # Verificar que el usuario tenga grupo
     if not verificar_grupo_usuario():
         return [], [], []
-
-    # 🔹 Ahorros por miembro (ya filtrado por grupo y fechas)
-    try:
-        ahorros_data = obtener_ahorros_por_miembro_ciclo(fecha_inicio, fecha_fin) or []
-    except Exception as e:
-        st.error(f"❌ Error en ahorros: {e}")
-        ahorros_data = []
-
-    # 🔹 Multas del grupo (ya filtrado por grupo y fechas)
-    try:
-        multas_data = obtener_datos_multas_desde_bd(fecha_inicio, fecha_fin) or []
-    except Exception as e:
-        st.error(f"❌ Error en multas: {e}")
-        multas_data = []
-
-    # 🔹 Préstamos del grupo (ya filtrado por grupo y fechas)
-    try:
-        prestamos_data = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin) or []
-    except Exception as e:
-        st.error(f"❌ Error en préstamos: {e}")
-        prestamos_data = []
-
+    
+    # 🔹 Ahorros: usamos la función por miembro que ya respeta fechas
+    ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo(fecha_inicio, fecha_fin)
+    ahorros_data = []
+    for m in ahorros_por_miembro:
+        ahorros_data.append({
+            'monto_ahorro': m['total_ahorros'],
+            'monto_otros': m['total_otros'],
+            'miembro': m['miembro']
+        })
+    
+    # 🔹 Multas: ahora con filtro de fechas
+    multas_data = obtener_datos_multas_desde_bd(fecha_inicio, fecha_fin)
+    
+    # 🔹 Préstamos: ya tenía filtro de fechas
+    prestamos_data = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin)
+    
     return ahorros_data, multas_data, prestamos_data
 
 
 def calcular_totales_reales(fecha_inicio=None, fecha_fin=None):
     """
-    Calcula los totales con datos REALES - SEPARA CAPITAL E INTERESES
-    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO.
-
-    Usa:
-      - ahorros_data: lista de dicts con claves 'total_ahorros' y 'total_otros'
-      - multas_data:  lista de dicts con clave 'monto_pagado'
-      - prestamos_data: lista de dicts con claves 'monto_capital' y 'monto_intereses'
+    Calcula los totales con datos REALES - separando capital e intereses
+    y RESPETANDO el rango de fechas para el grupo del usuario.
     """
     # Verificar que el usuario tenga grupo
     if not verificar_grupo_usuario():
         return 0.00, 0.00, 0.00, 0.00
-
+        
     ahorros_data, multas_data, prestamos_data = obtener_datos_reales(fecha_inicio, fecha_fin)
-
-    # Si no hay datos reales, usar ejemplos
+    
+    # Si de verdad no hay datos, devolvemos 0 (ya no números de ejemplo)
     if not ahorros_data and not multas_data and not prestamos_data:
-        st.warning("⚠️ Usando datos de ejemplo - Revisa la conexión")
-        # capital, intereses
-        return 7500.00, 250.00, 5000.00, 500.00
-
-    # 🔹 Calcular ahorros totales (vienen agregados por miembro)
+        st.info("ℹ️ No se encontraron movimientos en el rango de fechas seleccionado.")
+        return 0.00, 0.00, 0.00, 0.00
+    
+    # 🔹 Ahorros: sumamos lo que vino ya filtrado
     ahorros_totales = 0.0
     for ahorro in ahorros_data:
-        ahorros_totales += float(ahorro.get('total_ahorros', 0)) + float(ahorro.get('total_otros', 0))
-
-    # 🔹 Calcular multas totales
+        ahorros_totales += float(ahorro.get('monto_ahorro', 0)) + float(ahorro.get('monto_otros', 0))
+    
+    # 🔹 Multas
     multas_totales = 0.0
     for multa in multas_data:
         multas_totales += float(multa.get('monto_pagado', 0))
-
-    # 🔹 Calcular préstamos (capital e intereses separados)
+    
+    # 🔹 Préstamos: separados capital / intereses
     prestamos_capital = 0.0
     prestamos_intereses = 0.0
     for prestamo in prestamos_data:
         prestamos_capital += float(prestamo.get('monto_capital', 0))
         prestamos_intereses += float(prestamo.get('monto_intereses', 0))
-
+    
     return ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses
+
 
 
 # =============================================
