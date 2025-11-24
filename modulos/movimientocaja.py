@@ -47,10 +47,10 @@ def mostrar_movimiento_caja():
 def registrar_movimiento(cursor, con, id_reunion):
     st.subheader("➕ Registrar Nuevo Movimiento")
 
-    # Cargar tipos de movimiento desde tu tabla tipo_de_movimiento
+    # Cargar tipos de movimiento desde tu tabla Tipo_de_movimiento
     cursor.execute("""
         SELECT ID_Tipo_movimiento, nombre_movimiento, tipo_ingreso_egreso 
-        FROM tipo_de_movimiento 
+        FROM Tipo_de_movimiento 
         WHERE estado = 1 
         ORDER BY tipo_ingreso_egreso, nombre_movimiento
     """)
@@ -117,10 +117,8 @@ def registrar_movimiento(cursor, con, id_reunion):
                     st.warning(e)
             else:
                 try:
-                    # Usar categoría manual si se proporcionó, sino usar la del select
                     categoria_final = categoria_manual.strip() if categoria_manual.strip() else categoria_seleccionada
 
-                    # Insertar en la tabla movimiento_caja
                     cursor.execute("""
                         INSERT INTO movimiento_caja 
                         (ID_Reunion, ID_Tipo_movimiento, monto, categoria, descripcion, fecha)
@@ -144,15 +142,12 @@ def registrar_movimiento(cursor, con, id_reunion):
 def ver_movimientos(cursor, id_reunion):
     st.subheader("📋 Movimientos Registrados")
 
-    # Filtros
     col1, col2 = st.columns(2)
     
     with col1:
-        filtro_tipo = st.selectbox("Filtrar por tipo", 
-                                 ["Todos", "Ingreso", "Egreso"], key="filtro_tipo")
+        filtro_tipo = st.selectbox("Filtrar por tipo", ["Todos", "Ingreso", "Egreso"], key="filtro_tipo")
     
     with col2:
-        # Obtener categorías únicas de esta reunión
         cursor.execute("""
             SELECT DISTINCT categoria 
             FROM movimiento_caja 
@@ -163,11 +158,11 @@ def ver_movimientos(cursor, id_reunion):
         categorias_lista = ["Todas"] + [cat['categoria'] for cat in categorias]
         filtro_categoria = st.selectbox("Filtrar por categoría", categorias_lista)
 
-    # Construir query con filtros
     query = """
         SELECT mc.*, tm.tipo_ingreso_egreso as tipo, tm.nombre_movimiento
         FROM movimiento_caja mc
-        JOIN tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
+        JOIN Tipo_de_movimiento tm 
+            ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
         WHERE mc.ID_Reunion = %s
     """
     params = [id_reunion]
@@ -189,7 +184,6 @@ def ver_movimientos(cursor, id_reunion):
         st.info("📭 No hay movimientos registrados para esta reunión")
         return
 
-    # Mostrar totales
     total_entradas = sum(mov['monto'] for mov in movimientos if mov['tipo'] == 'Ingreso')
     total_salidas = sum(mov['monto'] for mov in movimientos if mov['tipo'] == 'Egreso')
     
@@ -201,7 +195,6 @@ def ver_movimientos(cursor, id_reunion):
 
     st.divider()
 
-    # Mostrar movimientos en tarjetas
     for mov in movimientos:
         with st.container():
             col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
@@ -209,15 +202,15 @@ def ver_movimientos(cursor, id_reunion):
             with col1:
                 st.write(f"**{mov['descripcion']}**")
                 st.caption(f"📁 {mov['categoria']} • 📅 {mov['fecha'].strftime('%d/%m/%Y %H:%M')}")
-            
+
             with col2:
                 tipo_color = "🟢" if mov['tipo'] == "Ingreso" else "🔴"
                 st.write(f"{tipo_color} {mov['tipo']}")
-            
+
             with col3:
-                monto_style = "color: green; font-weight: bold;" if mov['tipo'] == "Ingreso" else "color: red; font-weight: bold;"
-                st.markdown(f"<p style='{monto_style}'>${mov['monto']:,.2f}</p>", unsafe_allow_html=True)
-            
+                color = "color: green; font-weight: bold;" if mov['tipo'] == "Ingreso" else "color: red; font-weight: bold;"
+                st.markdown(f"<p style='{color}'>${mov['monto']:,.2f}</p>", unsafe_allow_html=True)
+
             with col4:
                 if st.button("🗑️", key=f"delete_{mov['ID_Movimiento_caja']}"):
                     eliminar_movimiento(cursor, con, mov['ID_Movimiento_caja'])
@@ -237,7 +230,6 @@ def eliminar_movimiento(cursor, con, id_movimiento):
 def resumen_caja(cursor, id_reunion):
     st.subheader("📊 Resumen de Caja")
 
-    # Obtener resumen por categoría
     cursor.execute("""
         SELECT 
             tm.tipo_ingreso_egreso as tipo,
@@ -245,7 +237,8 @@ def resumen_caja(cursor, id_reunion):
             COUNT(*) as cantidad,
             SUM(mc.monto) as total
         FROM movimiento_caja mc
-        JOIN tipo_de_movimiento tm ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
+        JOIN Tipo_de_movimiento tm 
+            ON mc.ID_Tipo_movimiento = tm.ID_Tipo_movimiento
         WHERE mc.ID_Reunion = %s
         GROUP BY tm.tipo_ingreso_egreso, mc.categoria
         ORDER BY tm.tipo_ingreso_egreso, total DESC
@@ -257,12 +250,10 @@ def resumen_caja(cursor, id_reunion):
         st.info("📭 No hay movimientos para mostrar en el resumen")
         return
 
-    # Calcular totales
-    total_ingresos = sum([mov['total'] for mov in resumen if mov['tipo'] == 'Ingreso'])
-    total_egresos = sum([mov['total'] for mov in resumen if mov['tipo'] == 'Egreso'])
+    total_ingresos = sum(mov['total'] for mov in resumen if mov['tipo'] == 'Ingreso')
+    total_egresos = sum(mov['total'] for mov in resumen if mov['tipo'] == 'Egreso')
     balance_final = total_ingresos - total_egresos
 
-    # Mostrar métricas principales
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -272,12 +263,11 @@ def resumen_caja(cursor, id_reunion):
         st.metric("💸 Total Egresos", f"${total_egresos:,.2f}")
     
     with col3:
-        balance_color = "normal" if balance_final >= 0 else "inverse"
-        st.metric("⚖️ Balance Final", f"${balance_final:,.2f}", delta=None, delta_color=balance_color)
+        color = "normal" if balance_final >= 0 else "inverse"
+        st.metric("⚖️ Balance Final", f"${balance_final:,.2f}", delta=None, delta_color=color)
 
     st.divider()
 
-    # Mostrar detalle por categoría
     st.subheader("📈 Detalle por Categoría")
 
     for tipo in ['Ingreso', 'Egreso']:
@@ -300,7 +290,6 @@ def resumen_caja(cursor, id_reunion):
             
             st.divider()
 
-# Para usar en tu app principal
 def main():
     mostrar_movimiento_caja()
 
