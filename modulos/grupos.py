@@ -2,33 +2,62 @@ import streamlit as st
 from datetime import datetime, date
 from modulos.config.conexion import obtener_conexion
 
+def inicializar_session_state():
+    """Inicializa el estado de la sesión para grupos"""
+    if 'mostrar_formulario_grupo' not in st.session_state:
+        st.session_state.mostrar_formulario_grupo = True
+    if 'grupo_seleccionado' not in st.session_state:
+        st.session_state.grupo_seleccionado = None
 
-def mostrar_grupos():   # ⭐ Función para registrar grupos
-    st.header("👥 Registrar Grupo")
+def obtener_grupos_por_usuario(id_usuario: int):
+    """
+    Obtiene todos los grupos asociados a un usuario
+    """
+    con = obtener_conexion()
+    if not con:
+        return []
 
-    # Estado para controlar el mensaje de éxito
-    if "grupo_registrado" not in st.session_state:
-        st.session_state.grupo_registrado = False
-
-    # Si ya se registró un grupo, mostramos mensaje y opción de registrar otro
-    if st.session_state.grupo_registrado:
-        st.success("🎉 ¡Grupo registrado con éxito!")
+    try:
+        cursor = con.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                g.ID_Grupo,
+                g.nombre,
+                g.fecha_inicio,
+                d.nombre as distrito,
+                p.nombre as promotora,
+                CASE 
+                    WHEN g.ID_Estado = 1 THEN 'Activo'
+                    ELSE 'Inactivo'
+                END as estado
+            FROM Grupo g
+            LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+            LEFT JOIN Promotora p ON g.ID_Promotora = p.ID_Promotora
+            WHERE g.ID_Usuario = %s
+            ORDER BY g.ID_Grupo DESC
+        """, (id_usuario,))
         
-        if st.button("🆕 Registrar otro grupo"):
-            st.session_state.grupo_registrado = False
-            st.rerun()
-        
-        st.info("💡 **Para seguir navegando, selecciona una opción en el menú**")
-        return
+        grupos = cursor.fetchall()
+        return grupos
+
+    except Exception as e:
+        st.error(f"❌ Error al obtener grupos: {e}")
+        return []
+
+    finally:
+        con.close()
+
+def pestaña_registrar_grupo():
+    """Pestaña 1: Registrar nuevo grupo"""
+    st.header("👥 Registrar Nuevo Grupo")
 
     # 🔐 VALIDACIÓN: debe haber un usuario logueado
     if "id_usuario" not in st.session_state:
         st.error("⚠️ Debes iniciar sesión para registrar un grupo.")
         return
 
-    # 👤 ID del usuario que está creando el grupo (viene del login)
+    # 👤 ID del usuario que está creando el grupo
     id_usuario = st.session_state["id_usuario"]
-    # st.write("Debug id_usuario:", id_usuario)  # <- déjalo comentado si no lo necesitas
 
     try:
         con = obtener_conexion()
@@ -120,10 +149,11 @@ def mostrar_grupos():   # ⭐ Función para registrar grupos
                         cursor.execute("SELECT LAST_INSERT_ID()")
                         id_grupo = cursor.fetchone()[0]
 
-                        st.session_state.grupo_registrado = True
-                        st.session_state.id_grupo_creado = id_grupo
-                        st.session_state.nombre_grupo_creado = nombre
-                        st.rerun()
+                        st.success("🎉 ¡Grupo registrado con éxito!")
+                        st.info(f"**ID del grupo creado:** {id_grupo}")
+                        
+                        # Mostrar opción para ver en la otra pestaña
+                        st.info("📁 **Puedes ver y gestionar este grupo en la pestaña 'Mis Grupos Registrados'**")
 
                     except Exception as e:
                         con.rollback()
@@ -139,6 +169,80 @@ def mostrar_grupos():   # ⭐ Función para registrar grupos
         except:
             pass
 
+def pestaña_mis_grupos():
+    """Pestaña 2: Mostrar grupos registrados (editable) con opción de crear nuevo ciclo"""
+    st.header("📋 Mis Grupos Registrados")
+
+    # 🔐 VALIDACIÓN: debe haber un usuario logueado
+    if "id_usuario" not in st.session_state:
+        st.error("⚠️ Debes iniciar sesión para ver tus grupos.")
+        return
+
+    id_usuario = st.session_state["id_usuario"]
+    
+    # Obtener grupos del usuario
+    grupos = obtener_grupos_por_usuario(id_usuario)
+    
+    if not grupos:
+        st.info("ℹ️ No tienes grupos registrados. Crea tu primer grupo en la pestaña 'Registrar Grupo'.")
+        return
+
+    # Mostrar cada grupo en una tarjeta editable
+    for grupo in grupos:
+        with st.container():
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.subheader(f"🏢 {grupo['nombre']}")
+                
+                # Información del grupo
+                col_info1, col_info2, col_info3 = st.columns(3)
+                
+                with col_info1:
+                    st.write(f"**📅 Fecha inicio:** {grupo['fecha_inicio']}")
+                    st.write(f"**📍 Distrito:** {grupo['distrito']}")
+                
+                with col_info2:
+                    st.write(f"**👤 Promotora:** {grupo['promotora']}")
+                    st.write(f"**📊 Estado:** {grupo['estado']}")
+                
+                with col_info3:
+                    st.write(f"**🔢 ID Grupo:** {grupo['ID_Grupo']}")
+            
+            with col2:
+                st.write("")  # Espacio
+                st.write("")  # Espacio
+                
+                # Botón para crear nuevo ciclo
+                if st.button(f"🔄 Nuevo Ciclo", key=f"ciclo_{grupo['ID_Grupo']}"):
+                    st.session_state.grupo_seleccionado = grupo['ID_Grupo']
+                    st.success(f"🎯 Preparando nuevo ciclo para: {grupo['nombre']}")
+                    # Aquí puedes agregar la lógica para crear un nuevo ciclo
+                
+                # Botón para editar grupo
+                if st.button(f"✏️ Editar", key=f"editar_{grupo['ID_Grupo']}"):
+                    st.session_state.grupo_seleccionado = grupo['ID_Grupo']
+                    st.info(f"✏️ Editando grupo: {grupo['nombre']}")
+                    # Aquí puedes agregar la lógica para editar el grupo
+
+            # Línea separadora
+            st.markdown("---")
+
+def mostrar_grupos():
+    """Función principal que muestra las dos pestañas"""
+    inicializar_session_state()
+    
+    # Crear pestañas
+    tab1, tab2 = st.tabs([
+        "📝 Registrar Grupo", 
+        "📋 Mis Grupos Registrados"
+    ])
+    
+    with tab1:
+        pestaña_registrar_grupo()
+    
+    with tab2:
+        pestaña_mis_grupos()
 
 def obtener_id_grupo_por_usuario(id_usuario: int):
     """
@@ -168,4 +272,6 @@ def obtener_id_grupo_por_usuario(id_usuario: int):
     finally:
         con.close()
 
-
+# Para usar individualmente (si necesitas alguna función específica)
+if __name__ == "__main__":
+    mostrar_grupos()
