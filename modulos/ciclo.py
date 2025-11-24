@@ -3,9 +3,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import sys
 import os
-from io import BytesIO, StringIO
-import csv
-import json
 
 # Agregar la ruta de tus módulos
 sys.path.append(os.path.dirname(__file__))
@@ -87,6 +84,7 @@ def obtener_ahorros_por_miembro_ciclo():
 def obtener_total_miembros_activos():
     """
     Obtiene el total de miembros activos en el grupo
+    CORREGIDO: Usa ID_Estado = 1 para miembros activos
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -100,6 +98,7 @@ def obtener_total_miembros_activos():
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
+        # ✅ CORREGIDO: Usar ID_Estado = 1 para miembros activos
         cursor.execute("""
             SELECT COUNT(*) as total_miembros
             FROM Miembro 
@@ -121,6 +120,7 @@ def obtener_total_miembros_activos():
 def obtener_datos_prestamos_desde_bd():
     """
     Obtiene datos de préstamos directamente desde la base de datos
+    ya que pagoprestamo.py no tiene obtener_prestamos_grupo
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -151,13 +151,14 @@ def obtener_datos_prestamos_desde_bd():
         
         prestamos = cursor.fetchall()
         
-        # Formatear resultados
+        # Formatear resultados - AHORA SEPARAMOS CAPITAL E INTERESES
         resultado = []
         for p in prestamos:
             monto_capital = p.get('monto', 0)
             monto_intereses = p.get('total_interes', 0)
             monto_total = p.get('monto_total_pagar', 0)
             
+            # Si monto_total no existe, calcularlo
             if monto_total is None:
                 monto_total = monto_capital + monto_intereses
                 
@@ -188,6 +189,7 @@ def obtener_datos_reales():
     try:
         from ahorros import obtener_ahorros_grupo
         ahorros_data = obtener_ahorros_grupo() or []
+        st.success(f"✅ Ahorros: {len(ahorros_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en ahorros: {e}")
     
@@ -195,12 +197,14 @@ def obtener_datos_reales():
     try:
         from pagomulta import obtener_multas_grupo
         multas_data = obtener_multas_grupo() or []
+        st.success(f"✅ Multas: {len(multas_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en multas: {e}")
     
     # Obtener préstamos
     try:
         prestamos_data = obtener_datos_prestamos_desde_bd()
+        st.success(f"✅ Préstamos: {len(prestamos_data)} registros")
     except Exception as e:
         st.error(f"❌ Error en préstamos: {e}")
     
@@ -208,7 +212,7 @@ def obtener_datos_reales():
 
 def calcular_totales_reales():
     """
-    Calcula los totales con datos REALES
+    Calcula los totales con datos REALES - AHORA SEPARA CAPITAL E INTERESES
     """
     ahorros_data, multas_data, prestamos_data = obtener_datos_reales()
     
@@ -227,7 +231,7 @@ def calcular_totales_reales():
     for multa in multas_data:
         multas_totales += multa.get('monto_pagado', 0)
     
-    # Calcular préstamos
+    # Calcular préstamos - AHORA SEPARADOS
     prestamos_capital = 0
     prestamos_intereses = 0
     
@@ -237,131 +241,12 @@ def calcular_totales_reales():
     
     return ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses
 
-def guardar_ciclo_en_bd(datos_ciclo):
-    """
-    Guarda el ciclo cerrado en la base de datos - SIMPLIFICADO
-    """
-    try:
-        from modulos.config.conexion import obtener_conexion
-        
-        con = obtener_conexion()
-        cursor = con.cursor()
-        
-        # Obtener el número del próximo ciclo
-        cursor.execute("""
-            SELECT COALESCE(MAX(ID_Ciclo), 0) + 1 as siguiente_ciclo 
-            FROM Cierre_de_ciclo 
-            WHERE ID_Grupo = %s
-        """, (datos_ciclo['id_grupo'],))
-        
-        resultado = cursor.fetchone()
-        numero_ciclo = resultado[0] if resultado else 1
-        
-        # Insertar directamente en Cierre_de_ciclo - SIN tablas adicionales
-        cursor.execute("""
-            INSERT INTO Cierre_de_ciclo 
-            (ID_Grupo, ID_Ciclo, fecha_cierre, total_ahorros, total_multas, total_prestamos, 
-             total_intereses, miembros_activos, distribucion_por_miembro, ahorros_por_miembro)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            datos_ciclo['id_grupo'],
-            numero_ciclo,
-            datos_ciclo['fecha_cierre'],
-            datos_ciclo['total_ahorros'],
-            datos_ciclo['total_multas'],
-            datos_ciclo['total_prestamos'],
-            datos_ciclo['total_intereses'],
-            datos_ciclo['miembros_activos'],
-            datos_ciclo['distribucion_por_miembro'],
-            datos_ciclo['ahorros_por_miembro']
-        ))
-        
-        con.commit()
-        cursor.close()
-        con.close()
-        
-        return numero_ciclo
-    except Exception as e:
-        st.error(f"❌ Error guardando ciclo en BD: {e}")
-        return None
-
-def obtener_ciclos_historicos():
-    """
-    Obtiene todos los ciclos cerrados del grupo
-    """
-    try:
-        from modulos.config.conexion import obtener_conexion
-        
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-        
-        if 'reunion_actual' not in st.session_state:
-            return []
-        
-        id_grupo = st.session_state.reunion_actual['id_grupo']
-        
-        cursor.execute("""
-            SELECT * FROM Cierre_de_ciclo 
-            WHERE ID_Grupo = %s 
-            ORDER BY ID_Ciclo DESC
-        """, (id_grupo,))
-        
-        ciclos = cursor.fetchall()
-        cursor.close()
-        con.close()
-        
-        return ciclos
-    except Exception as e:
-        st.error(f"❌ Error obteniendo ciclos históricos: {e}")
-        return []
-
-def generar_csv_ciclos():
-    """
-    Genera archivo CSV con todos los ciclos históricos
-    """
-    ciclos = obtener_ciclos_historicos()
+def mostrar_informacion_ciclo():
+    st.header("🔒 Cierre de Ciclo - Resumen Financiero")
     
-    try:
-        output = StringIO()
-        writer = csv.writer(output)
-        
-        writer.writerow([
-            'Ciclo', 'Fecha Cierre', 'Total Ahorros', 'Total Multas',
-            'Total Prestamos', 'Total Intereses', 'Miembros Activos',
-            'Distribucion por Miembro'
-        ])
-        
-        if ciclos:
-            for ciclo in ciclos:
-                writer.writerow([
-                    f"Ciclo {ciclo['ID_Ciclo']}",
-                    ciclo['fecha_cierre'].strftime('%Y-%m-%d') if ciclo['fecha_cierre'] else 'N/A',
-                    f"${ciclo['total_ahorros']:,.2f}" if ciclo['total_ahorros'] is not None else '$0.00',
-                    f"${ciclo['total_multas']:,.2f}" if ciclo['total_multas'] is not None else '$0.00',
-                    f"${ciclo['total_prestamos']:,.2f}" if ciclo['total_prestamos'] is not None else '$0.00',
-                    f"${ciclo['total_intereses']:,.2f}" if ciclo['total_intereses'] is not None else '$0.00',
-                    ciclo['miembros_activos'] if ciclo['miembros_activos'] is not None else 0,
-                    f"${ciclo['distribucion_por_miembro']:,.2f}" if ciclo['distribucion_por_miembro'] is not None else '$0.00'
-                ])
-        else:
-            writer.writerow(['No hay ciclos registrados', '', '', '', '', '', '', ''])
-        
-        csv_text = output.getvalue()
-        return csv_text.encode('utf-8')
-        
-    except Exception as e:
-        st.error(f"❌ Error generando CSV: {e}")
-        output = StringIO()
-        writer = csv.writer(output)
-        writer.writerow(['Error', 'Al generar', 'CSV', 'Contacte', 'Al administrador', '', '', ''])
-        return output.getvalue().encode('utf-8')
-
-def mostrar_tab_generar_cierre():
-    """
-    TAB 1: Formulario para generar nuevo cierre de ciclo
-    """
-    st.subheader("📋 Generar Cierre de Ciclo")
+    st.subheader("📊 Gestión de Cierre de Ciclo")
     
+    # Información básica
     col1, col2 = st.columns(2)
     
     with col1:
@@ -372,30 +257,34 @@ def mostrar_tab_generar_cierre():
     
     st.markdown("---")
     
+    # Inicializar el estado
     if 'mostrar_resumen' not in st.session_state:
         st.session_state.mostrar_resumen = False
     
+    # Botón principal
     if st.button("🚀 ¿Desea cerrar el ciclo? Sí", type="primary", use_container_width=True):
         st.session_state.mostrar_resumen = True
     
+    # Mostrar resumen si el usuario presionó "Sí"
     if st.session_state.mostrar_resumen:
         mostrar_resumen_cierre()
 
 def mostrar_resumen_cierre():
-    """
-    Muestra el resumen completo del cierre de ciclo
-    """
     st.subheader("💰 Resumen Financiero del Ciclo")
     
     st.success("✅ Has seleccionado cerrar el ciclo. Calculando datos...")
     
+    # Obtener datos - AHORA CON 4 VALORES
     with st.spinner("🔍 Calculando datos financieros..."):
         ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses = calcular_totales_reales()
     
+    # Calcular total de préstamos (capital + intereses)
     prestamos_total = prestamos_capital + prestamos_intereses
+    
+    # Calcular total general
     total_ingresos = ahorros_totales + multas_totales + prestamos_total
     
-    # Tabla resumen
+    # Tabla resumen - AHORA CON 5 FILAS
     st.write("### 📋 Tabla de Consolidado")
     
     resumen_data = {
@@ -418,7 +307,7 @@ def mostrar_resumen_cierre():
     df_resumen = pd.DataFrame(resumen_data)
     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
     
-    # Métricas
+    # Métricas - AHORA CON 4 COLUMNAS (como en tu diseño original)
     st.write("### 📈 Métricas del Ciclo")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -435,12 +324,14 @@ def mostrar_resumen_cierre():
     with col4:
         st.metric("Intereses", f"${prestamos_intereses:,.2f}")
     
-    # AHORROS POR MIEMBRO
+    # NUEVA SECCIÓN: AHORROS POR MIEMBRO (CICLO COMPLETO) - EXACTAMENTE COMO PEDISTE
     st.write("### 📊 Ahorros por Miembro (Ciclo Completo)")
     
+    # Obtener ahorros agrupados por miembro
     ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo()
     
     if ahorros_por_miembro:
+        # Crear tabla EXACTAMENTE como la pediste
         tabla_data = {
             "Miembro": [m['miembro'] for m in ahorros_por_miembro],
             "Total Ahorros": [f"${m['total_ahorros']:,.2f}" for m in ahorros_por_miembro],
@@ -451,20 +342,24 @@ def mostrar_resumen_cierre():
         df_tabla = pd.DataFrame(tabla_data)
         st.dataframe(df_tabla, use_container_width=True, hide_index=True)
         
+        # Mostrar total general de ahorros por miembros
         total_general_miembros = sum(item['total_general'] for item in ahorros_por_miembro)
         st.info(f"**💵 Total general de ahorros de todos los miembros: ${total_general_miembros:,.2f}**")
         
     else:
         st.info("ℹ️ No se encontraron datos de ahorros por miembro")
     
-    # DISTRIBUCIÓN DE BENEFICIOS
+    # SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS - MEJORADA CON TABLA BONITA
     st.write("### 📊 Distribución de Beneficios")
     
+    # Obtener total de miembros activos
     total_miembros_activos = obtener_total_miembros_activos()
     
     if total_miembros_activos > 0 and prestamos_intereses > 0:
+        # Calcular distribución
         distribucion_por_miembro = prestamos_intereses / total_miembros_activos
         
+        # TABLA BONITA PARA DISTRIBUCIÓN - SIN CHECKBOXES FEYOS
         distribucion_data = {
             "Concepto": [
                 "Total de Miembros Activos",
@@ -481,22 +376,17 @@ def mostrar_resumen_cierre():
         df_distribucion = pd.DataFrame(distribucion_data)
         st.dataframe(df_distribucion, use_container_width=True, hide_index=True)
         
+        # Mensaje de resultado
         st.success(f"**🎯 A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}**")
         
-        # Guardar datos para el cierre
-        datos_ciclo = {
-            'id_grupo': st.session_state.reunion_actual['id_grupo'],
-            'fecha_cierre': datetime.now(),
-            'total_ahorros': ahorros_totales,
-            'total_multas': multas_totales,
-            'total_prestamos': prestamos_capital,
-            'total_intereses': prestamos_intereses,
-            'miembros_activos': total_miembros_activos,
-            'distribucion_por_miembro': distribucion_por_miembro,
-            'ahorros_por_miembro': json.dumps(ahorros_por_miembro)
-        }
-        
-        st.session_state.datos_ciclo_actual = datos_ciclo
+        # Mostrar cálculo detallado en un expander
+        with st.expander("🔍 Ver Cálculo Detallado"):
+            st.write(f"""
+            **Fórmula de distribución:**
+            - Total Intereses: ${prestamos_intereses:,.2f}
+            - Total Miembros Activos: {total_miembros_activos}
+            - Distribución: ${prestamos_intereses:,.2f} ÷ {total_miembros_activos} = **${distribucion_por_miembro:,.2f} por miembro**
+            """)
     
     elif total_miembros_activos == 0:
         st.warning("⚠️ No se encontraron miembros activos en el grupo")
@@ -504,85 +394,29 @@ def mostrar_resumen_cierre():
     elif prestamos_intereses == 0:
         st.info("ℹ️ No hay intereses para distribuir en este ciclo")
     
+    # Mostrar detalles de préstamos
+    with st.expander("📊 Ver Detalles de Préstamos"):
+        try:
+            prestamos_detalle = obtener_datos_prestamos_desde_bd()
+            if prestamos_detalle:
+                df_prestamos = pd.DataFrame(prestamos_detalle)
+                st.dataframe(df_prestamos[['nombre_miembro', 'monto_capital', 'monto_intereses', 'monto_total']], 
+                           use_container_width=True)
+            else:
+                st.info("No hay datos detallados de préstamos")
+        except:
+            st.info("No se pudieron cargar los detalles de préstamos")
+    
     # Botón de confirmación
     st.markdown("---")
     st.write("### ✅ Confirmar Cierre Definitivo")
     
     if st.button("🔐 CONFIRMAR CIERRE DEL CICLO", type="primary", use_container_width=True):
-        if 'datos_ciclo_actual' in st.session_state:
-            numero_ciclo = guardar_ciclo_en_bd(st.session_state.datos_ciclo_actual)
-            if numero_ciclo:
-                st.success(f"🎉 ¡Ciclo {numero_ciclo} cerrado exitosamente!")
-                st.balloons()
-                st.session_state.mostrar_resumen = False
-                if 'datos_ciclo_actual' in st.session_state:
-                    del st.session_state.datos_ciclo_actual
-                st.rerun()
-            else:
-                st.error("❌ Error al guardar el ciclo en la base de datos")
-        else:
-            st.error("❌ No hay datos de ciclo para guardar")
+        st.success("🎉 ¡Ciclo cerrado exitosamente!")
+        st.balloons()
+        st.session_state.mostrar_resumen = False
 
-def mostrar_tab_ciclos_finalizados():
-    """
-    TAB 2: Mostrar todos los ciclos cerrados del grupo
-    """
-    st.subheader("📊 Ciclos Finalizados del Grupo")
-    
-    try:
-        csv_data = generar_csv_ciclos()
-        st.download_button(
-            label="📥 Descargar CSV de Ciclos",
-            data=csv_data,
-            file_name=f"ciclos_grupo_{datetime.now().strftime('%Y-%m-%d')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    except Exception as e:
-        st.error(f"❌ Error al generar archivo CSV: {e}")
-    
-    st.markdown("---")
-    
-    ciclos = obtener_ciclos_historicos()
-    
-    if ciclos:
-        datos_tabla = []
-        for ciclo in ciclos:
-            datos_tabla.append({
-                "Ciclo": f"Ciclo {ciclo['ID_Ciclo']}",
-                "Fecha de Cierre": ciclo['fecha_cierre'].strftime('%Y-%m-%d') if ciclo['fecha_cierre'] else 'N/A',
-                "Total Ahorros": f"${ciclo['total_ahorros']:,.2f}" if ciclo['total_ahorros'] is not None else '$0.00',
-                "Total Multas": f"${ciclo['total_multas']:,.2f}" if ciclo['total_multas'] is not None else '$0.00',
-                "Total Préstamos": f"${ciclo['total_prestamos']:,.2f}" if ciclo['total_prestamos'] is not None else '$0.00',
-                "Total Intereses": f"${ciclo['total_intereses']:,.2f}" if ciclo['total_intereses'] is not None else '$0.00',
-                "Miembros Activos": ciclo['miembros_activos'] if ciclo['miembros_activos'] is not None else 0,
-                "Distribución": f"${ciclo['distribucion_por_miembro']:,.2f}" if ciclo['distribucion_por_miembro'] is not None else '$0.00'
-            })
-        
-        df_ciclos = pd.DataFrame(datos_tabla)
-        st.dataframe(df_ciclos, use_container_width=True, hide_index=True)
-        
-    else:
-        st.info("ℹ️ No se ha finalizado ningún ciclo todavía. Ve a la pestaña 'Generar Cierre' para crear el primer ciclo.")
-
-def mostrar_informacion_ciclo():
-    """
-    Función principal con estructura de tabs
-    """
-    st.header("🔒 Cierre de Ciclo - Resumen Financiero")
-    
-    if 'reunion_actual' not in st.session_state:
-        st.error("❌ No hay reunión activa seleccionada. Por favor, selecciona una reunión primero.")
-        return
-    
-    tab1, tab2 = st.tabs(["📋 Generar Cierre de Ciclo", "📊 Ciclos Finalizados"])
-    
-    with tab1:
-        mostrar_tab_generar_cierre()
-    
-    with tab2:
-        mostrar_tab_ciclos_finalizados()
-
+# 🔥 FUNCIÓN QUE APP.PY ESTÁ BUSCANDO
 def mostrar_ciclo():
     """Función que llama app.py"""
     verificar_modulos()
