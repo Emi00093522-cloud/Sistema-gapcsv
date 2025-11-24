@@ -172,6 +172,12 @@ def obtener_totales_reunion(cursor, id_reunion):
                 'descripcion': 'Total de préstamos aprobados y desembolsados'
             })
 
+        # Mostrar información de depuración
+        st.write("🔍 **Información de depuración:**")
+        st.write(f"- Total préstamos encontrados: ${total_prestamos:,.2f}")
+        st.write(f"- Total egresos calculados: ${totales['total_egresos']:,.2f}")
+        st.write(f"- Cantidad de egresos en detalle: {len(totales['detalle_egresos'])}")
+
         return totales
 
     except Exception as e:
@@ -214,7 +220,9 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
                 st.caption(ingreso['descripcion'])
             with col2:
                 st.success(f"💰 ${ingreso['monto']:,.2f}")
-    
+    else:
+        st.info("📭 No hay ingresos registrados en esta reunión")
+
     # Mostrar detalles de egresos
     if totales['detalle_egresos']:
         st.subheader("📉 Detalle de Egresos")
@@ -225,6 +233,8 @@ def resumen_automatico(cursor, con, id_reunion, saldo_anterior):
                 st.caption(egreso['descripcion'])
             with col2:
                 st.error(f"📤 ${egreso['monto']:,.2f}")
+    else:
+        st.info("📭 No hay egresos registrados en esta reunión")
 
     # Mostrar información de consultas ejecutadas
     with st.expander("🔍 Ver consultas ejecutadas"):
