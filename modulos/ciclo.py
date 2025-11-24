@@ -28,6 +28,41 @@ def verificar_modulos():
     except ImportError as e:
         st.sidebar.error(f"❌ pagoprestamo.py - ERROR: {e}")
 
+def obtener_total_miembros_activos():
+    """
+    Obtiene el total de miembros activos en el grupo
+    """
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        if 'reunion_actual' not in st.session_state:
+            st.error("No hay reunión activa seleccionada")
+            return 0
+        
+        id_grupo = st.session_state.reunion_actual['id_grupo']
+        
+        # Consulta para contar miembros activos del grupo
+        cursor.execute("""
+            SELECT COUNT(*) as total_miembros
+            FROM Miembro 
+            WHERE ID_Grupo = %s AND estado = 'Activo'
+        """, (id_grupo,))
+        
+        resultado = cursor.fetchone()
+        total_miembros = resultado['total_miembros'] if resultado else 0
+        
+        cursor.close()
+        con.close()
+        
+        return total_miembros
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo miembros activos: {e}")
+        return 0
+
 def obtener_datos_prestamos_desde_bd():
     """
     Obtiene datos de préstamos directamente desde la base de datos
@@ -237,6 +272,43 @@ def mostrar_resumen_cierre():
     
     with col5:
         st.metric("TOTAL", f"${total_ingresos:,.2f}")
+    
+    # NUEVA SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS
+    st.write("### 📊 Distribución de Beneficios")
+    
+    # Obtener total de miembros activos
+    total_miembros_activos = obtener_total_miembros_activos()
+    
+    if total_miembros_activos > 0 and prestamos_intereses > 0:
+        # Calcular distribución
+        distribucion_por_miembro = prestamos_intereses / total_miembros_activos
+        
+        # Mostrar cálculo
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info(f"**👥 Total de Miembros Activos:** {total_miembros_activos}")
+        
+        with col2:
+            st.info(f"**💰 Total de Intereses a Distribuir:** ${prestamos_intereses:,.2f}")
+        
+        # Resultado de la distribución
+        st.success(f"**🎯 A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}**")
+        
+        # Mostrar cálculo detallado
+        with st.expander("🔍 Ver Cálculo Detallado"):
+            st.write(f"""
+            **Fórmula de distribución:**
+            - Total Intereses: ${prestamos_intereses:,.2f}
+            - Total Miembros Activos: {total_miembros_activos}
+            - Distribución: ${prestamos_intereses:,.2f} ÷ {total_miembros_activos} = **${distribucion_por_miembro:,.2f} por miembro**
+            """)
+    
+    elif total_miembros_activos == 0:
+        st.warning("⚠️ No se encontraron miembros activos en el grupo")
+    
+    elif prestamos_intereses == 0:
+        st.info("ℹ️ No hay intereses para distribuir en este ciclo")
     
     # Mostrar detalles de préstamos
     with st.expander("📊 Ver Detalles de Préstamos"):
