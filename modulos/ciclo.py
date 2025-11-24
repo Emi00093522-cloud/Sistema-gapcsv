@@ -349,7 +349,7 @@ def mostrar_resumen_cierre():
     else:
         st.info("ℹ️ No se encontraron datos de ahorros por miembro")
     
-    # SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS (con checkboxes como en tu diseño)
+    # SECCIÓN: DISTRIBUCIÓN DE BENEFICIOS - MEJORADA CON TABLA BONITA
     st.write("### 📊 Distribución de Beneficios")
     
     # Obtener total de miembros activos
@@ -359,17 +359,25 @@ def mostrar_resumen_cierre():
         # Calcular distribución
         distribucion_por_miembro = prestamos_intereses / total_miembros_activos
         
-        # Mostrar con checkboxes como en tu diseño original
-        col1, col2 = st.columns([2, 1])
+        # TABLA BONITA PARA DISTRIBUCIÓN - SIN CHECKBOXES FEYOS
+        distribucion_data = {
+            "Concepto": [
+                "Total de Miembros Activos",
+                "Total de Intereses a Distribuir", 
+                "Distribución por Miembro"
+            ],
+            "Valor": [
+                f"{total_miembros_activos}",
+                f"${prestamos_intereses:,.2f}",
+                f"${distribucion_por_miembro:,.2f}"
+            ]
+        }
         
-        with col1:
-            st.checkbox("Distribución de Beneficios", disabled=True)
-            st.checkbox(f"Total de Miembros Activos: {total_miembros_activos}", value=True, disabled=True)
-            st.checkbox(f"Total de Intereses a Distribuir: ${prestamos_intereses:,.2f}", disabled=True)
+        df_distribucion = pd.DataFrame(distribucion_data)
+        st.dataframe(df_distribucion, use_container_width=True, hide_index=True)
         
-        with col2:
-            st.checkbox(f"A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}", value=True, disabled=True)
-            st.checkbox("Ver Cálculo Detallado", disabled=True)
+        # Mensaje de resultado
+        st.success(f"**🎯 A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}**")
         
         # Mostrar cálculo detallado en un expander
         with st.expander("🔍 Ver Cálculo Detallado"):
