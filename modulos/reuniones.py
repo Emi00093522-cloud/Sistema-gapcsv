@@ -149,12 +149,14 @@ def mostrar_reuniones():
             hora_def = datetime.now().time().replace(second=0, microsecond=0)
             lugar_def = ""
             estado_def = 1
+            total_presentes_def = 0
         else:
             fila = next((x for x in reuniones if x["ID_Reunion"] == id_reunion), {})
             fecha_def = fila.get("fecha") or datetime.now().date()
             hora_def = fila.get("Hora") or datetime.now().time().replace(second=0, microsecond=0)
             lugar_def = fila.get("lugar", "")
             estado_def = fila.get("ID_Estado_reunion", 1)
+            total_presentes_def = fila.get("total_presentes", 0)
 
         with st.form("form_reuniones"):
             col1, col2 = st.columns(2)
@@ -164,6 +166,14 @@ def mostrar_reuniones():
                 hora = st.time_input("Hora", hora_def)
 
             lugar = st.text_input("Lugar", lugar_def)
+            
+            # 🔥 NUEVO CAMPO: TOTAL PRESENTES
+            total_presentes = st.number_input(
+                "Total de presentes", 
+                min_value=0, 
+                value=total_presentes_def,
+                help="Número total de personas que asistieron a la reunión"
+            )
 
             estados = {"Programada": 1, "Realizada": 2, "Cancelada": 3}
             estado_texto_actual = [k for k, v in estados.items() if v == estado_def][0]
@@ -192,14 +202,14 @@ def mostrar_reuniones():
                 if id_reunion:
                     cursor.execute("""
                         UPDATE Reunion
-                        SET fecha=%s, Hora=%s, lugar=%s, ID_Estado_reunion=%s
+                        SET fecha=%s, Hora=%s, lugar=%s, ID_Estado_reunion=%s, total_presentes=%s
                         WHERE ID_Reunion=%s
-                    """, (fecha, hora_str_full, lugar, int(estado), id_reunion))
+                    """, (fecha, hora_str_full, lugar, int(estado), int(total_presentes), id_reunion))
                 else:
                     cursor.execute("""
-                        INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (id_grupo, fecha, hora_str_full, lugar, int(estado)))
+                        INSERT INTO Reunion (ID_Grupo, fecha, Hora, lugar, ID_Estado_reunion, total_presentes)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (id_grupo, fecha, hora_str_full, lugar, int(estado), int(total_presentes)))
 
                 con.commit()
                 st.success("✅ Reunión guardada correctamente.")
