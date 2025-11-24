@@ -243,7 +243,7 @@ def calcular_totales_reales():
 
 def guardar_ciclo_en_bd(datos_ciclo):
     """
-    Guarda el ciclo cerrado en la base de datos - CORREGIDO CON CREACIÓN DE CICLO PRIMERO
+    Guarda el ciclo cerrado en la base de datos - CORREGIDO FINAL
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -251,54 +251,46 @@ def guardar_ciclo_en_bd(datos_ciclo):
         con = obtener_conexion()
         cursor = con.cursor()
         
-        # PRIMERO: Obtener el número del próximo ciclo desde Cierre_de_ciclo
+        # PRIMERO: Obtener el número del próximo ciclo desde Ciclo (no desde Cierre_de_ciclo)
         cursor.execute("""
             SELECT COALESCE(MAX(ID_Ciclo), 0) + 1 as siguiente_ciclo 
-            FROM Cierre_de_ciclo 
+            FROM Ciclo 
             WHERE ID_Grupo = %s
         """, (datos_ciclo['id_grupo'],))
         
         resultado = cursor.fetchone()
         numero_ciclo = resultado[0] if resultado else 1
         
-        # SEGUNDO: Crear el ciclo en la tabla Ciclo si no existe
+        # SEGUNDO: Crear el ciclo en la tabla Ciclo
+        # Calcular fecha de inicio (30 días antes del cierre)
+        fecha_inicio = datos_ciclo['fecha_cierre'] - timedelta(days=30)
+        
+        # Crear el ciclo en la tabla Ciclo
         cursor.execute("""
-            SELECT ID_Ciclo FROM Ciclo 
-            WHERE ID_Grupo = %s AND ID_Ciclo = %s
-        """, (datos_ciclo['id_grupo'], numero_ciclo))
+            INSERT INTO Ciclo 
+            (ID_Ciclo, fecha_inicio, fecha_cierre, ID_Estado_ciclo, ID_Reglamento, 
+             total_ahorros, total_pagos_prestamos, total_multas_utilizadas, ID_Grupo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            numero_ciclo,
+            fecha_inicio,
+            datos_ciclo['fecha_cierre'],
+            2,  # ID_Estado_ciclo = 2 (Cerrado)
+            1,  # ID_Reglamento = 1 (por defecto)
+            datos_ciclo['total_ahorros'],
+            datos_ciclo['total_prestamos'],
+            datos_ciclo['total_multas'],
+            datos_ciclo['id_grupo']  # ✅ ID_Grupo ahora en Ciclo
+        ))
         
-        ciclo_existente = cursor.fetchone()
-        
-        if not ciclo_existente:
-            # Calcular fecha de inicio (30 días antes del cierre)
-            fecha_inicio = datos_ciclo['fecha_cierre'] - timedelta(days=30)
-            
-            # Crear el ciclo en la tabla Ciclo primero
-            cursor.execute("""
-                INSERT INTO Ciclo 
-                (ID_Ciclo, fecha_inicio, fecha_cierre, ID_Estado_ciclo, ID_Reglamento, 
-                 total_ahorros, total_pagos_prestamos, total_multas_utilizadas)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                numero_ciclo,
-                fecha_inicio,
-                datos_ciclo['fecha_cierre'],
-                2,  # ID_Estado_ciclo = 2 (Cerrado) - ajusta según tus estados
-                1,  # ID_Reglamento = 1 (por defecto) - ajusta según tu sistema
-                datos_ciclo['total_ahorros'],
-                datos_ciclo['total_prestamos'],  # Usamos prestamos_capital como pagos
-                datos_ciclo['total_multas']
-            ))
-        
-        # TERCERO: Insertar en Cierre_de_ciclo
+        # TERCERO: Insertar en Cierre_de_ciclo - SIN ID_Grupo
         cursor.execute("""
             INSERT INTO Cierre_de_ciclo 
-            (ID_Grupo, ID_Ciclo, fecha_cierre, total_ahorros, total_multas, total_prestamos, 
+            (ID_Ciclo, fecha_cierre, total_ahorros, total_multas, total_prestamos, 
              total_intereses, miembros_activos, distribucion_por_miembro, ahorros_por_miembro)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            datos_ciclo['id_grupo'],
-            numero_ciclo,
+            numero_ciclo,  # Solo ID_Ciclo, NO ID_Grupo
             datos_ciclo['fecha_cierre'],
             datos_ciclo['total_ahorros'],
             datos_ciclo['total_multas'],
@@ -320,7 +312,7 @@ def guardar_ciclo_en_bd(datos_ciclo):
 
 def obtener_ciclos_historicos():
     """
-    Obtiene todos los ciclos cerrados del grupo - CORREGIDO para usar Cierre_de_ciclo
+    Obtiene todos los ciclos cerrados del grupo - CORREGIDO FINAL
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -333,10 +325,13 @@ def obtener_ciclos_historicos():
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
+        # AHORA unimos con Ciclo para obtener los ciclos del grupo correcto
         cursor.execute("""
-            SELECT * FROM Cierre_de_ciclo 
-            WHERE ID_Grupo = %s 
-            ORDER BY ID_Ciclo DESC
+            SELECT cdc.* 
+            FROM Cierre_de_ciclo cdc
+            JOIN Ciclo c ON cdc.ID_Ciclo = c.ID_Ciclo
+            WHERE c.ID_Grupo = %s 
+            ORDER BY cdc.ID_Ciclo DESC
         """, (id_grupo,))
         
         ciclos = cursor.fetchall()
@@ -345,7 +340,6 @@ def obtener_ciclos_historicos():
         
         return ciclos
     except Exception as e:
-        # Si la tabla no existe, retornar lista vacía
         st.error(f"❌ Error obteniendo ciclos históricos: {e}")
         return []
 
