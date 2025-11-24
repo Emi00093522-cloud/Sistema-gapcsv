@@ -1,3 +1,17 @@
+[file name]: image.png
+[file content begin]
+# Cierre de Ciclo - Resumen Financiero
+
+## Gestión de Cierre de Ciclo
+
+- **Fecha de Inicio del Grupo:** 2024-01-01  
+- **Duración Actual:** 120 días  
+
+
+[file content end]
+
+quiero que me agregues mejor un filtro donde pueda elegir inicio de ciclo y cierrre de ciclo, por fechas, y que me leas los datos establecidos dentro de ese rango
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -8,7 +22,7 @@ import os
 sys.path.append(os.path.dirname(__file__))
 
 # =============================================
-# FUNCIONES EXISTENTES (sin cambios)
+# FUNCIONES EXISTENTES (con modificaciones para filtro de fechas)
 # =============================================
 
 def verificar_modulos():
@@ -32,9 +46,9 @@ def verificar_modulos():
     except ImportError as e:
         st.sidebar.error(f"❌ pagoprestamo.py - ERROR: {e}")
 
-def obtener_ahorros_por_miembro_ciclo():
+def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
     """
-    Obtiene los ahorros totales por miembro de TODAS las reuniones del ciclo
+    Obtiene los ahorros totales por miembro de las reuniones dentro del rango de fechas
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -48,8 +62,8 @@ def obtener_ahorros_por_miembro_ciclo():
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # Consulta para obtener ahorros agrupados por miembro de TODAS las reuniones
-        cursor.execute("""
+        # Consulta base
+        query = """
             SELECT 
                 m.ID_Miembro,
                 m.nombre as nombre_miembro,
@@ -60,9 +74,18 @@ def obtener_ahorros_por_miembro_ciclo():
             LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
             LEFT JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
             WHERE m.ID_Grupo = %s AND m.ID_Estado = 1
-            GROUP BY m.ID_Miembro, m.nombre
-            ORDER BY m.nombre
-        """, (id_grupo,))
+        """
+        
+        params = [id_grupo]
+        
+        # Agregar filtro de fechas si se proporcionan
+        if fecha_inicio and fecha_fin:
+            query += " AND r.fecha_reunion BETWEEN %s AND %s"
+            params.extend([fecha_inicio, fecha_fin])
+        
+        query += " GROUP BY m.ID_Miembro, m.nombre ORDER BY m.nombre"
+        
+        cursor.execute(query, tuple(params))
         
         ahorros_miembros = cursor.fetchall()
         
@@ -121,10 +144,10 @@ def obtener_total_miembros_activos():
         st.error(f"❌ Error obteniendo miembros activos: {e}")
         return 0
 
-def obtener_datos_prestamos_desde_bd():
+def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene datos de préstamos directamente desde la base de datos
-    ya que pagoprestamo.py no tiene obtener_prestamos_grupo
+    con filtro de fechas
     """
     try:
         from modulos.config.conexion import obtener_conexion
@@ -138,20 +161,30 @@ def obtener_datos_prestamos_desde_bd():
         
         id_grupo = st.session_state.reunion_actual['id_grupo']
         
-        # Consulta para obtener préstamos del grupo
-        cursor.execute("""
+        # Consulta base para obtener préstamos del grupo
+        query = """
             SELECT 
                 p.ID_Prestamo,
                 p.monto,
                 p.total_interes,
                 p.monto_total_pagar,
                 p.ID_Estado_prestamo,
-                m.nombre as nombre_miembro
+                m.nombre as nombre_miembro,
+                p.fecha_solicitud
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE m.ID_Grupo = %s 
             AND p.ID_Estado_prestamo != 3  -- Excluir préstamos cancelados/rechazados
-        """, (id_grupo,))
+        """
+        
+        params = [id_grupo]
+        
+        # Agregar filtro de fechas si se proporcionan
+        if fecha_inicio and fecha_fin:
+            query += " AND p.fecha_solicitud BETWEEN %s AND %s"
+            params.extend([fecha_inicio, fecha_fin])
+        
+        cursor.execute(query, tuple(params))
         
         prestamos = cursor.fetchall()
         
@@ -171,7 +204,8 @@ def obtener_datos_prestamos_desde_bd():
                 'monto_intereses': float(monto_intereses),
                 'monto_total': float(monto_total),
                 'estado': p['ID_Estado_prestamo'],
-                'nombre_miembro': p['nombre_miembro']
+                'nombre_miembro': p['nombre_miembro'],
+                'fecha_solicitud': p['fecha_solicitud']
             })
         
         cursor.close()
@@ -183,49 +217,109 @@ def obtener_datos_prestamos_desde_bd():
         st.error(f"❌ Error obteniendo préstamos desde BD: {e}")
         return []
 
-def obtener_datos_reales():
+def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
     """
-    Obtiene datos REALES de tus módulos
+    Obtiene datos de multas directamente desde la base de datos
+    con filtro de fechas
+    """
+    try:
+        from modulos.config.conexion import obtener_conexion
+        
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        
+        if 'reunion_actual' not in st.session_state:
+            st.error("No hay reunión activa seleccionada")
+            return []
+        
+        id_grupo = st.session_state.reunion_actual['id_grupo']
+        
+        # Consulta para obtener multas del grupo
+        query = """
+            SELECT 
+                pm.ID_PagoMulta,
+                pm.monto_pagado,
+                pm.fecha_pago,
+                m.nombre as nombre_miembro,
+                mult.descripcion
+            FROM PagoMulta pm
+            JOIN Multa mult ON pm.ID_Multa = mult.ID_Multa
+            JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s
+        """
+        
+        params = [id_grupo]
+        
+        # Agregar filtro de fechas si se proporcionan
+        if fecha_inicio and fecha_fin:
+            query += " AND pm.fecha_pago BETWEEN %s AND %s"
+            params.extend([fecha_inicio, fecha_fin])
+        
+        cursor.execute(query, tuple(params))
+        
+        multas = cursor.fetchall()
+        
+        # Formatear resultados
+        resultado = []
+        for multa in multas:
+            resultado.append({
+                'monto_pagado': float(multa.get('monto_pagado', 0)),
+                'fecha_pago': multa['fecha_pago'],
+                'nombre_miembro': multa['nombre_miembro'],
+                'descripcion': multa['descripcion']
+            })
+        
+        cursor.close()
+        con.close()
+        
+        return resultado
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo multas desde BD: {e}")
+        return []
+
+def obtener_datos_reales(fecha_inicio=None, fecha_fin=None):
+    """
+    Obtiene datos REALES de tus módulos con filtro de fechas
     """
     ahorros_data, multas_data, prestamos_data = [], [], []
     
-    # Obtener ahorros
+    # Obtener ahorros (usando función modificada con filtro de fechas)
     try:
-        from ahorros import obtener_ahorros_grupo
-        ahorros_data = obtener_ahorros_grupo() or []
+        ahorros_data = obtener_ahorros_por_miembro_ciclo(fecha_inicio, fecha_fin) or []
     except Exception as e:
         st.error(f"❌ Error en ahorros: {e}")
     
-    # Obtener multas
+    # Obtener multas con filtro de fechas
     try:
-        from pagomulta import obtener_multas_grupo
-        multas_data = obtener_multas_grupo() or []
+        multas_data = obtener_datos_multas_desde_bd(fecha_inicio, fecha_fin) or []
     except Exception as e:
         st.error(f"❌ Error en multas: {e}")
     
-    # Obtener préstamos
+    # Obtener préstamos con filtro de fechas
     try:
-        prestamos_data = obtener_datos_prestamos_desde_bd()
+        prestamos_data = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin)
     except Exception as e:
         st.error(f"❌ Error en préstamos: {e}")
     
     return ahorros_data, multas_data, prestamos_data
 
-def calcular_totales_reales():
+def calcular_totales_reales(fecha_inicio=None, fecha_fin=None):
     """
     Calcula los totales con datos REALES - AHORA SEPARA CAPITAL E INTERESES
+    con filtro de fechas
     """
-    ahorros_data, multas_data, prestamos_data = obtener_datos_reales()
+    ahorros_data, multas_data, prestamos_data = obtener_datos_reales(fecha_inicio, fecha_fin)
     
     # Si no hay datos reales, usar ejemplos
     if not ahorros_data and not multas_data and not prestamos_data:
-        st.warning("⚠️ Usando datos de ejemplo - Revisa la conexión")
-        return 7500.00, 250.00, 5000.00, 500.00  # capital, intereses
+        st.warning("⚠️ No se encontraron datos en el rango de fechas seleccionado")
+        return 0.00, 0.00, 0.00, 0.00  # capital, intereses
     
     # Calcular ahorros totales
     ahorros_totales = 0
     for ahorro in ahorros_data:
-        ahorros_totales += ahorro.get('monto_ahorro', 0) + ahorro.get('monto_otros', 0)
+        ahorros_totales += ahorro.get('total_general', 0)
     
     # Calcular multas totales
     multas_totales = 0
@@ -254,16 +348,58 @@ def inicializar_session_state():
         st.session_state.mostrar_resumen = False
     if 'ciclo_actual_numero' not in st.session_state:
         st.session_state.ciclo_actual_numero = 1
+    if 'filtro_fechas' not in st.session_state:
+        st.session_state.filtro_fechas = {
+            'fecha_inicio': datetime.now().date() - timedelta(days=30),
+            'fecha_fin': datetime.now().date()
+        }
 
-def mostrar_resumen_completo():
-    """Muestra el resumen completo del ciclo (igual que antes)"""
-    st.subheader("💰 Resumen Financiero del Ciclo")
+def mostrar_filtro_fechas():
+    """Muestra el filtro de fechas para seleccionar el rango del ciclo"""
+    st.subheader("📅 Seleccionar Rango del Ciclo")
     
-    st.success("✅ Has seleccionado cerrar el ciclo. Calculando datos...")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fecha_inicio = st.date_input(
+            "Fecha de Inicio del Ciclo",
+            value=st.session_state.filtro_fechas['fecha_inicio'],
+            max_value=datetime.now().date()
+        )
+    
+    with col2:
+        fecha_fin = st.date_input(
+            "Fecha de Fin del Ciclo",
+            value=st.session_state.filtro_fechas['fecha_fin'],
+            max_value=datetime.now().date()
+        )
+    
+    # Validar que fecha_inicio no sea mayor que fecha_fin
+    if fecha_inicio > fecha_fin:
+        st.error("❌ La fecha de inicio no puede ser mayor que la fecha de fin")
+        return None, None
+    
+    # Actualizar session state
+    st.session_state.filtro_fechas = {
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': fecha_fin
+    }
+    
+    # Mostrar información del rango seleccionado
+    dias_ciclo = (fecha_fin - fecha_inicio).days
+    st.info(f"**📊 Rango seleccionado:** {fecha_inicio} a {fecha_fin} ({dias_ciclo} días)")
+    
+    return fecha_inicio, fecha_fin
+
+def mostrar_resumen_completo(fecha_inicio, fecha_fin):
+    """Muestra el resumen completo del ciclo con filtro de fechas"""
+    st.subheader(f"💰 Resumen Financiero del Ciclo: {fecha_inicio} a {fecha_fin}")
+    
+    st.success("✅ Calculando datos para el rango seleccionado...")
     
     # Obtener datos - AHORA CON 4 VALORES
     with st.spinner("🔍 Calculando datos financieros..."):
-        ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses = calcular_totales_reales()
+        ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses = calcular_totales_reales(fecha_inicio, fecha_fin)
     
     # Calcular total de préstamos (capital + intereses)
     prestamos_total = prestamos_capital + prestamos_intereses
@@ -314,7 +450,7 @@ def mostrar_resumen_completo():
     # AHORROS POR MIEMBRO
     st.write("### 📊 Ahorros por Miembro (Ciclo Completo)")
     
-    ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo()
+    ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo(fecha_inicio, fecha_fin)
     
     if ahorros_por_miembro:
         tabla_data = {
@@ -331,7 +467,7 @@ def mostrar_resumen_completo():
         st.info(f"**💵 Total general de ahorros de todos los miembros: ${total_general_miembros:,.2f}**")
         
     else:
-        st.info("ℹ️ No se encontraron datos de ahorros por miembro")
+        st.info("ℹ️ No se encontraron datos de ahorros por miembro en este rango")
     
     # DISTRIBUCIÓN DE BENEFICIOS
     st.write("### 📊 Distribución de Beneficios")
@@ -376,15 +512,28 @@ def mostrar_resumen_completo():
     # Detalles de préstamos
     with st.expander("📊 Ver Detalles de Préstamos"):
         try:
-            prestamos_detalle = obtener_datos_prestamos_desde_bd()
+            prestamos_detalle = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin)
             if prestamos_detalle:
                 df_prestamos = pd.DataFrame(prestamos_detalle)
-                st.dataframe(df_prestamos[['nombre_miembro', 'monto_capital', 'monto_intereses', 'monto_total']], 
+                st.dataframe(df_prestamos[['nombre_miembro', 'monto_capital', 'monto_intereses', 'monto_total', 'fecha_solicitud']], 
                            use_container_width=True)
             else:
-                st.info("No hay datos detallados de préstamos")
+                st.info("No hay datos detallados de préstamos en este rango")
         except:
             st.info("No se pudieron cargar los detalles de préstamos")
+    
+    # Detalles de multas
+    with st.expander("⚖️ Ver Detalles de Multas"):
+        try:
+            multas_detalle = obtener_datos_multas_desde_bd(fecha_inicio, fecha_fin)
+            if multas_detalle:
+                df_multas = pd.DataFrame(multas_detalle)
+                st.dataframe(df_multas[['nombre_miembro', 'monto_pagado', 'descripcion', 'fecha_pago']], 
+                           use_container_width=True)
+            else:
+                st.info("No hay datos detallados de multas en este rango")
+        except:
+            st.info("No se pudieron cargar los detalles de multas")
     
     return {
         'ahorros_totales': ahorros_totales,
@@ -395,6 +544,8 @@ def mostrar_resumen_completo():
         'total_miembros_activos': total_miembros_activos,
         'distribucion_por_miembro': distribucion_por_miembro if total_miembros_activos > 0 and prestamos_intereses > 0 else 0,
         'ahorros_por_miembro': ahorros_por_miembro,
+        'fecha_inicio': fecha_inicio.strftime("%Y-%m-%d"),
+        'fecha_fin': fecha_fin.strftime("%Y-%m-%d"),
         'fecha_cierre': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
 
@@ -402,26 +553,21 @@ def pestaña_ciclo_activo():
     """Pestaña 1: Ciclo Activo - Donde se calcula y cierra el ciclo actual"""
     st.header("🔒 Cierre de Ciclo - Resumen Financiero")
     
-    st.subheader("📊 Gestión de Cierre de Ciclo")
+    # Mostrar filtro de fechas
+    fecha_inicio, fecha_fin = mostrar_filtro_fechas()
     
-    # Información básica
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.info("**📅 Fecha de Inicio del Grupo:** 2024-01-01")
-    
-    with col2:
-        st.info("**⏰ Duración Actual:** 120 días")
+    if fecha_inicio is None or fecha_fin is None:
+        return
     
     st.markdown("---")
     
     # Botón principal para iniciar cierre
-    if st.button("🚀 ¿Desea cerrar el ciclo? Sí", type="primary", use_container_width=True):
+    if st.button("🚀 Generar Resumen del Ciclo", type="primary", use_container_width=True):
         st.session_state.mostrar_resumen = True
     
-    # Mostrar resumen si el usuario presionó "Sí"
+    # Mostrar resumen si el usuario presionó el botón
     if st.session_state.mostrar_resumen:
-        datos_ciclo = mostrar_resumen_completo()
+        datos_ciclo = mostrar_resumen_completo(fecha_inicio, fecha_fin)
         
         # Botón de confirmación
         st.markdown("---")
@@ -432,7 +578,8 @@ def pestaña_ciclo_activo():
             ciclo_cerrado = {
                 'numero_ciclo': st.session_state.ciclo_actual_numero,
                 'datos': datos_ciclo,
-                'fecha_cierre': datos_ciclo['fecha_cierre']
+                'fecha_cierre': datos_ciclo['fecha_cierre'],
+                'rango_fechas': f"{datos_ciclo['fecha_inicio']} a {datos_ciclo['fecha_fin']}"
             }
             st.session_state.ciclos_cerrados.append(ciclo_cerrado)
             
@@ -456,10 +603,10 @@ def pestaña_ciclos_cerrados():
     
     # Mostrar cada ciclo cerrado
     for i, ciclo in enumerate(st.session_state.ciclos_cerrados):
-        with st.expander(f"📊 Ciclo {ciclo['numero_ciclo']} Finalizado - {ciclo['fecha_cierre']}", expanded=i==0):
+        with st.expander(f"📊 Ciclo {ciclo['numero_ciclo']} - {ciclo['rango_fechas']} - {ciclo['fecha_cierre']}", expanded=i==0):
             datos = ciclo['datos']
             
-            st.write(f"**Ciclo {ciclo['numero_ciclo']} - Cerrado el: {ciclo['fecha_cierre']}**")
+            st.write(f"**Ciclo {ciclo['numero_ciclo']} - Rango: {ciclo['rango_fechas']} - Cerrado el: {ciclo['fecha_cierre']}**")
             
             # Tabla de consolidado
             st.write("#### 📋 Tabla de Consolidado")
@@ -522,7 +669,7 @@ def pestaña_ciclos_cerrados():
 # =============================================
 
 def mostrar_ciclo():
-    """Función principal que llama app.py - AHORA CON PESTAÑAS"""
+    """Función principal que llama app.py - AHORA CON PESTAÑAS Y FILTRO DE FECHAS"""
     verificar_modulos()
     inicializar_session_state()
     
