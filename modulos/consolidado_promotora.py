@@ -42,14 +42,23 @@ def mostrar_consolidado_promotora():
     st.title("📊 Consolidado de Promotora")
     
     # =============================================
-    # 1. OBTENER ID PROMOTORA DESDE LA TABLA
+    # 1. VERIFICAR SI ES USUARIO PROMOTORA CON ACCESO TOTAL
+    # =============================================
+    es_promotora_acceso_total = st.session_state.get("acceso_total_promotora", False)
+    cargo_usuario = st.session_state.get("cargo_de_usuario", "")
+    
+    if es_promotora_acceso_total:
+        st.info("🔓 **MODO PROMOTORA CON ACCESO TOTAL**: Puedes ver todos los grupos del sistema")
+    
+    # =============================================
+    # 2. OBTENER ID PROMOTORA DESDE LA TABLA
     # =============================================
     st.write("### 🔍 Verificando permisos de promotora...")
     
     # Obtener ID de promotora desde la tabla
     id_promotora = obtener_id_promotora_actual()
     
-    if id_promotora is None:
+    if id_promotora is None and not es_promotora_acceso_total:
         st.error("""
         🚫 **No estás registrada como promotora**
         
@@ -61,10 +70,13 @@ def mostrar_consolidado_promotora():
         **Tu usuario actual:** """ + st.session_state.get("usuario", "No identificado"))
         return
     
-    st.success(f"✅ **Promotora autorizada** - ID: {id_promotora}")
+    if es_promotora_acceso_total:
+        st.success(f"✅ **Promotora con acceso total** - Puedes ver todos los grupos del sistema")
+    else:
+        st.success(f"✅ **Promotora autorizada** - ID: {id_promotora}")
     
     # =============================================
-    # 2. OBTENER GRUPOS DE ESTA PROMOTORA
+    # 3. OBTENER GRUPOS (TODOS SI ES PROMOTORA CON ACCESO TOTAL)
     # =============================================
     def obtener_grupos_promotora():
         try:
@@ -73,12 +85,23 @@ def mostrar_consolidado_promotora():
             con = obtener_conexion()
             cursor = con.cursor(dictionary=True)
             
-            cursor.execute("""
-                SELECT ID_Grupo, nombre_grupo 
-                FROM Grupo 
-                WHERE ID_Promotora = %s
-                ORDER BY nombre_grupo
-            """, (id_promotora,))
+            if es_promotora_acceso_total:
+                # 👉 PROMOTORA CON ACCESO TOTAL: TODOS LOS GRUPOS
+                cursor.execute("""
+                    SELECT g.ID_Grupo, g.nombre as nombre_grupo, p.nombre as nombre_promotora
+                    FROM Grupo g
+                    LEFT JOIN Promotora p ON g.ID_Promotora = p.ID_Promotora
+                    ORDER BY g.nombre
+                """)
+                st.info("📋 **Vista de todos los grupos del sistema**")
+            else:
+                # 👉 PROMOTORA NORMAL: SOLO SUS GRUPOS
+                cursor.execute("""
+                    SELECT ID_Grupo, nombre as nombre_grupo
+                    FROM Grupo 
+                    WHERE ID_Promotora = %s
+                    ORDER BY nombre
+                """, (id_promotora,))
             
             grupos = cursor.fetchall()
             cursor.close()
@@ -94,16 +117,19 @@ def mostrar_consolidado_promotora():
     
     if not grupos:
         st.warning("""
-        ℹ️ **No tienes grupos asignados**
+        ℹ️ **No hay grupos en el sistema**
         
-        Una vez que crees grupos en el sistema, aparecerán aquí para el consolidado.
+        Una vez que se creen grupos, aparecerán aquí para el consolidado.
         """)
         return
     
-    st.info(f"👥 **Grupos asignados:** {len(grupos)} grupo(s)")
+    if es_promotora_acceso_total:
+        st.info(f"👥 **Total de grupos en el sistema:** {len(grupos)} grupo(s)")
+    else:
+        st.info(f"👥 **Grupos asignados:** {len(grupos)} grupo(s)")
     
     # =============================================
-    # 3. FILTROS DE FECHAS
+    # 4. FILTROS DE FECHAS
     # =============================================
     st.subheader("📅 Seleccionar Rango de Fechas")
     
@@ -131,7 +157,7 @@ def mostrar_consolidado_promotora():
     st.info(f"**Rango seleccionado:** {fecha_inicio} a {fecha_fin} ({dias_rango} días)")
     
     # =============================================
-    # 4. FUNCIONES PARA OBTENER DATOS
+    # 5. FUNCIONES PARA OBTENER DATOS (SIN CAMBIOS, FUNCIONAN PARA CUALQUIER GRUPO)
     # =============================================
     
     def obtener_ahorros_grupo(id_grupo, fecha_inicio, fecha_fin):
@@ -230,7 +256,7 @@ def mostrar_consolidado_promotora():
             return 0
     
     # =============================================
-    # 5. GENERAR REPORTE
+    # 6. GENERAR REPORTE
     # =============================================
     
     if st.button("🚀 GENERAR REPORTE CONSOLIDADO", type="primary", use_container_width=True):
@@ -251,30 +277,55 @@ def mostrar_consolidado_promotora():
                 
                 total_general = ahorros + prestamos + intereses + multas
                 
-                datos_consolidado.append({
-                    "nombre_grupo": grupo_nombre,
-                    "total_miembros": miembros,
-                    "total_ahorros": ahorros,
-                    "total_prestamos": prestamos,
-                    "total_intereses": intereses,
-                    "total_multas": multas,
-                    "total_general": total_general
-                })
+                # Agregar información de promotora si es acceso total
+                if es_promotora_acceso_total:
+                    datos_consolidado.append({
+                        "nombre_grupo": grupo_nombre,
+                        "promotora": grupo.get("nombre_promotora", "N/A"),
+                        "total_miembros": miembros,
+                        "total_ahorros": ahorros,
+                        "total_prestamos": prestamos,
+                        "total_intereses": intereses,
+                        "total_multas": multas,
+                        "total_general": total_general
+                    })
+                else:
+                    datos_consolidado.append({
+                        "nombre_grupo": grupo_nombre,
+                        "total_miembros": miembros,
+                        "total_ahorros": ahorros,
+                        "total_prestamos": prestamos,
+                        "total_intereses": intereses,
+                        "total_multas": multas,
+                        "total_general": total_general
+                    })
             
             # MOSTRAR RESULTADOS
             st.subheader("📋 Tabla de Consolidado")
             
             tabla_data = []
             for dato in datos_consolidado:
-                tabla_data.append({
-                    "Grupo": dato["nombre_grupo"],
-                    "Miembros": dato["total_miembros"],
-                    "Ahorros": f"${dato['total_ahorros']:,.2f}",
-                    "Préstamos": f"${dato['total_prestamos']:,.2f}",
-                    "Intereses": f"${dato['total_intereses']:,.2f}",
-                    "Multas": f"${dato['total_multas']:,.2f}",
-                    "TOTAL": f"${dato['total_general']:,.2f}"
-                })
+                if es_promotora_acceso_total:
+                    tabla_data.append({
+                        "Grupo": dato["nombre_grupo"],
+                        "Promotora": dato["promotora"],
+                        "Miembros": dato["total_miembros"],
+                        "Ahorros": f"${dato['total_ahorros']:,.2f}",
+                        "Préstamos": f"${dato['total_prestamos']:,.2f}",
+                        "Intereses": f"${dato['total_intereses']:,.2f}",
+                        "Multas": f"${dato['total_multas']:,.2f}",
+                        "TOTAL": f"${dato['total_general']:,.2f}"
+                    })
+                else:
+                    tabla_data.append({
+                        "Grupo": dato["nombre_grupo"],
+                        "Miembros": dato["total_miembros"],
+                        "Ahorros": f"${dato['total_ahorros']:,.2f}",
+                        "Préstamos": f"${dato['total_prestamos']:,.2f}",
+                        "Intereses": f"${dato['total_intereses']:,.2f}",
+                        "Multas": f"${dato['total_multas']:,.2f}",
+                        "TOTAL": f"${dato['total_general']:,.2f}"
+                    })
             
             df = pd.DataFrame(tabla_data)
             st.dataframe(df, use_container_width=True)
@@ -291,22 +342,37 @@ def mostrar_consolidado_promotora():
                 "miembros": sum(d["total_miembros"] for d in datos_consolidado)
             }
             
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total Grupos", len(grupos))
-                st.metric("Total Miembros", totales["miembros"])
+            if es_promotora_acceso_total:
+                col1, col2, col3, col4 = st.columns(4)
                 
-            with col2:
-                st.metric("Ahorros", f"${totales['ahorros']:,.2f}")
-                st.metric("Multas", f"${totales['multas']:,.2f}")
+                with col1:
+                    st.metric("Total Grupos", len(grupos))
+                    st.metric("Total Miembros", totales["miembros"])
+                    
+                with col2:
+                    st.metric("Ahorros", f"${totales['ahorros']:,.2f}")
+                    st.metric("Multas", f"${totales['multas']:,.2f}")
+                    
+                with col3:
+                    st.metric("Préstamos", f"${totales['prestamos']:,.2f}")
+                    st.metric("Intereses", f"${totales['intereses']:,.2f}")
+                    
+                with col4:
+                    st.metric("TOTAL GENERAL", f"${totales['general']:,.2f}")
+            else:
+                col1, col2, col3 = st.columns(3)
                 
-            with col3:
-                st.metric("Préstamos", f"${totales['prestamos']:,.2f}")
-                st.metric("Intereses", f"${totales['intereses']:,.2f}")
-                
-            with col4:
-                st.metric("TOTAL GENERAL", f"${totales['general']:,.2f}")
+                with col1:
+                    st.metric("Total Grupos", len(grupos))
+                    st.metric("Total Miembros", totales["miembros"])
+                    
+                with col2:
+                    st.metric("Ahorros", f"${totales['ahorros']:,.2f}")
+                    st.metric("Préstamos", f"${totales['prestamos']:,.2f}")
+                    
+                with col3:
+                    st.metric("Intereses", f"${totales['intereses']:,.2f}")
+                    st.metric("TOTAL GENERAL", f"${totales['general']:,.2f}")
             
             st.balloons()
             st.success("🎉 Consolidado generado exitosamente")
