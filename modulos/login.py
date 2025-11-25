@@ -127,120 +127,6 @@ def validar_formato_dui(dui):
     return bool(re.match(patron, dui))
 
 
-def obtener_id_promotora_por_usuario(id_usuario):
-    """
-    Obtiene el ID de la Promotora asociada al usuario.
-    
-    Estrategias de búsqueda:
-    1. Por ID_Usuario (si existe relación directa en la tabla Promotora)
-    2. Por DUI (si la tabla Promotora tiene campo DUI)
-    3. Por nombre del usuario coincidente con nombre de promotora (flexible)
-    
-    Retorna None si no es promotora o no se encuentra.
-    """
-    con = obtener_conexion()
-    if not con:
-        return None
-    
-    try:
-        cursor = con.cursor(dictionary=True)
-        
-        # Obtener información del usuario
-        cursor.execute("""
-            SELECT ID_Usuario, Usuario, DUI 
-            FROM Usuario 
-            WHERE ID_Usuario = %s
-        """, (id_usuario,))
-        
-        usuario_info = cursor.fetchone()
-        if not usuario_info:
-            return None
-        
-        nombre_usuario = usuario_info["Usuario"].strip()
-        dui = usuario_info.get("DUI", "").strip()
-        
-        # ESTRATEGIA 1: Buscar por ID_Usuario (si existe el campo en Promotora)
-        try:
-            cursor.execute("""
-                SELECT ID_Promotora FROM Promotora WHERE ID_Usuario = %s
-            """, (id_usuario,))
-            
-            promotora_info = cursor.fetchone()
-            if promotora_info:
-                return promotora_info["ID_Promotora"]
-        except:
-            pass  # La columna ID_Usuario no existe en Promotora
-        
-        # ESTRATEGIA 2: Buscar por DUI (si existe el campo en Promotora)
-        if dui:
-            try:
-                cursor.execute("""
-                    SELECT ID_Promotora FROM Promotora WHERE DUI = %s
-                """, (dui,))
-                
-                promotora_info = cursor.fetchone()
-                if promotora_info:
-                    return promotora_info["ID_Promotora"]
-            except:
-                pass  # La columna DUI no existe en Promotora
-        
-        # ESTRATEGIA 3: Buscar por coincidencia de nombre (MUY FLEXIBLE)
-        cursor.execute("""
-            SELECT ID_Promotora, nombre 
-            FROM Promotora
-        """)
-        
-        promotoras = cursor.fetchall()
-        
-        # Normalizar nombre de usuario para comparación
-        nombre_usuario_lower = nombre_usuario.lower().strip()
-        nombre_usuario_sin_espacios = nombre_usuario_lower.replace(" ", "")
-        nombre_usuario_sin_numeros = ''.join(c for c in nombre_usuario_lower if not c.isdigit())
-        
-        for promotora in promotoras:
-            nombre_promotora = promotora["nombre"].strip()
-            nombre_promotora_lower = nombre_promotora.lower().strip()
-            nombre_promotora_sin_espacios = nombre_promotora_lower.replace(" ", "")
-            nombre_promotora_sin_numeros = ''.join(c for c in nombre_promotora_lower if not c.isdigit())
-            
-            # Múltiples formas de coincidencia:
-            # 1. Coincidencia exacta
-            if nombre_usuario_lower == nombre_promotora_lower:
-                return promotora["ID_Promotora"]
-            
-            # 2. Uno contiene al otro
-            if nombre_usuario_lower in nombre_promotora_lower or nombre_promotora_lower in nombre_usuario_lower:
-                return promotora["ID_Promotora"]
-            
-            # 3. Sin espacios
-            if nombre_usuario_sin_espacios == nombre_promotora_sin_espacios:
-                return promotora["ID_Promotora"]
-            
-            # 4. Sin números (ej: "Promotora1" coincide con "Promotora")
-            if len(nombre_usuario_sin_numeros) > 2 and len(nombre_promotora_sin_numeros) > 2:
-                if nombre_usuario_sin_numeros in nombre_promotora_sin_numeros or nombre_promotora_sin_numeros in nombre_usuario_sin_numeros:
-                    return promotora["ID_Promotora"]
-            
-            # 5. Primeras palabras coinciden
-            palabras_usuario = nombre_usuario_lower.split()
-            palabras_promotora = nombre_promotora_lower.split()
-            if palabras_usuario and palabras_promotora:
-                if palabras_usuario[0] == palabras_promotora[0] and len(palabras_usuario[0]) > 3:
-                    return promotora["ID_Promotora"]
-        
-        # Si no se encontró, retornar None
-        return None
-        
-    except Exception as e:
-        # No mostrar error aquí, se manejará en el módulo que llama
-        return None
-    finally:
-        if 'cursor' in locals() and cursor:
-            cursor.close()
-        if con:
-            con.close()
-
-
 def login():
     """Interfaz del login."""
     st.title("Inicio de sesión 👩‍💼")
@@ -289,10 +175,8 @@ def login():
                 id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
                 st.session_state["id_grupo"] = id_grupo
 
-                # 👉 Si es PROMOTORA, obtener su ID_Promotora
-                if datos_usuario["cargo"].upper() == "PROMOTORA" or datos_usuario["tipo_usuario"].lower() == "promotora":
-                    id_promotora = obtener_id_promotora_por_usuario(datos_usuario["ID_Usuario"])
-                    st.session_state["id_promotora"] = id_promotora
+                # (Opcional) Debug temporal
+                # st.write("Debug - id_grupo:", id_grupo)
 
                 # Obtener permisos
                 from modulos.permisos import obtener_permisos_usuario
