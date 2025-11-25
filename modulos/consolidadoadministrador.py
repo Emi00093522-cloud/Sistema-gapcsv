@@ -2,112 +2,107 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import sys
 import os
 
-# Agregar la ruta de tus módulos (por si este archivo está en otra carpeta)
+# Agregar la ruta de tus módulos
 sys.path.append(os.path.dirname(__file__))
 
 # =============================================
-#  UTILIDADES DE MÓDULOS
+#  CONEXIÓN A BASE DE DATOS
 # =============================================
 
-def verificar_modulos():
-    """Solo muestra en el sidebar si los otros módulos están accesibles (no afecta cálculos)."""
-    st.sidebar.write("### 🔧 Verificación de Módulos")
-    
+def obtener_conexion():
+    """Obtiene conexión a la base de datos."""
     try:
-        from ahorros import obtener_ahorros_grupo
-        st.sidebar.success("✅ ahorros.py - CONECTADO")
-    except ImportError as e:
-        st.sidebar.error(f"❌ ahorros.py - ERROR: {e}")
-    
+        from modulos.config.conexion import obtener_conexion as conectar
+        return conectar()
+    except Exception as e:
+        st.error(f"❌ Error de conexión: {e}")
+        return None
+
+# =============================================
+#  FUNCIONES PARA OBTENER DATOS DE TODOS LOS GRUPOS
+# =============================================
+
+def obtener_todos_los_grupos():
+    """Obtiene todos los grupos activos de la base de datos."""
     try:
-        from pagomulta import obtener_multas_grupo
-        st.sidebar.success("✅ pagomulta.py - CONECTADO")  
-    except ImportError as e:
-        st.sidebar.error(f"❌ pagomulta.py - ERROR: {e}")
-    
-    try:
-        from pagoprestamo import mostrar_pago_prestamo
-        st.sidebar.success("✅ pagoprestamo.py - CONECTADO (usando mostrar_pago_prestamo)")
-    except ImportError as e:
-        st.sidebar.error(f"❌ pagoprestamo.py - ERROR: {e}")
-
-# =============================================
-#  IDENTIFICACIÓN DE GRUPO DEL USUARIO
-# =============================================
-
-def obtener_id_grupo_usuario():
-    """Obtiene el ID del grupo del usuario logueado desde session_state."""
-    return st.session_state.get("id_grupo")
-
-def verificar_grupo_usuario():
-    """Verifica que el usuario tenga un grupo asociado."""
-    id_grupo = obtener_id_grupo_usuario()
-    if id_grupo is None:
-        st.error("⚠️ No tienes un grupo asociado. Crea primero un grupo en el módulo 'Grupos'.")
-        return False
-    return True
-
-# =============================================
-#  AHORROS - FUNCIÓN CORREGIDA
-# =============================================
-
-def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
-    """
-    Obtiene los ahorros totales por miembro dentro del rango de fechas
-    PARA EL GRUPO DEL USUARIO. El filtro se hace por Reunion.fecha.
-    """
-    try:
-        from modulos.config.conexion import obtener_conexion
-        
-        if not verificar_grupo_usuario():
-            return []
-            
-        id_grupo = obtener_id_grupo_usuario()
-        
         con = obtener_conexion()
+        if con is None:
+            return []
+        
+        cursor = con.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT g.ID_Grupo, g.nombre as nombre_grupo, 
+                   d.nombre as nombre_distrito, g.fecha_creacion
+            FROM Grupo g
+            LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+            WHERE g.estado = 1
+            ORDER BY d.nombre, g.nombre
+        """)
+        
+        grupos = cursor.fetchall()
+        cursor.close()
+        con.close()
+        
+        return grupos
+    except Exception as e:
+        st.error(f"❌ Error obteniendo grupos: {e}")
+        return []
+
+def obtener_ahorros_todos_grupos(fecha_inicio=None, fecha_fin=None):
+    """Obtiene los ahorros de TODOS los grupos."""
+    try:
+        con = obtener_conexion()
+        if con is None:
+            return []
+        
         cursor = con.cursor(dictionary=True)
         
         query = """
             SELECT 
-                m.ID_Miembro,
-                m.nombre AS nombre_miembro,
-                COALESCE(SUM(a.monto_ahorro), 0)                 AS total_ahorros,
-                COALESCE(SUM(a.monto_otros), 0)                  AS total_otros,
-                COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) AS total_general
-            FROM Miembro m
+                g.ID_Grupo,
+                g.nombre as nombre_grupo,
+                d.nombre as nombre_distrito,
+                COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros,
+                COALESCE(SUM(a.monto_otros), 0) as total_otros,
+                COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) as total_general,
+                COUNT(DISTINCT m.ID_Miembro) as total_miembros
+            FROM Grupo g
+            LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+            LEFT JOIN Miembro m ON g.ID_Grupo = m.ID_Grupo AND m.ID_Estado = 1
             LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
             LEFT JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
-            WHERE m.ID_Grupo = %s
-              AND m.ID_Estado = 1
+            WHERE g.estado = 1
         """
         
-        params = [id_grupo]
+        params = []
         
-        # 🔎 Filtro por rango de fechas del CICLO (fecha de la REUNIÓN)
+        # Filtro por rango de fechas
         if fecha_inicio and fecha_fin:
             query += " AND r.fecha BETWEEN %s AND %s"
             params.extend([fecha_inicio, fecha_fin])
         
         query += """
-            GROUP BY m.ID_Miembro, m.nombre
-            ORDER BY m.nombre
+            GROUP BY g.ID_Grupo, g.nombre, d.nombre
+            ORDER BY d.nombre, g.nombre
         """
         
         cursor.execute(query, tuple(params))
-        ahorros_miembros = cursor.fetchall()
+        ahorros_grupos = cursor.fetchall()
         
         resultado = []
-        for row in ahorros_miembros:
+        for row in ahorros_grupos:
             resultado.append({
-                "miembro":       row["nombre_miembro"],
+                "id_grupo": row["ID_Grupo"],
+                "grupo": row["nombre_grupo"],
+                "distrito": row["nombre_distrito"] or "Sin distrito",
                 "total_ahorros": float(row["total_ahorros"]),
-                "total_otros":   float(row["total_otros"]),
+                "total_otros": float(row["total_otros"]),
                 "total_general": float(row["total_general"]),
+                "total_miembros": row["total_miembros"]
             })
         
         cursor.close()
@@ -115,500 +110,345 @@ def obtener_ahorros_por_miembro_ciclo(fecha_inicio=None, fecha_fin=None):
         return resultado
 
     except Exception as e:
-        st.error(f"❌ Error obteniendo ahorros por miembro: {e}")
+        st.error(f"❌ Error obteniendo ahorros de todos los grupos: {e}")
         return []
 
-def obtener_total_miembros_activos():
-    """
-    Obtiene el total de miembros activos (ID_Estado = 1) del grupo DEL USUARIO.
-    """
+def obtener_prestamos_todos_grupos(fecha_inicio=None, fecha_fin=None):
+    """Obtiene los préstamos de TODOS los grupos."""
     try:
-        from modulos.config.conexion import obtener_conexion
-        
-        if not verificar_grupo_usuario():
-            return 0
-            
-        id_grupo = obtener_id_grupo_usuario()
-        
         con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-        
-        cursor.execute("""
-            SELECT COUNT(*) AS total_miembros
-            FROM Miembro 
-            WHERE ID_Grupo = %s AND ID_Estado = 1
-        """, (id_grupo,))
-        
-        resultado = cursor.fetchone()
-        total_miembros = resultado["total_miembros"] if resultado else 0
-        
-        cursor.close()
-        con.close()
-        
-        return total_miembros
-        
-    except Exception as e:
-        st.error(f"❌ Error obteniendo miembros activos: {e}")
-        return 0
-
-# =============================================
-#  PRÉSTAMOS
-# =============================================
-
-def obtener_datos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
-    """
-    Obtiene datos de préstamos directamente desde la base de datos
-    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO.
-    """
-    try:
-        from modulos.config.conexion import obtener_conexion
-        
-        if not verificar_grupo_usuario():
+        if con is None:
             return []
-            
-        id_grupo = obtener_id_grupo_usuario()
         
-        con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
         query = """
             SELECT 
-                p.ID_Prestamo,
-                p.monto,
-                p.total_interes,
-                p.monto_total_pagar,
-                p.ID_Estado_prestamo,
-                p.fecha_desembolso,
-                m.nombre AS nombre_miembro
-            FROM Prestamo p
-            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
-            WHERE m.ID_Grupo = %s 
+                g.ID_Grupo,
+                g.nombre as nombre_grupo,
+                d.nombre as nombre_distrito,
+                COALESCE(SUM(p.monto), 0) as total_capital,
+                COALESCE(SUM(p.total_interes), 0) as total_intereses,
+                COALESCE(SUM(p.monto_total_pagar), 0) as total_pagar,
+                COUNT(p.ID_Prestamo) as total_prestamos
+            FROM Grupo g
+            LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+            LEFT JOIN Miembro m ON g.ID_Grupo = m.ID_Grupo
+            LEFT JOIN Prestamo p ON m.ID_Miembro = p.ID_Miembro
+            WHERE g.estado = 1 
               AND p.ID_Estado_prestamo != 3  -- Excluir cancelados/rechazados
         """
         
-        params = [id_grupo]
+        params = []
         
         # Filtro por fecha de desembolso
         if fecha_inicio and fecha_fin:
             query += " AND p.fecha_desembolso BETWEEN %s AND %s"
             params.extend([fecha_inicio, fecha_fin])
         
+        query += """
+            GROUP BY g.ID_Grupo, g.nombre, d.nombre
+            ORDER BY d.nombre, g.nombre
+        """
+        
         cursor.execute(query, tuple(params))
-        prestamos = cursor.fetchall()
+        prestamos_grupos = cursor.fetchall()
         
         resultado = []
-        for p in prestamos:
-            monto_capital   = p.get("monto", 0) or 0
-            monto_intereses = p.get("total_interes", 0) or 0
-            monto_total     = p.get("monto_total_pagar")
-            
-            if monto_total is None:
-                monto_total = monto_capital + monto_intereses
-                
+        for row in prestamos_grupos:
             resultado.append({
-                "monto_capital":   float(monto_capital),
-                "monto_intereses": float(monto_intereses),
-                "monto_total":     float(monto_total),
-                "estado":          p["ID_Estado_prestamo"],
-                "nombre_miembro":  p["nombre_miembro"],
+                "id_grupo": row["ID_Grupo"],
+                "grupo": row["nombre_grupo"],
+                "distrito": row["nombre_distrito"] or "Sin distrito",
+                "total_capital": float(row["total_capital"]),
+                "total_intereses": float(row["total_intereses"]),
+                "total_pagar": float(row["total_pagar"]),
+                "total_prestamos": row["total_prestamos"]
             })
         
         cursor.close()
         con.close()
-        
         return resultado
-        
+
     except Exception as e:
-        st.error(f"❌ Error obteniendo préstamos desde BD: {e}")
+        st.error(f"❌ Error obteniendo préstamos de todos los grupos: {e}")
         return []
 
-# =============================================
-#  MULTAS
-# =============================================
-
-def obtener_datos_multas_desde_bd(fecha_inicio=None, fecha_fin=None):
-    """
-    Obtiene datos de multas directamente desde la base de datos
-    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO.
-    """
+def obtener_multas_todos_grupos(fecha_inicio=None, fecha_fin=None):
+    """Obtiene las multas de TODOS los grupos."""
     try:
-        from modulos.config.conexion import obtener_conexion
-        
-        if not verificar_grupo_usuario():
-            return []
-            
-        id_grupo = obtener_id_grupo_usuario()
-        
         con = obtener_conexion()
+        if con is None:
+            return []
+        
         cursor = con.cursor(dictionary=True)
         
         query = """
             SELECT 
-                pm.ID_PagoMulta,
-                pm.monto_pagado,
-                pm.fecha_pago,
-                m.nombre AS nombre_miembro
-            FROM PagoMulta pm
-            JOIN Multa mult  ON pm.ID_Multa   = mult.ID_Multa
-            JOIN Miembro m   ON pm.ID_Miembro = m.ID_Miembro
-            WHERE m.ID_Grupo = %s
+                g.ID_Grupo,
+                g.nombre as nombre_grupo,
+                d.nombre as nombre_distrito,
+                COALESCE(SUM(pm.monto_pagado), 0) as total_multas,
+                COUNT(pm.ID_PagoMulta) as total_multas_pagadas
+            FROM Grupo g
+            LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+            LEFT JOIN Miembro m ON g.ID_Grupo = m.ID_Grupo
+            LEFT JOIN PagoMulta pm ON m.ID_Miembro = pm.ID_Miembro
+            WHERE g.estado = 1
         """
         
-        params = [id_grupo]
+        params = []
         
         # Filtro por fecha de pago
         if fecha_inicio and fecha_fin:
             query += " AND pm.fecha_pago BETWEEN %s AND %s"
             params.extend([fecha_inicio, fecha_fin])
         
+        query += """
+            GROUP BY g.ID_Grupo, g.nombre, d.nombre
+            ORDER BY d.nombre, g.nombre
+        """
+        
         cursor.execute(query, tuple(params))
-        multas = cursor.fetchall()
+        multas_grupos = cursor.fetchall()
         
         resultado = []
-        for multa in multas:
+        for row in multas_grupos:
             resultado.append({
-                "monto_pagado":  float(multa.get("monto_pagado", 0) or 0),
-                "fecha_pago":    multa["fecha_pago"],
-                "nombre_miembro": multa["nombre_miembro"],
+                "id_grupo": row["ID_Grupo"],
+                "grupo": row["nombre_grupo"],
+                "distrito": row["nombre_distrito"] or "Sin distrito",
+                "total_multas": float(row["total_multas"]),
+                "total_multas_pagadas": row["total_multas_pagadas"]
             })
         
         cursor.close()
         con.close()
-        
         return resultado
-        
+
     except Exception as e:
-        st.error(f"❌ Error obteniendo multas desde BD: {e}")
+        st.error(f"❌ Error obteniendo multas de todos los grupos: {e}")
         return []
 
-# =============================================
-#  PAGOS DE PRÉSTAMOS
-# =============================================
-
-def obtener_datos_pagos_prestamos_desde_bd(fecha_inicio=None, fecha_fin=None):
-    """
-    Obtiene datos de pagos de préstamos directamente desde la base de datos
-    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO.
-    """
+def obtener_pagos_prestamos_todos_grupos(fecha_inicio=None, fecha_fin=None):
+    """Obtiene los pagos de préstamos de TODOS los grupos."""
     try:
-        from modulos.config.conexion import obtener_conexion
-        
-        if not verificar_grupo_usuario():
-            return []
-            
-        id_grupo = obtener_id_grupo_usuario()
-        
         con = obtener_conexion()
+        if con is None:
+            return []
+        
         cursor = con.cursor(dictionary=True)
         
         query = """
             SELECT 
-                pp.ID_PagoPrestamo,
-                pp.monto_pagado,
-                pp.fecha_pago,
-                pp.tipo_pago,
-                m.nombre AS nombre_miembro,
-                p.monto AS monto_prestamo
-            FROM PagoPrestamo pp
-            JOIN Prestamo p ON pp.ID_Prestamo = p.ID_Prestamo
-            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
-            WHERE m.ID_Grupo = %s
+                g.ID_Grupo,
+                g.nombre as nombre_grupo,
+                d.nombre as nombre_distrito,
+                COALESCE(SUM(pp.monto_pagado), 0) as total_pagos,
+                COUNT(pp.ID_PagoPrestamo) as total_pagos_realizados
+            FROM Grupo g
+            LEFT JOIN Distrito d ON g.ID_Distrito = d.ID_Distrito
+            LEFT JOIN Miembro m ON g.ID_Grupo = m.ID_Grupo
+            LEFT JOIN Prestamo p ON m.ID_Miembro = p.ID_Miembro
+            LEFT JOIN PagoPrestamo pp ON p.ID_Prestamo = pp.ID_Prestamo
+            WHERE g.estado = 1
         """
         
-        params = [id_grupo]
+        params = []
         
         # Filtro por fecha de pago
         if fecha_inicio and fecha_fin:
             query += " AND pp.fecha_pago BETWEEN %s AND %s"
             params.extend([fecha_inicio, fecha_fin])
         
+        query += """
+            GROUP BY g.ID_Grupo, g.nombre, d.nombre
+            ORDER BY d.nombre, g.nombre
+        """
+        
         cursor.execute(query, tuple(params))
-        pagos = cursor.fetchall()
+        pagos_grupos = cursor.fetchall()
         
         resultado = []
-        for pago in pagos:
+        for row in pagos_grupos:
             resultado.append({
-                "monto_pagado":  float(pago.get("monto_pagado", 0) or 0),
-                "fecha_pago":    pago["fecha_pago"],
-                "tipo_pago":     pago["tipo_pago"],
-                "nombre_miembro": pago["nombre_miembro"],
-                "monto_prestamo": float(pago.get("monto_prestamo", 0) or 0),
+                "id_grupo": row["ID_Grupo"],
+                "grupo": row["nombre_grupo"],
+                "distrito": row["nombre_distrito"] or "Sin distrito",
+                "total_pagos": float(row["total_pagos"]),
+                "total_pagos_realizados": row["total_pagos_realizados"]
             })
         
         cursor.close()
         con.close()
-        
         return resultado
-        
+
     except Exception as e:
-        st.error(f"❌ Error obteniendo pagos de préstamos desde BD: {e}")
+        st.error(f"❌ Error obteniendo pagos de préstamos de todos los grupos: {e}")
         return []
 
 # =============================================
-#  CONSOLIDADO DE DATOS REALES
+#  CÁLCULO DE TOTALES GENERALES
 # =============================================
 
-def obtener_datos_reales(fecha_inicio=None, fecha_fin=None):
-    """
-    Obtiene datos REALES con filtro opcional de fechas
-    PARA EL GRUPO DEL USUARIO.
-    """
-    if not verificar_grupo_usuario():
-        return [], [], [], []
-        
-    ahorros_data, multas_data, prestamos_data, pagos_prestamos_data = [], [], [], []
+def calcular_totales_generales(fecha_inicio=None, fecha_fin=None):
+    """Calcula los totales generales de TODOS los grupos."""
     
-    # 🔹 AHORROS (a partir de ahorros_por_miembro con rango de fechas)
-    try:
-        ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo(fecha_inicio, fecha_fin)
-        for m in ahorros_por_miembro:
-            ahorros_data.append({
-                "monto_ahorro": m["total_ahorros"],
-                "monto_otros":  m["total_otros"],
-            })
-    except Exception as e:
-        st.error(f"❌ Error en ahorros: {e}")
+    with st.spinner("🔄 Calculando datos de todos los grupos..."):
+        # Obtener datos de todos los grupos
+        ahorros_data = obtener_ahorros_todos_grupos(fecha_inicio, fecha_fin)
+        prestamos_data = obtener_prestamos_todos_grupos(fecha_inicio, fecha_fin)
+        multas_data = obtener_multas_todos_grupos(fecha_inicio, fecha_fin)
+        pagos_data = obtener_pagos_prestamos_todos_grupos(fecha_inicio, fecha_fin)
     
-    # 🔹 MULTAS
-    try:
-        multas_data = obtener_datos_multas_desde_bd(fecha_inicio, fecha_fin) or []
-    except Exception as e:
-        st.error(f"❌ Error en multas: {e}")
+    # Calcular totales
+    total_ahorros = sum(item["total_general"] for item in ahorros_data)
+    total_prestamos_capital = sum(item["total_capital"] for item in prestamos_data)
+    total_prestamos_intereses = sum(item["total_intereses"] for item in prestamos_data)
+    total_multas = sum(item["total_multas"] for item in multas_data)
+    total_pagos_prestamos = sum(item["total_pagos"] for item in pagos_data)
     
-    # 🔹 PRÉSTAMOS
-    try:
-        prestamos_data = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin) or []
-    except Exception as e:
-        st.error(f"❌ Error en préstamos: {e}")
+    total_ingresos = total_ahorros + total_multas + total_prestamos_capital + total_prestamos_intereses
+    total_grupos = len(ahorros_data)
+    total_miembros = sum(item["total_miembros"] for item in ahorros_data)
     
-    # 🔹 PAGOS DE PRÉSTAMOS
-    try:
-        pagos_prestamos_data = obtener_datos_pagos_prestamos_desde_bd(fecha_inicio, fecha_fin) or []
-    except Exception as e:
-        st.error(f"❌ Error en pagos de préstamos: {e}")
-    
-    return ahorros_data, multas_data, prestamos_data, pagos_prestamos_data
-
-def calcular_totales_reales(fecha_inicio=None, fecha_fin=None):
-    """
-    Calcula los totales con datos REALES - separa capital e intereses
-    con filtro opcional de fechas PARA EL GRUPO DEL USUARIO.
-    """
-    if not verificar_grupo_usuario():
-        return 0.00, 0.00, 0.00, 0.00, 0.00
-        
-    ahorros_data, multas_data, prestamos_data, pagos_prestamos_data = obtener_datos_reales(fecha_inicio, fecha_fin)
-    
-    # Si no hay datos, puedes devolver 0 o valores de ejemplo
-    if not ahorros_data and not multas_data and not prestamos_data and not pagos_prestamos_data:
-        st.warning("⚠️ No se encontraron datos en el rango seleccionado.")
-        return 0.00, 0.00, 0.00, 0.00, 0.00
-    
-    # 🔹 Ahorros
-    ahorros_totales = 0.0
-    for ahorro in ahorros_data:
-        ahorros_totales += float(ahorro.get("monto_ahorro", 0) or 0) \
-                         + float(ahorro.get("monto_otros", 0) or 0)
-    
-    # 🔹 Multas
-    multas_totales = 0.0
-    for multa in multas_data:
-        multas_totales += float(multa.get("monto_pagado", 0) or 0)
-    
-    # 🔹 Préstamos (capital e intereses separados)
-    prestamos_capital   = 0.0
-    prestamos_intereses = 0.0
-    for prestamo in prestamos_data:
-        prestamos_capital   += float(prestamo.get("monto_capital", 0) or 0)
-        prestamos_intereses += float(prestamo.get("monto_intereses", 0) or 0)
-    
-    # 🔹 Pagos de préstamos
-    pagos_prestamos_totales = 0.0
-    for pago in pagos_prestamos_data:
-        pagos_prestamos_totales += float(pago.get("monto_pagado", 0) or 0)
-    
-    return ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses, pagos_prestamos_totales
+    return {
+        "total_ahorros": total_ahorros,
+        "total_prestamos_capital": total_prestamos_capital,
+        "total_prestamos_intereses": total_prestamos_intereses,
+        "total_multas": total_multas,
+        "total_pagos_prestamos": total_pagos_prestamos,
+        "total_ingresos": total_ingresos,
+        "total_grupos": total_grupos,
+        "total_miembros": total_miembros,
+        "ahorros_detalle": ahorros_data,
+        "prestamos_detalle": prestamos_data,
+        "multas_detalle": multas_data,
+        "pagos_detalle": pagos_data
+    }
 
 # =============================================
-#  GRÁFICOS DE CONSOLIDADO
+#  GRÁFICOS DE CONSOLIDADO GENERAL
 # =============================================
 
-def crear_graficos_consolidado(ahorros_totales, multas_totales, prestamos_capital, 
-                              prestamos_intereses, pagos_prestamos_totales, fecha_inicio, fecha_fin):
-    """
-    Crea gráficos interactivos para mostrar los consolidados financieros.
-    """
-    st.subheader("📊 Gráficos de Consolidado Financiero")
+def crear_graficos_consolidado_general(totales, fecha_inicio, fecha_fin):
+    """Crea gráficos para el consolidado general de TODOS los grupos."""
     
-    # Datos para gráficos
+    st.subheader("📊 Gráficos de Consolidado General")
+    
+    # Datos para gráficos principales
     categorias_ingresos = ['Ahorros', 'Multas', 'Préstamos Capital', 'Intereses']
-    valores_ingresos = [ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses]
+    valores_ingresos = [
+        totales["total_ahorros"], 
+        totales["total_multas"], 
+        totales["total_prestamos_capital"], 
+        totales["total_prestamos_intereses"]
+    ]
     
-    categorias_flujo = ['Ahorros', 'Multas', 'Préstamos', 'Pagos Préstamos']
-    valores_flujo = [ahorros_totales, multas_totales, prestamos_capital + prestamos_intereses, pagos_prestamos_totales]
-    
-    # Gráfico 1: Distribución de Ingresos (Pie Chart)
+    # Gráfico 1: Distribución de Ingresos
     col1, col2 = st.columns(2)
     
     with col1:
         fig_ingresos = px.pie(
             names=categorias_ingresos,
             values=valores_ingresos,
-            title="📈 Distribución de Ingresos",
+            title="📈 Distribución de Ingresos Totales",
             color=categorias_ingresos,
             color_discrete_sequence=px.colors.qualitative.Set3
         )
-        fig_ingresos.update_traces(textposition='inside', textinfo='percent+label')
+        fig_ingresos.update_traces(textposition='inside', textinfo='percent+label+value')
         st.plotly_chart(fig_ingresos, use_container_width=True)
     
-    # Gráfico 2: Comparación de Flujos (Bar Chart)
+    # Gráfico 2: Métricas Principales
     with col2:
-        fig_flujos = px.bar(
-            x=categorias_flujo,
-            y=valores_flujo,
-            title="💸 Comparación de Flujos Financieros",
-            labels={'x': 'Concepto', 'y': 'Monto ($)'},
-            color=categorias_flujo,
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        fig_flujos.update_layout(showlegend=False)
-        st.plotly_chart(fig_flujos, use_container_width=True)
-    
-    # Gráfico 3: Métricas Principales (Gauge Charts)
-    st.subheader("🎯 Métricas Clave del Ciclo")
-    
-    total_ingresos = ahorros_totales + multas_totales + prestamos_capital + prestamos_intereses
-    total_prestamos = prestamos_capital + prestamos_intereses
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        fig_ahorros = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = ahorros_totales,
-            title = {'text': "💰 Total Ahorros"},
-            gauge = {'axis': {'range': [None, max(ahorros_totales * 1.2, 1000)]},
-                    'bar': {'color': "green"},
-                    'steps': [{'range': [0, ahorros_totales], 'color': "lightgreen"}]}
-        ))
-        st.plotly_chart(fig_ahorros, use_container_width=True)
-    
-    with col2:
-        fig_prestamos = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = total_prestamos,
-            title = {'text': "🏦 Total Préstamos"},
-            gauge = {'axis': {'range': [None, max(total_prestamos * 1.2, 1000)]},
-                    'bar': {'color': "blue"},
-                    'steps': [{'range': [0, total_prestamos], 'color': "lightblue"}]}
-        ))
-        st.plotly_chart(fig_prestamos, use_container_width=True)
-    
-    with col3:
-        fig_multas = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = multas_totales,
-            title = {'text': "⚖️ Total Multas"},
-            gauge = {'axis': {'range': [None, max(multas_totales * 1.2, 500)]},
-                    'bar': {'color': "orange"},
-                    'steps': [{'range': [0, multas_totales], 'color': "moccasin"}]}
-        ))
-        st.plotly_chart(fig_multas, use_container_width=True)
-    
-    with col4:
-        fig_ingresos_total = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = total_ingresos,
-            title = {'text': "💵 Total Ingresos"},
-            gauge = {'axis': {'range': [None, max(total_ingresos * 1.2, 2000)]},
-                    'bar': {'color': "purple"},
-                    'steps': [{'range': [0, total_ingresos], 'color': "lavender"}]}
-        ))
-        st.plotly_chart(fig_ingresos_total, use_container_width=True)
-    
-    # Gráfico 4: Comparación Detallada (Stacked Bar)
-    st.subheader("📋 Desglose Detallado de Finanzas")
-    
-    fig_detalle = go.Figure(data=[
-        go.Bar(name='Ahorros', x=['Totales'], y=[ahorros_totales], marker_color='green'),
-        go.Bar(name='Multas', x=['Totales'], y=[multas_totales], marker_color='orange'),
-        go.Bar(name='Préstamos Capital', x=['Totales'], y=[prestamos_capital], marker_color='blue'),
-        go.Bar(name='Intereses', x=['Totales'], y=[prestamos_intereses], marker_color='lightblue'),
-        go.Bar(name='Pagos Préstamos', x=['Totales'], y=[pagos_prestamos_totales], marker_color='red')
-    ])
-    
-    fig_detalle.update_layout(
-        title='📊 Desglose Completo de Finanzas',
-        barmode='group',
-        xaxis_title='Conceptos',
-        yaxis_title='Monto ($)',
-        showlegend=True
-    )
-    
-    st.plotly_chart(fig_detalle, use_container_width=True)
-    
-    # Resumen numérico
-    st.subheader("🧮 Resumen Numérico")
-    
-    resumen_data = {
-        'Concepto': [
-            'Total Ahorros', 
-            'Total Multas', 
-            'Total Préstamos (Capital)', 
-            'Total Intereses',
-            'Total Pagos Préstamos',
-            '**TOTAL INGRESOS**',
-            '**FLUJO NETO**'
-        ],
-        'Monto ($)': [
-            f"{ahorros_totales:,.2f}",
-            f"{multas_totales:,.2f}",
-            f"{prestamos_capital:,.2f}",
-            f"{prestamos_intereses:,.2f}",
-            f"{pagos_prestamos_totales:,.2f}",
-            f"**{total_ingresos:,.2f}**",
-            f"**{total_ingresos - pagos_prestamos_totales:,.2f}**"
+        fig_metricas = go.Figure()
+        
+        metricas = ['Grupos', 'Miembros', 'Ahorros', 'Préstamos']
+        valores = [
+            totales["total_grupos"],
+            totales["total_miembros"],
+            totales["total_ahorros"],
+            totales["total_prestamos_capital"]
         ]
-    }
+        
+        fig_metricas.add_trace(go.Bar(
+            x=metricas,
+            y=valores,
+            marker_color=['blue', 'green', 'orange', 'red']
+        ))
+        
+        fig_metricas.update_layout(
+            title="📊 Métricas Generales del Sistema",
+            xaxis_title="Categorías",
+            yaxis_title="Valores",
+            showlegend=False
+        )
+        st.plotly_chart(fig_metricas, use_container_width=True)
     
-    df_resumen = pd.DataFrame(resumen_data)
-    st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+    # Gráfico 3: Comparación por Distrito (si hay datos)
+    if totales["ahorros_detalle"]:
+        st.subheader("🏢 Distribución por Distrito")
+        
+        # Agrupar por distrito
+        distritos_data = {}
+        for item in totales["ahorros_detalle"]:
+            distrito = item["distrito"]
+            if distrito not in distritos_data:
+                distritos_data[distrito] = {
+                    "total_ahorros": 0,
+                    "total_grupos": 0,
+                    "total_miembros": 0
+                }
+            distritos_data[distrito]["total_ahorros"] += item["total_general"]
+            distritos_data[distrito]["total_grupos"] += 1
+            distritos_data[distrito]["total_miembros"] += item["total_miembros"]
+        
+        if distritos_data:
+            distritos = list(distritos_data.keys())
+            ahorros_por_distrito = [distritos_data[d]["total_ahorros"] for d in distritos]
+            grupos_por_distrito = [distritos_data[d]["total_grupos"] for d in distritos]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig_distritos_ahorros = px.bar(
+                    x=distritos,
+                    y=ahorros_por_distrito,
+                    title="💰 Ahorros por Distrito",
+                    labels={'x': 'Distrito', 'y': 'Total Ahorros ($)'},
+                    color=distritos
+                )
+                st.plotly_chart(fig_distritos_ahorros, use_container_width=True)
+            
+            with col2:
+                fig_distritos_grupos = px.pie(
+                    names=distritos,
+                    values=grupos_por_distrito,
+                    title="👥 Grupos por Distrito"
+                )
+                st.plotly_chart(fig_distritos_grupos, use_container_width=True)
 
 # =============================================
-#  SESSION STATE Y FILTRO DE FECHAS
+#  FILTRO DE FECHAS
 # =============================================
-
-def inicializar_session_state():
-    """Inicializa el estado de la sesión para las pestañas."""
-    if "ciclos_cerrados" not in st.session_state:
-        st.session_state.ciclos_cerrados = []
-    if "mostrar_resumen" not in st.session_state:
-        st.session_state.mostrar_resumen = False
-    if "ciclo_actual_numero" not in st.session_state:
-        st.session_state.ciclo_actual_numero = 1
-    if "filtro_fechas" not in st.session_state:
-        st.session_state.filtro_fechas = {
-            "fecha_inicio": datetime.now().date() - timedelta(days=30),
-            "fecha_fin": datetime.now().date(),
-        }
 
 def mostrar_filtro_fechas():
     """Muestra el filtro de fechas para seleccionar el rango del ciclo."""
-    st.subheader("📅 Seleccionar Rango del Ciclo")
+    st.subheader("📅 Seleccionar Rango de Fechas")
     
     col1, col2 = st.columns(2)
     
     with col1:
         fecha_inicio = st.date_input(
-            "Fecha de Inicio del Ciclo",
-            value=st.session_state.filtro_fechas["fecha_inicio"],
+            "Fecha de Inicio",
+            value=datetime.now().date() - timedelta(days=30),
             max_value=datetime.now().date(),
         )
     
     with col2:
         fecha_fin = st.date_input(
-            "Fecha de Fin del Ciclo",
-            value=st.session_state.filtro_fechas["fecha_fin"],
+            "Fecha de Fin",
+            value=datetime.now().date(),
             max_value=datetime.now().date(),
         )
     
@@ -616,328 +456,139 @@ def mostrar_filtro_fechas():
         st.error("❌ La fecha de inicio no puede ser mayor que la fecha de fin")
         return None, None
     
-    st.session_state.filtro_fechas = {
-        "fecha_inicio": fecha_inicio,
-        "fecha_fin": fecha_fin,
-    }
-    
-    dias_ciclo = (fecha_fin - fecha_inicio).days
-    st.info(f"**📊 Rango seleccionado:** {fecha_inicio} a {fecha_fin} ({dias_ciclo} días)")
+    dias = (fecha_fin - fecha_inicio).days
+    st.info(f"**📊 Rango seleccionado:** {fecha_inicio} a {fecha_fin} ({dias} días)")
     
     return fecha_inicio, fecha_fin
 
 # =============================================
-#  RESUMEN DEL CICLO
+#  PESTAÑA PRINCIPAL - CONSOLIDADO GENERAL
 # =============================================
 
-def mostrar_resumen_completo(fecha_inicio, fecha_fin):
-    """Muestra el resumen completo del ciclo con filtro de fechas PARA EL GRUPO DEL USUARIO."""
+def mostrar_consolidado_general():
+    """Muestra el consolidado general de TODOS los grupos."""
+    st.header("👑 Panel de Administradora - Consolidado General")
     
-    if not verificar_grupo_usuario():
-        return None
-        
-    st.subheader(f"💰 Resumen Financiero del Ciclo: {fecha_inicio} a {fecha_fin}")
-    
-    st.success("✅ Calculando datos para el rango seleccionado...")
-    
-    with st.spinner("🔍 Calculando datos financieros..."):
-        ahorros_totales, multas_totales, prestamos_capital, prestamos_intereses, pagos_prestamos_totales = \
-            calcular_totales_reales(fecha_inicio, fecha_fin)
-    
-    prestamos_total = prestamos_capital + prestamos_intereses
-    total_ingresos  = ahorros_totales + multas_totales + prestamos_total
-    
-    # Mostrar gráficos de consolidado
-    crear_graficos_consolidado(
-        ahorros_totales, multas_totales, prestamos_capital, 
-        prestamos_intereses, pagos_prestamos_totales, fecha_inicio, fecha_fin
-    )
-    
-    # Tabla resumen detallada
-    st.write("### 📋 Tabla de Consolidado Detallado")
-    
-    resumen_data = {
-        "Concepto": [
-            "💰 Total de Ahorros",
-            "⚖️ Total de Multas",
-            "🏦 Total Préstamos (Capital)",
-            "📈 Total Intereses",
-            "💸 Total Pagos de Préstamos",
-            "💵 **TOTAL INGRESOS**",
-            "📊 **FLUJO NETO**"
-        ],
-        "Monto": [
-            f"${ahorros_totales:,.2f}",
-            f"${multas_totales:,.2f}",
-            f"${prestamos_capital:,.2f}",
-            f"${prestamos_intereses:,.2f}",
-            f"${pagos_prestamos_totales:,.2f}",
-            f"**${total_ingresos:,.2f}**",
-            f"**${total_ingresos - pagos_prestamos_totales:,.2f}**"
-        ],
-    }
-    
-    df_resumen = pd.DataFrame(resumen_data)
-    st.dataframe(df_resumen, use_container_width=True, hide_index=True)
-    
-    # Métricas rápidas
-    st.write("### 📈 Métricas del Ciclo")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Ahorros", f"${ahorros_totales:,.2f}")
-    with col2:
-        st.metric("Multas", f"${multas_totales:,.2f}")
-    with col3:
-        st.metric("Préstamos", f"${prestamos_capital:,.2f}")
-    with col4:
-        st.metric("Intereses", f"${prestamos_intereses:,.2f}")
-    
-    # Ahorros por miembro
-    st.write("### 📊 Ahorros por Miembro (Ciclo Completo)")
-    
-    ahorros_por_miembro = obtener_ahorros_por_miembro_ciclo(fecha_inicio, fecha_fin)
-    
-    if ahorros_por_miembro:
-        tabla_data = {
-            "Miembro":       [m["miembro"] for m in ahorros_por_miembro],
-            "Total Ahorros": [f"${m['total_ahorros']:,.2f}" for m in ahorros_por_miembro],
-            "Total Otros":   [f"${m['total_otros']:,.2f}" for m in ahorros_por_miembro],
-            "TOTAL":         [f"${m['total_general']:,.2f}" for m in ahorros_por_miembro],
-        }
-        
-        df_tabla = pd.DataFrame(tabla_data)
-        st.dataframe(df_tabla, use_container_width=True, hide_index=True)
-        
-        total_general_miembros = sum(item["total_general"] for item in ahorros_por_miembro)
-        st.info(f"**💵 Total general de ahorros de todos los miembros: ${total_general_miembros:,.2f}**")
-    else:
-        st.info("ℹ️ No se encontraron datos de ahorros por miembro dentro del rango.")
-    
-    # Distribución de beneficios (intereses)
-    st.write("### 📊 Distribución de Beneficios")
-    
-    total_miembros_activos = obtener_total_miembros_activos()
-    
-    distribucion_por_miembro = 0
-    if total_miembros_activos > 0 and prestamos_intereses > 0:
-        distribucion_por_miembro = prestamos_intereses / total_miembros_activos
-        
-        distribucion_data = {
-            "Concepto": [
-                "Total de Miembros Activos",
-                "Total de Intereses a Distribuir",
-                "Distribución por Miembro",
-            ],
-            "Valor": [
-                f"{total_miembros_activos}",
-                f"${prestamos_intereses:,.2f}",
-                f"${distribucion_por_miembro:,.2f}",
-            ],
-        }
-        
-        df_distribucion = pd.DataFrame(distribucion_data)
-        st.dataframe(df_distribucion, use_container_width=True, hide_index=True)
-        
-        st.success(f"**🎯 A cada miembro activo le corresponde: ${distribucion_por_miembro:,.2f}**")
-        
-        with st.expander("🔍 Ver Cálculo Detallado"):
-            st.write(f"""
-            **Fórmula de distribución:**
-            - Total Intereses: ${prestamos_intereses:,.2f}
-            - Total Miembros Activos: {total_miembros_activos}
-            - Distribución: ${prestamos_intereses:,.2f} ÷ {total_miembros_activos} = **${distribucion_por_miembro:,.2f} por miembro**
-            """)
-    
-    elif total_miembros_activos == 0:
-        st.warning("⚠️ No se encontraron miembros activos en el grupo.")
-    
-    elif prestamos_intereses == 0:
-        st.info("ℹ️ No hay intereses para distribuir en este ciclo.")
-    
-    # Detalles de préstamos
-    with st.expander("📊 Ver Detalles de Préstamos"):
-        try:
-            prestamos_detalle = obtener_datos_prestamos_desde_bd(fecha_inicio, fecha_fin)
-            if prestamos_detalle:
-                df_prestamos = pd.DataFrame(prestamos_detalle)
-                st.dataframe(
-                    df_prestamos[
-                        ["nombre_miembro", "monto_capital", "monto_intereses", "monto_total"]
-                    ],
-                    use_container_width=True,
-                )
-            else:
-                st.info("No hay datos detallados de préstamos en el rango.")
-        except Exception:
-            st.info("No se pudieron cargar los detalles de préstamos.")
-    
-    return {
-        "ahorros_totales":         ahorros_totales,
-        "multas_totales":          multas_totales,
-        "prestamos_capital":       prestamos_capital,
-        "prestamos_intereses":     prestamos_intereses,
-        "pagos_prestamos_totales": pagos_prestamos_totales,
-        "total_ingresos":          total_ingresos,
-        "total_miembros_activos":  total_miembros_activos,
-        "distribucion_por_miembro": distribucion_por_miembro,
-        "ahorros_por_miembro":     ahorros_por_miembro,
-        "fecha_inicio":            fecha_inicio.strftime("%Y-%m-%d"),
-        "fecha_fin":               fecha_fin.strftime("%Y-%m-%d"),
-        "fecha_cierre":            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-
-# =============================================
-#  PESTAÑAS
-# =============================================
-
-def pestaña_ciclo_activo():
-    """Pestaña 1: Ciclo Activo - Donde se calcula y cierra el ciclo actual DEL GRUPO DEL USUARIO."""
-    st.header("🔒 Cierre de Ciclo - Resumen Financiero")
-    
-    if not verificar_grupo_usuario():
-        return
-    
+    # Filtro de fechas
     fecha_inicio, fecha_fin = mostrar_filtro_fechas()
     if fecha_inicio is None or fecha_fin is None:
         return
     
     st.markdown("---")
     
-    if st.button("🚀 Generar Resumen del Ciclo", type="primary", use_container_width=True):
-        st.session_state.mostrar_resumen = True
-    
-    if st.session_state.mostrar_resumen:
-        datos_ciclo = mostrar_resumen_completo(fecha_inicio, fecha_fin)
-        if datos_ciclo is None:
-            return
+    if st.button("🚀 Generar Consolidado General", type="primary", use_container_width=True):
+        # Calcular totales generales
+        totales = calcular_totales_generales(fecha_inicio, fecha_fin)
         
-        st.markdown("---")
-        st.write("### ✅ Confirmar Cierre Definitivo")
+        # Mostrar métricas principales
+        st.subheader("🎯 Métricas Principales del Sistema")
         
-        if st.button("🔐 CONFIRMAR CIERRE DEL CICLO", type="primary", use_container_width=True):
-            ciclo_cerrado = {
-                "numero_ciclo": st.session_state.ciclo_actual_numero,
-                "datos":        datos_ciclo,
-                "fecha_cierre": datos_ciclo["fecha_cierre"],
-                "rango_fechas": f"{datos_ciclo['fecha_inicio']} a {datos_ciclo['fecha_fin']}",
-            }
-            st.session_state.ciclos_cerrados.append(ciclo_cerrado)
-            st.session_state.ciclo_actual_numero += 1
-            st.session_state.mostrar_resumen = False
-            
-            st.success("🎉 ¡Ciclo cerrado exitosamente! Se ha iniciado un nuevo ciclo.")
-            st.balloons()
-            st.info("📁 Puedes ver el historial en la pestaña 'Registro de Ciclos Cerrados'.")
-
-def pestaña_ciclos_cerrados():
-    """Pestaña 2: Registro de Ciclos Cerrados - Historial del grupo del usuario."""
-    st.header("📁 Registro de Ciclos Cerrados")
-    
-    if not verificar_grupo_usuario():
-        return
-    
-    if not st.session_state.ciclos_cerrados:
-        st.info("ℹ️ No hay ciclos cerrados registrados. Los ciclos cerrados aparecerán aquí.")
-        return
-    
-    for i, ciclo in enumerate(st.session_state.ciclos_cerrados):
-        with st.expander(
-            f"📊 Ciclo {ciclo['numero_ciclo']} - {ciclo['rango_fechas']} - {ciclo['fecha_cierre']}",
-            expanded=(i == 0),
-        ):
-            datos = ciclo["datos"]
-            
-            st.write(
-                f"**Ciclo {ciclo['numero_ciclo']} - Rango: {ciclo['rango_fechas']} - Cerrado el: {ciclo['fecha_cierre']}**"
-            )
-            
-            # Mostrar gráficos para ciclos cerrados también
-            crear_graficos_consolidado(
-                datos['ahorros_totales'], 
-                datos['multas_totales'], 
-                datos['prestamos_capital'], 
-                datos['prestamos_intereses'], 
-                datos['pagos_prestamos_totales'],
-                datos['fecha_inicio'],
-                datos['fecha_fin']
-            )
-            
-            # Consolidado
-            st.write("#### 📋 Tabla de Consolidado")
-            resumen_data = {
-                "Concepto": [
-                    "💰 Total de Ahorros",
-                    "⚖️ Total de Multas",
-                    "🏦 Total Préstamos (Capital)",
-                    "📈 Total Intereses",
-                    "💸 Total Pagos de Préstamos",
-                    "💵 **TOTAL INGRESOS**",
-                    "📊 **FLUJO NETO**"
-                ],
-                "Monto": [
-                    f"${datos['ahorros_totales']:,.2f}",
-                    f"${datos['multas_totales']:,.2f}",
-                    f"${datos['prestamos_capital']:,.2f}",
-                    f"${datos['prestamos_intereses']:,.2f}",
-                    f"${datos['pagos_prestamos_totales']:,.2f}",
-                    f"**${datos['total_ingresos']:,.2f}**",
-                    f"**${datos['total_ingresos'] - datos['pagos_prestamos_totales']:,.2f}**"
-                ],
-            }
-            df_resumen = pd.DataFrame(resumen_data)
-            st.dataframe(df_resumen, use_container_width=True, hide_index=True)
-            
-            # Métricas
-            st.write("#### 📈 Métricas del Ciclo")
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Ahorros", f"${datos['ahorros_totales']:,.2f}")
-            with col2:
-                st.metric("Multas", f"${datos['multas_totales']:,.2f}")
-            with col3:
-                st.metric("Préstamos", f"${datos['prestamos_capital']:,.2f}")
-            with col4:
-                st.metric("Intereses", f"${datos['prestamos_intereses']:,.2f}")
-            
-            # Ahorros por miembro
-            if datos["ahorros_por_miembro"]:
-                st.write("#### 📊 Ahorros por Miembro")
-                tabla_data = {
-                    "Miembro":       [m["miembro"] for m in datos["ahorros_por_miembro"]],
-                    "Total Ahorros": [f"${m['total_ahorros']:,.2f}" for m in datos["ahorros_por_miembro"]],
-                    "Total Otros":   [f"${m['total_otros']:,.2f}" for m in datos["ahorros_por_miembro"]],
-                    "TOTAL":         [f"${m['total_general']:,.2f}" for m in datos["ahorros_por_miembro"]],
-                }
-                df_tabla = pd.DataFrame(tabla_data)
-                st.dataframe(df_tabla, use_container_width=True, hide_index=True)
-            
-            # Distribución de beneficios
-            if datos["distribucion_por_miembro"] > 0:
-                st.write("#### 📊 Distribución de Beneficios")
-                st.info(f"**Distribución por miembro: ${datos['distribucion_por_miembro']:,.2f}**")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Grupos", f"{totales['total_grupos']}")
+        with col2:
+            st.metric("Total Miembros", f"{totales['total_miembros']}")
+        with col3:
+            st.metric("Total Ahorros", f"${totales['total_ahorros']:,.2f}")
+        with col4:
+            st.metric("Total Préstamos", f"${totales['total_prestamos_capital']:,.2f}")
+        
+        # Mostrar gráficos
+        crear_graficos_consolidado_general(totales, fecha_inicio, fecha_fin)
+        
+        # Mostrar tabla resumen
+        st.subheader("📋 Resumen Numérico General")
+        
+        resumen_data = {
+            'Concepto': [
+                'Total Grupos Activos',
+                'Total Miembros Activos', 
+                'Total Ahorros',
+                'Total Préstamos (Capital)',
+                'Total Intereses',
+                'Total Multas',
+                'Total Pagos de Préstamos',
+                '**TOTAL INGRESOS**',
+                '**FLUJO NETO**'
+            ],
+            'Valor': [
+                f"{totales['total_grupos']}",
+                f"{totales['total_miembros']}",
+                f"${totales['total_ahorros']:,.2f}",
+                f"${totales['total_prestamos_capital']:,.2f}",
+                f"${totales['total_prestamos_intereses']:,.2f}",
+                f"${totales['total_multas']:,.2f}",
+                f"${totales['total_pagos_prestamos']:,.2f}",
+                f"**${totales['total_ingresos']:,.2f}**",
+                f"**${totales['total_ingresos'] - totales['total_pagos_prestamos']:,.2f}**"
+            ]
+        }
+        
+        df_resumen = pd.DataFrame(resumen_data)
+        st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+        
+        # Mostrar detalles por grupo
+        st.subheader("📊 Detalles por Grupo")
+        
+        tab1, tab2, tab3, tab4 = st.tabs(["Ahorros", "Préstamos", "Multas", "Pagos Préstamos"])
+        
+        with tab1:
+            if totales["ahorros_detalle"]:
+                df_ahorros = pd.DataFrame(totales["ahorros_detalle"])
+                st.dataframe(df_ahorros, use_container_width=True)
+            else:
+                st.info("No hay datos de ahorros para mostrar.")
+        
+        with tab2:
+            if totales["prestamos_detalle"]:
+                df_prestamos = pd.DataFrame(totales["prestamos_detalle"])
+                st.dataframe(df_prestamos, use_container_width=True)
+            else:
+                st.info("No hay datos de préstamos para mostrar.")
+        
+        with tab3:
+            if totales["multas_detalle"]:
+                df_multas = pd.DataFrame(totales["multas_detalle"])
+                st.dataframe(df_multas, use_container_width=True)
+            else:
+                st.info("No hay datos de multas para mostrar.")
+        
+        with tab4:
+            if totales["pagos_detalle"]:
+                df_pagos = pd.DataFrame(totales["pagos_detalle"])
+                st.dataframe(df_pagos, use_container_width=True)
+            else:
+                st.info("No hay datos de pagos de préstamos para mostrar.")
 
 # =============================================
 #  FUNCIÓN PRINCIPAL
 # =============================================
 
-def mostrar_ciclo():
-    """Función principal que llama app.py - SOLO PARA EL GRUPO DEL USUARIO."""
-    if not verificar_grupo_usuario():
-        return
-        
-    verificar_modulos()
-    inicializar_session_state()
-    
-    tab1, tab2 = st.tabs(
-        ["🔒 Cierre de Ciclo Activo", "📁 Registro de Ciclos Cerrados"]
+def main():
+    """Función principal del panel de administradora."""
+    # Configurar página
+    st.set_page_config(
+        page_title="Panel de Administradora",
+        page_icon="👑",
+        layout="wide"
     )
     
-    with tab1:
-        pestaña_ciclo_activo()
+    # Sidebar
+    st.sidebar.title("👑 Panel de Administradora")
+    st.sidebar.markdown("---")
     
-    with tab2:
-        pestaña_ciclos_cerrados()
+    # Navegación
+    opcion = st.sidebar.radio(
+        "Navegación",
+        ["Consolidado General", "Registrar Usuario", "Cerrar sesión"]
+    )
+    
+    if opcion == "Consolidado General":
+        mostrar_consolidado_general()
+    elif opcion == "Registrar Usuario":
+        st.info("🔧 Módulo de registro de usuarios - En desarrollo")
+    elif opcion == "Cerrar sesión":
+        st.info("👋 Sesión cerrada")
 
 if __name__ == "__main__":
-    mostrar_ciclo()
+    main()
