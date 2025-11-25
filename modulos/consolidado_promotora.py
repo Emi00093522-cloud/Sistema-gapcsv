@@ -62,6 +62,165 @@ def obtener_id_promotora_actual():
         st.error(f"❌ Error buscando ID de promotora: {e}")
         return None
 
+def obtener_datos_serie_temporal(id_grupo, fecha_inicio, fecha_fin):
+    """Obtiene datos para serie temporal por semana o mes"""
+    try:
+        con = obtener_conexion_segura()
+        if not con:
+            return pd.DataFrame()
+            
+        cursor = con.cursor(dictionary=True)
+        
+        # Obtener datos semanales
+        query_ahorros = """
+            SELECT 
+                DATE_FORMAT(r.fecha, '%%Y-%%m-%%d') as fecha,
+                COALESCE(SUM(a.monto_ahorro + a.monto_otros), 0) as ahorros
+            FROM Miembro m
+            LEFT JOIN Ahorro a ON m.ID_Miembro = a.ID_Miembro
+            LEFT JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
+            WHERE m.ID_Grupo = %s AND r.fecha BETWEEN %s AND %s
+            GROUP BY r.fecha
+            ORDER BY r.fecha
+        """
+        
+        query_prestamos = """
+            SELECT 
+                DATE_FORMAT(p.fecha_desembolso, '%%Y-%%m-%%d') as fecha,
+                COALESCE(SUM(p.monto), 0) as prestamos,
+                COALESCE(SUM(p.total_interes), 0) as intereses
+            FROM Prestamo p
+            JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s AND p.fecha_desembolso BETWEEN %s AND %s
+            GROUP BY p.fecha_desembolso
+            ORDER BY p.fecha_desembolso
+        """
+        
+        query_multas = """
+            SELECT 
+                DATE_FORMAT(pm.fecha_pago, '%%Y-%%m-%%d') as fecha,
+                COALESCE(SUM(pm.monto_pagado), 0) as multas
+            FROM PagoMulta pm
+            JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
+            WHERE m.ID_Grupo = %s AND pm.fecha_pago BETWEEN %s AND %s
+            GROUP BY pm.fecha_pago
+            ORDER BY pm.fecha_pago
+        """
+        
+        # Ejecutar consultas
+        cursor.execute(query_ahorros, (id_grupo, fecha_inicio, fecha_fin))
+        ahorros_data = cursor.fetchall()
+        
+        cursor.execute(query_prestamos, (id_grupo, fecha_inicio, fecha_fin))
+        prestamos_data = cursor.fetchall()
+        
+        cursor.execute(query_multas, (id_grupo, fecha_inicio, fecha_fin))
+        multas_data = cursor.fetchall()
+        
+        cursor.close()
+        con.close()
+        
+        # Combinar todos los datos en un DataFrame
+        todos_datos = {}
+        
+        # Procesar ahorros
+        for item in ahorros_data:
+            fecha = item['fecha']
+            if fecha not in todos_datos:
+                todos_datos[fecha] = {'fecha': fecha, 'ahorros': 0, 'prestamos': 0, 'intereses': 0, 'multas': 0}
+            todos_datos[fecha]['ahorros'] = float(item['ahorros'])
+        
+        # Procesar préstamos
+        for item in prestamos_data:
+            fecha = item['fecha']
+            if fecha not in todos_datos:
+                todos_datos[fecha] = {'fecha': fecha, 'ahorros': 0, 'prestamos': 0, 'intereses': 0, 'multas': 0}
+            todos_datos[fecha]['prestamos'] = float(item['prestamos'])
+            todos_datos[fecha]['intereses'] = float(item['intereses'])
+        
+        # Procesar multas
+        for item in multas_data:
+            fecha = item['fecha']
+            if fecha not in todos_datos:
+                todos_datos[fecha] = {'fecha': fecha, 'ahorros': 0, 'prestamos': 0, 'intereses': 0, 'multas': 0}
+            todos_datos[fecha]['multas'] = float(item['multas'])
+        
+        # Convertir a DataFrame
+        if todos_datos:
+            df = pd.DataFrame(list(todos_datos.values()))
+            df['fecha'] = pd.to_datetime(df['fecha'])
+            df['total'] = df['ahorros'] + df['prestamos'] + df['intereses'] + df['multas']
+            return df.sort_values('fecha')
+        else:
+            return pd.DataFrame()
+            
+    except Exception as e:
+        st.error(f"❌ Error obteniendo serie temporal: {e}")
+        return pd.DataFrame()
+
+def crear_grafico_serie_temporal_simple(df, titulo):
+    """Crea una visualización simple de serie temporal usando HTML/CSS"""
+    if df.empty:
+        return "<p>No hay datos para mostrar</p>"
+    
+    # Calcular estadísticas básicas
+    max_val = df['total'].max()
+    min_val = df['total'].min()
+    avg_val = df['total'].mean()
+    
+    # Crear HTML para el gráfico
+    html = f"""
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 10px 0;">
+        <h4 style="margin-top: 0;">{titulo}</h4>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span>Mín: ${min_val:,.0f}</span>
+            <span>Prom: ${avg_val:,.0f}</span>
+            <span>Máx: ${max_val:,.0f}</span>
+        </div>
+        <div style="height: 200px; display: flex; align-items: end; gap: 2px; border-bottom: 2px solid #ccc;">
+    """
+    
+    # Agregar barras para cada punto de datos
+    for _, row in df.iterrows():
+        height = (row['total'] / max_val) * 180 if max_val > 0 else 0
+        html += f"""
+            <div style="flex: 1; background: #1f77b4; height: {height}px; position: relative;" 
+                 title="{row['fecha'].strftime('%d/%m/%Y')}: ${row['total']:,.0f}">
+            </div>
+        """
+    
+    html += """
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.8em;">
+            <span>{df['fecha'].min().strftime('%d/%m')}</span>
+            <span>{df['fecha'].max().strftime('%d/%m/%Y')}</span>
+        </div>
+    </div>
+    """
+    
+    return html
+
+def crear_tabla_evolucion(df):
+    """Crea una tabla de evolución temporal"""
+    if df.empty:
+        return pd.DataFrame()
+    
+    # Resumir por mes para tabla
+    df_mensual = df.copy()
+    df_mensual['mes'] = df_mensual['fecha'].dt.to_period('M')
+    mensual = df_mensual.groupby('mes').agg({
+        'ahorros': 'sum',
+        'prestamos': 'sum', 
+        'intereses': 'sum',
+        'multas': 'sum',
+        'total': 'sum'
+    }).reset_index()
+    
+    mensual['mes'] = mensual['mes'].astype(str)
+    mensual['crecimiento'] = mensual['total'].pct_change() * 100
+    
+    return mensual
+
 def mostrar_consolidado_promotora():
     """Función principal para mostrar el consolidado de promotora"""
     
@@ -299,6 +458,7 @@ def mostrar_consolidado_promotora():
         
         with st.spinner("Calculando consolidado..."):
             datos_consolidado = []
+            series_temporales = {}
             
             for grupo in grupos:
                 grupo_id = grupo["ID_Grupo"]
@@ -328,12 +488,17 @@ def mostrar_consolidado_promotora():
                     dato_grupo["promotora"] = grupo.get("nombre_promotora", "N/A")
                 
                 datos_consolidado.append(dato_grupo)
+                
+                # Obtener serie temporal para este grupo
+                serie_temporal = obtener_datos_serie_temporal(grupo_id, fecha_inicio, fecha_fin)
+                if not serie_temporal.empty:
+                    series_temporales[grupo_nombre] = serie_temporal
             
             # MOSTRAR RESULTADOS
-            mostrar_resultados_sin_plotly(datos_consolidado, es_promotora_acceso_total)
+            mostrar_resultados_completo(datos_consolidado, series_temporales, es_promotora_acceso_total)
 
-def mostrar_resultados_sin_plotly(datos_consolidado, es_promotora_acceso_total):
-    """Muestra los resultados del consolidado SIN usar Plotly"""
+def mostrar_resultados_completo(datos_consolidado, series_temporales, es_promotora_acceso_total):
+    """Muestra los resultados del consolidado con series temporales"""
     
     # 1. TABLA DE CONSOLIDADO
     st.subheader("📋 Tabla de Consolidado")
@@ -451,7 +616,41 @@ def mostrar_resultados_sin_plotly(datos_consolidado, es_promotora_acceso_total):
     
     st.bar_chart(df_detalle)
     
-    # 4. RESUMEN ESTADÍSTICO
+    # 4. SERIES TEMPORALES - NUEVA SECCIÓN
+    st.subheader("📈 Series Temporales por Grupo")
+    
+    if series_temporales:
+        for grupo_nombre, serie_df in series_temporales.items():
+            if not serie_df.empty:
+                st.markdown(f"#### 📅 Evolución Temporal: {grupo_nombre}")
+                
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    # Gráfico de serie temporal simple
+                    html_chart = crear_grafico_serie_temporal_simple(serie_df, f"Evolución de {grupo_nombre}")
+                    st.markdown(html_chart, unsafe_allow_html=True)
+                
+                with col2:
+                    # Estadísticas de la serie
+                    st.markdown("**Estadísticas de la Serie:**")
+                    st.write(f"**Período:** {serie_df['fecha'].min().strftime('%d/%m/%Y')} a {serie_df['fecha'].max().strftime('%d/%m/%Y')}")
+                    st.write(f"**Días con datos:** {len(serie_df)}")
+                    st.write(f"**Total acumulado:** ${serie_df['total'].sum():,.0f}")
+                    st.write(f"**Promedio diario:** ${serie_df['total'].mean():,.0f}")
+                    st.write(f"**Máximo diario:** ${serie_df['total'].max():,.0f}")
+                
+                # Tabla de evolución mensual
+                tabla_evolucion = crear_tabla_evolucion(serie_df)
+                if not tabla_evolucion.empty:
+                    st.markdown("**Evolución Mensual:**")
+                    st.dataframe(tabla_evolucion, use_container_width=True)
+                
+                st.markdown("---")
+    else:
+        st.info("📭 No hay datos de series temporales disponibles para los grupos seleccionados.")
+    
+    # 5. RESUMEN ESTADÍSTICO
     st.subheader("📋 Resumen Estadístico")
     
     col1, col2 = st.columns(2)
