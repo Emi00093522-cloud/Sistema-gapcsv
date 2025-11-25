@@ -132,9 +132,9 @@ def obtener_id_promotora_por_usuario(id_usuario):
     Obtiene el ID de la Promotora asociada al usuario.
     
     Estrategias de búsqueda:
-    1. Por DUI (si la tabla Promotora tiene campo DUI)
-    2. Por nombre del usuario coincidente con nombre de promotora
-    3. Por relación directa ID_Usuario (si existe en la tabla Promotora)
+    1. Por ID_Usuario (si existe relación directa en la tabla Promotora)
+    2. Por DUI (si la tabla Promotora tiene campo DUI)
+    3. Por nombre del usuario coincidente con nombre de promotora (flexible)
     
     Retorna None si no es promotora o no se encuentra.
     """
@@ -156,37 +156,10 @@ def obtener_id_promotora_por_usuario(id_usuario):
         if not usuario_info:
             return None
         
-        # ESTRATEGIA 1: Buscar por DUI (si existe el campo en Promotora)
-        if usuario_info.get("DUI"):
-            try:
-                cursor.execute("""
-                    SELECT ID_Promotora FROM Promotora WHERE DUI = %s
-                """, (usuario_info["DUI"],))
-                
-                promotora_info = cursor.fetchone()
-                if promotora_info:
-                    return promotora_info["ID_Promotora"]
-            except:
-                pass  # La columna DUI no existe en Promotora
+        nombre_usuario = usuario_info["Usuario"].strip()
+        dui = usuario_info.get("DUI", "").strip()
         
-        # ESTRATEGIA 2: Buscar por coincidencia de nombre (case-insensitive)
-        # Limpiamos y comparamos los nombres
-        nombre_usuario = usuario_info["Usuario"].strip().lower()
-        
-        cursor.execute("""
-            SELECT ID_Promotora, nombre 
-            FROM Promotora
-        """)
-        
-        promotoras = cursor.fetchall()
-        
-        for promotora in promotoras:
-            nombre_promotora = promotora["nombre"].strip().lower()
-            # Verificar coincidencia exacta o si uno contiene al otro
-            if nombre_usuario == nombre_promotora or nombre_usuario in nombre_promotora or nombre_promotora in nombre_usuario:
-                return promotora["ID_Promotora"]
-        
-        # ESTRATEGIA 3: Buscar por ID_Usuario (si existe el campo en Promotora)
+        # ESTRATEGIA 1: Buscar por ID_Usuario (si existe el campo en Promotora)
         try:
             cursor.execute("""
                 SELECT ID_Promotora FROM Promotora WHERE ID_Usuario = %s
@@ -198,11 +171,68 @@ def obtener_id_promotora_por_usuario(id_usuario):
         except:
             pass  # La columna ID_Usuario no existe en Promotora
         
+        # ESTRATEGIA 2: Buscar por DUI (si existe el campo en Promotora)
+        if dui:
+            try:
+                cursor.execute("""
+                    SELECT ID_Promotora FROM Promotora WHERE DUI = %s
+                """, (dui,))
+                
+                promotora_info = cursor.fetchone()
+                if promotora_info:
+                    return promotora_info["ID_Promotora"]
+            except:
+                pass  # La columna DUI no existe en Promotora
+        
+        # ESTRATEGIA 3: Buscar por coincidencia de nombre (MUY FLEXIBLE)
+        cursor.execute("""
+            SELECT ID_Promotora, nombre 
+            FROM Promotora
+        """)
+        
+        promotoras = cursor.fetchall()
+        
+        # Normalizar nombre de usuario para comparación
+        nombre_usuario_lower = nombre_usuario.lower().strip()
+        nombre_usuario_sin_espacios = nombre_usuario_lower.replace(" ", "")
+        nombre_usuario_sin_numeros = ''.join(c for c in nombre_usuario_lower if not c.isdigit())
+        
+        for promotora in promotoras:
+            nombre_promotora = promotora["nombre"].strip()
+            nombre_promotora_lower = nombre_promotora.lower().strip()
+            nombre_promotora_sin_espacios = nombre_promotora_lower.replace(" ", "")
+            nombre_promotora_sin_numeros = ''.join(c for c in nombre_promotora_lower if not c.isdigit())
+            
+            # Múltiples formas de coincidencia:
+            # 1. Coincidencia exacta
+            if nombre_usuario_lower == nombre_promotora_lower:
+                return promotora["ID_Promotora"]
+            
+            # 2. Uno contiene al otro
+            if nombre_usuario_lower in nombre_promotora_lower or nombre_promotora_lower in nombre_usuario_lower:
+                return promotora["ID_Promotora"]
+            
+            # 3. Sin espacios
+            if nombre_usuario_sin_espacios == nombre_promotora_sin_espacios:
+                return promotora["ID_Promotora"]
+            
+            # 4. Sin números (ej: "Promotora1" coincide con "Promotora")
+            if len(nombre_usuario_sin_numeros) > 2 and len(nombre_promotora_sin_numeros) > 2:
+                if nombre_usuario_sin_numeros in nombre_promotora_sin_numeros or nombre_promotora_sin_numeros in nombre_usuario_sin_numeros:
+                    return promotora["ID_Promotora"]
+            
+            # 5. Primeras palabras coinciden
+            palabras_usuario = nombre_usuario_lower.split()
+            palabras_promotora = nombre_promotora_lower.split()
+            if palabras_usuario and palabras_promotora:
+                if palabras_usuario[0] == palabras_promotora[0] and len(palabras_usuario[0]) > 3:
+                    return promotora["ID_Promotora"]
+        
         # Si no se encontró, retornar None
         return None
         
     except Exception as e:
-        st.warning(f"⚠️ Error al buscar promotora: {e}")
+        # No mostrar error aquí, se manejará en el módulo que llama
         return None
     finally:
         if 'cursor' in locals() and cursor:
