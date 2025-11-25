@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import sys
 import os
@@ -10,48 +9,155 @@ import os
 sys.path.append(os.path.dirname(__file__))
 
 # =============================================
-#  CONFIGURACIÓN INICIAL
+#  DEBUG INICIAL - VER QUÉ ESTÁ PASANDO
+# =============================================
+
+def debug_inicial():
+    """Función de debug para ver el estado de la aplicación"""
+    st.sidebar.title("🔍 DEBUG CONSOLIDADO PROMOTORA")
+    
+    # 1. Verificar session_state
+    st.sidebar.write("### 📋 Session State Keys:")
+    session_keys = list(st.session_state.keys())
+    for key in session_keys:
+        value = st.session_state.get(key)
+        st.sidebar.write(f"- **{key}:** {value}")
+    
+    # 2. Verificar específicamente id_promotora
+    st.sidebar.write("### 👤 Estado Promotora:")
+    if "id_promotora" in st.session_state:
+        st.sidebar.success(f"✅ id_promotora encontrado: {st.session_state.id_promotora}")
+    else:
+        st.sidebar.error("❌ id_promotora NO encontrado en session_state")
+    
+    # 3. Verificar conexión a BD
+    st.sidebar.write("### 🗄️ Estado Base de Datos:")
+    try:
+        from modulos.config.conexion import obtener_conexion
+        con = obtener_conexion()
+        cursor = con.cursor()
+        cursor.execute("SELECT 1")
+        st.sidebar.success("✅ Conexión BD: OK")
+        cursor.close()
+        con.close()
+    except Exception as e:
+        st.sidebar.error(f"❌ Conexión BD: ERROR - {e}")
+
+# =============================================
+#  VERIFICACIÓN DE SESIÓN ROBUSTA
 # =============================================
 
 def verificar_sesion_promotora():
-    """Verifica que la promotora tenga sesión activa."""
-    if "id_promotora" not in st.session_state or st.session_state.id_promotora is None:
-        st.error("🚫 No hay sesión de promotora activa. Por favor inicia sesión.")
+    """Verifica que la promotora tenga sesión activa de manera robusta"""
+    
+    st.write("### 1. 🔐 Verificando Sesión...")
+    
+    # Opción 1: Verificar si existe la clave en session_state
+    if "id_promotora" not in st.session_state:
+        st.error("""
+        🚫 **ERROR CRÍTICO:** No se encontró 'id_promotora' en session_state
+        
+        **Posibles soluciones:**
+        1. Asegúrate de haber iniciado sesión como promotora
+        2. Verifica que el login guarde correctamente en st.session_state
+        3. Revisa el nombre de la variable (debe ser 'id_promotora')
+        """)
         st.stop()
-    return True
+    
+    # Opción 2: Verificar que no sea None
+    id_promotora = st.session_state.id_promotora
+    if id_promotora is None:
+        st.error("""
+        ⚠️ **id_promotora es None**
+        
+        El valor existe pero está vacío. Probablemente el login no se completó correctamente.
+        """)
+        st.stop()
+    
+    # Opción 3: Verificar que sea un número válido
+    try:
+        id_promotora_int = int(id_promotora)
+        if id_promotora_int <= 0:
+            st.error("❌ ID de promotora no válido (menor o igual a 0)")
+            st.stop()
+    except (ValueError, TypeError):
+        st.error("❌ ID de promotora no es un número válido")
+        st.stop()
+    
+    st.success(f"✅ Sesión verificada - ID Promotora: {id_promotora}")
+    return id_promotora
 
-def obtener_grupos_promotora():
-    """Obtiene los grupos que maneja la promotora actual."""
+# =============================================
+#  OBTENER GRUPOS CON DEBUG
+# =============================================
+
+def obtener_grupos_promotora_con_debug(id_promotora):
+    """Obtiene los grupos de la promotora con información de debug"""
+    
+    st.write("### 2. 📊 Buscando Grupos...")
+    
     try:
         from modulos.config.conexion import obtener_conexion
         
-        id_promotora = st.session_state.id_promotora
+        st.info(f"🔍 Buscando grupos para promotora ID: {id_promotora}")
+        
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
-        cursor.execute("""
+        # Query para obtener grupos
+        query = """
             SELECT ID_Grupo, nombre_grupo 
             FROM Grupo 
             WHERE ID_Promotora = %s
             ORDER BY nombre_grupo
-        """, (id_promotora,))
+        """
         
+        st.write(f"📝 Ejecutando query: `{query}` con parámetro: {id_promotora}")
+        
+        cursor.execute(query, (id_promotora,))
         grupos = cursor.fetchall()
+        
         cursor.close()
         con.close()
+        
+        st.success(f"✅ Se encontraron {len(grupos)} grupo(s)")
+        
+        # Mostrar grupos encontrados
+        if grupos:
+            st.write("### 👥 Grupos Encontrados:")
+            for i, grupo in enumerate(grupos, 1):
+                st.write(f"{i}. **{grupo['nombre_grupo']}** (ID: {grupo['ID_Grupo']})")
+        else:
+            st.warning("""
+            ⚠️ **No se encontraron grupos para esta promotora**
+            
+            **Posibles causas:**
+            1. La promotora no tiene grupos asignados
+            2. El ID de promotora no existe en la base de datos
+            3. Los grupos están inactivos o eliminados
+            """)
         
         return grupos
         
     except Exception as e:
-        st.error(f"❌ Error obteniendo grupos de la promotora: {e}")
+        st.error(f"""
+        ❌ **Error crítico al obtener grupos:**
+        
+        **Detalle del error:** {e}
+        
+        **Solución:**
+        1. Verifica que la tabla 'Grupo' exista en la BD
+        2. Verifica que la columna 'ID_Promotora' exista
+        3. Revisa la conexión a la base de datos
+        """)
         return []
 
 # =============================================
-#  FUNCIONES PARA OBTENER DATOS (SIMILARES A CICLO)
+#  FUNCIONES DE CÁLCULO (IGUAL QUE CICLO.PY)
 # =============================================
 
 def obtener_ahorros_grupo_rango(id_grupo, fecha_inicio, fecha_fin):
-    """Obtiene ahorros de un grupo en rango de fechas - igual que en ciclo.py"""
+    """Obtiene ahorros de un grupo en rango de fechas"""
     try:
         from modulos.config.conexion import obtener_conexion
         
@@ -88,7 +194,7 @@ def obtener_ahorros_grupo_rango(id_grupo, fecha_inicio, fecha_fin):
         return {"total_ahorros": 0, "total_otros": 0, "total_general": 0}
 
 def obtener_prestamos_grupo_rango(id_grupo, fecha_inicio, fecha_fin):
-    """Obtiene préstamos de un grupo en rango de fechas - igual que en ciclo.py"""
+    """Obtiene préstamos de un grupo en rango de fechas"""
     try:
         from modulos.config.conexion import obtener_conexion
         
@@ -123,7 +229,7 @@ def obtener_prestamos_grupo_rango(id_grupo, fecha_inicio, fecha_fin):
         return {"total_capital": 0, "total_intereses": 0, "total_prestamos": 0}
 
 def obtener_multas_grupo_rango(id_grupo, fecha_inicio, fecha_fin):
-    """Obtiene multas de un grupo en rango de fechas - igual que en ciclo.py"""
+    """Obtiene multas de un grupo en rango de fechas"""
     try:
         from modulos.config.conexion import obtener_conexion
         
@@ -155,7 +261,7 @@ def obtener_multas_grupo_rango(id_grupo, fecha_inicio, fecha_fin):
         return {"total_multas": 0}
 
 def obtener_miembros_activos_grupo(id_grupo):
-    """Obtiene miembros activos de un grupo - igual que en ciclo.py"""
+    """Obtiene miembros activos de un grupo"""
     try:
         from modulos.config.conexion import obtener_conexion
         
@@ -181,11 +287,13 @@ def obtener_miembros_activos_grupo(id_grupo):
         return 0
 
 # =============================================
-#  CÁLCULO DE CONSOLDADO POR GRUPO
+#  CÁLCULO DE CONSOLDADO
 # =============================================
 
 def calcular_consolidado_grupo(id_grupo, nombre_grupo, fecha_inicio, fecha_fin):
-    """Calcula el consolidado completo para un grupo - similar a ciclo.py"""
+    """Calcula el consolidado completo para un grupo"""
+    
+    st.write(f"📈 Calculando consolidado para: {nombre_grupo}")
     
     # Obtener datos del grupo
     ahorros = obtener_ahorros_grupo_rango(id_grupo, fecha_inicio, fecha_fin)
@@ -193,7 +301,7 @@ def calcular_consolidado_grupo(id_grupo, nombre_grupo, fecha_inicio, fecha_fin):
     multas = obtener_multas_grupo_rango(id_grupo, fecha_inicio, fecha_fin)
     miembros = obtener_miembros_activos_grupo(id_grupo)
     
-    # Calcular totales (igual que en ciclo.py)
+    # Calcular totales
     total_ahorros = ahorros["total_general"]
     total_prestamos_capital = prestamos["total_capital"]
     total_intereses = prestamos["total_intereses"]
@@ -212,21 +320,22 @@ def calcular_consolidado_grupo(id_grupo, nombre_grupo, fecha_inicio, fecha_fin):
     }
 
 # =============================================
-#  VISUALIZACIONES Y GRÁFICOS
+#  VISUALIZACIONES
 # =============================================
 
 def crear_grafico_barras_consolidado(datos_consolidado):
     """Crea gráfico de barras con los datos consolidados"""
     if not datos_consolidado:
+        st.warning("No hay datos para mostrar en el gráfico.")
         return None
     
     # Preparar datos para el gráfico
-    grupos = [f"{d['nombre_grupo']}\n({d['total_miembros']} miembros)" for d in datos_consolidado]
+    grupos = [f"{d['nombre_grupo']}" for d in datos_consolidado]
     
     df_grafico = pd.DataFrame({
         'Grupo': grupos,
         'Ahorros': [d["total_ahorros"] for d in datos_consolidado],
-        'Préstamos Capital': [d["total_prestamos_capital"] for d in datos_consolidado],
+        'Préstamos': [d["total_prestamos_capital"] for d in datos_consolidado],
         'Intereses': [d["total_intereses"] for d in datos_consolidado],
         'Multas': [d["total_multas"] for d in datos_consolidado]
     })
@@ -234,52 +343,104 @@ def crear_grafico_barras_consolidado(datos_consolidado):
     # Crear gráfico de barras
     fig = px.bar(df_grafico, 
                  x='Grupo', 
-                 y=['Ahorros', 'Préstamos Capital', 'Intereses', 'Multas'],
+                 y=['Ahorros', 'Préstamos', 'Intereses', 'Multas'],
                  title='📊 Consolidado Financiero por Grupo',
-                 labels={'value': 'Monto ($)', 'variable': 'Concepto', 'Grupo': 'Grupos'},
+                 labels={'value': 'Monto ($)', 'variable': 'Concepto'},
                  barmode='group',
-                 color_discrete_sequence=['#2E86AB', '#A23B72', '#F18F01', '#C73E1D'])
+                 color_discrete_sequence=px.colors.qualitative.Set3)
     
     fig.update_layout(
         xaxis_tickangle=-45,
         showlegend=True,
-        height=500,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        height=500
     )
     
     return fig
 
-def crear_grafico_totales(datos_consolidado):
-    """Crea gráfico de totales por concepto"""
+def mostrar_tabla_consolidado(datos_consolidado):
+    """Muestra la tabla de consolidado"""
     if not datos_consolidado:
-        return None
+        st.warning("No hay datos para mostrar en la tabla.")
+        return
     
-    totales = {
-        'Ahorros': sum(d["total_ahorros"] for d in datos_consolidado),
-        'Préstamos Capital': sum(d["total_prestamos_capital"] for d in datos_consolidado),
-        'Intereses': sum(d["total_intereses"] for d in datos_consolidado),
-        'Multas': sum(d["total_multas"] for d in datos_consolidado)
-    }
+    # Preparar datos para la tabla
+    tabla_data = []
+    for dato in datos_consolidado:
+        tabla_data.append({
+            "Grupo": dato["nombre_grupo"],
+            "Miembros": f"{dato['total_miembros']}",
+            "Ahorros": f"${dato['total_ahorros']:,.2f}",
+            "Préstamos": f"${dato['total_prestamos_capital']:,.2f}",
+            "Intereses": f"${dato['total_intereses']:,.2f}",
+            "Multas": f"${dato['total_multas']:,.2f}",
+            "Total": f"${dato['total_ingresos']:,.2f}"
+        })
     
-    fig = px.pie(
-        names=list(totales.keys()),
-        values=list(totales.values()),
-        title='📈 Distribución de Totales por Concepto',
-        color_discrete_sequence=px.colors.qualitative.Set3
-    )
+    df_tabla = pd.DataFrame(tabla_data)
+    st.dataframe(df_tabla, use_container_width=True, hide_index=True)
     
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    
-    return fig
+    # Mostrar totales generales
+    if datos_consolidado:
+        total_general = {
+            "ahorros": sum(d["total_ahorros"] for d in datos_consolidado),
+            "prestamos": sum(d["total_prestamos_capital"] for d in datos_consolidado),
+            "intereses": sum(d["total_intereses"] for d in datos_consolidado),
+            "multas": sum(d["total_multas"] for d in datos_consolidado),
+            "ingresos": sum(d["total_ingresos"] for d in datos_consolidado)
+        }
+        
+        st.success(f"**📊 Totales Generales:** "
+                  f"Ahorros: ${total_general['ahorros']:,.2f} | "
+                  f"Préstamos: ${total_general['prestamos']:,.2f} | "
+                  f"Intereses: ${total_general['intereses']:,.2f} | "
+                  f"Multas: ${total_general['multas']:,.2f} | "
+                  f"**TOTAL: ${total_general['ingresos']:,.2f}**")
 
 # =============================================
-#  INTERFAZ PRINCIPAL
+#  INTERFAZ PRINCIPAL CON DEBUG
 # =============================================
 
-def mostrar_filtros():
-    """Muestra los filtros de fechas y grupos"""
-    st.subheader("📅 Seleccionar Rango del Consolidado")
+def mostrar_consolidado_promotora():
+    """Función principal con debug integrado"""
     
+    st.title("📊 Consolidado de Promotora")
+    
+    # =============================================
+    # FASE 1: DEBUG INICIAL
+    # =============================================
+    debug_inicial()
+    
+    # =============================================
+    # FASE 2: VERIFICAR SESIÓN
+    # =============================================
+    st.write("---")
+    st.write("## 🔐 FASE 1: Verificación de Sesión")
+    
+    id_promotora = verificar_sesion_promotora()
+    
+    # =============================================
+    # FASE 3: OBTENER GRUPOS
+    # =============================================
+    st.write("---")
+    st.write("## 📊 FASE 2: Obtención de Grupos")
+    
+    grupos = obtener_grupos_promotora_con_debug(id_promotora)
+    
+    if not grupos:
+        st.error("""
+        🚫 **NO SE PUEDE CONTINUAR** 
+        
+        No se encontraron grupos para esta promotora. El consolidado no puede generarse.
+        """)
+        return
+    
+    # =============================================
+    # FASE 4: FILTROS Y CÁLCULOS
+    # =============================================
+    st.write("---")
+    st.write("## 📅 FASE 3: Configuración de Fechas")
+    
+    # Filtros de fecha
     col1, col2 = st.columns(2)
     
     with col1:
@@ -298,166 +459,88 @@ def mostrar_filtros():
     
     if fecha_inicio > fecha_fin:
         st.error("❌ La fecha de inicio no puede ser mayor que la fecha de fin")
-        return None, None
+        return
     
     dias_ciclo = (fecha_fin - fecha_inicio).days
     st.info(f"**📊 Rango seleccionado:** {fecha_inicio} a {fecha_fin} ({dias_ciclo} días)")
     
-    return fecha_inicio, fecha_fin
-
-def mostrar_tabla_consolidado(datos_consolidado):
-    """Muestra la tabla de consolidado - similar a ciclo.py"""
-    if not datos_consolidado:
-        st.warning("No hay datos para mostrar en la tabla.")
-        return
+    # =============================================
+    # FASE 5: GENERAR REPORTE
+    # =============================================
+    st.write("---")
+    st.write("## 🚀 FASE 4: Generar Reporte Consolidado")
     
-    # Preparar datos para la tabla (igual formato que ciclo.py)
-    tabla_data = []
-    for dato in datos_consolidado:
-        tabla_data.append({
-            "Grupo": dato["nombre_grupo"],
-            "Miembros Activos": f"{dato['total_miembros']}",
-            "💰 Total Ahorros": f"${dato['total_ahorros']:,.2f}",
-            "🏦 Total Préstamos (Capital)": f"${dato['total_prestamos_capital']:,.2f}",
-            "📈 Total Intereses": f"${dato['total_intereses']:,.2f}",
-            "⚖️ Total Multas": f"${dato['total_multas']:,.2f}",
-            "💵 TOTAL INGRESOS": f"${dato['total_ingresos']:,.2f}"
-        })
-    
-    df_tabla = pd.DataFrame(tabla_data)
-    st.dataframe(df_tabla, use_container_width=True, hide_index=True)
-    
-    # Mostrar totales generales
-    if datos_consolidado:
-        total_general = {
-            "ahorros": sum(d["total_ahorros"] for d in datos_consolidado),
-            "prestamos_capital": sum(d["total_prestamos_capital"] for d in datos_consolidado),
-            "intereses": sum(d["total_intereses"] for d in datos_consolidado),
-            "multas": sum(d["total_multas"] for d in datos_consolidado),
-            "ingresos": sum(d["total_ingresos"] for d in datos_consolidado)
-        }
+    if st.button("🎯 GENERAR REPORTE COMPLETO", type="primary", use_container_width=True):
         
-        st.success(f"**📊 TOTALES GENERALES PROMOTORA:** "
-                  f"Ahorros: ${total_general['ahorros']:,.2f} | "
-                  f"Préstamos: ${total_general['prestamos_capital']:,.2f} | "
-                  f"Intereses: ${total_general['intereses']:,.2f} | "
-                  f"Multas: ${total_general['multas']:,.2f} | "
-                  f"**TOTAL: ${total_general['ingresos']:,.2f}**")
-
-def mostrar_metricas_consolidado(datos_consolidado):
-    """Muestra métricas del consolidado - similar a ciclo.py"""
-    if not datos_consolidado:
-        return
-    
-    total_general = {
-        "ahorros": sum(d["total_ahorros"] for d in datos_consolidado),
-        "prestamos_capital": sum(d["total_prestamos_capital"] for d in datos_consolidado),
-        "intereses": sum(d["total_intereses"] for d in datos_consolidado),
-        "multas": sum(d["total_multas"] for d in datos_consolidado),
-        "ingresos": sum(d["total_ingresos"] for d in datos_consolidado),
-        "miembros": sum(d["total_miembros"] for d in datos_consolidado),
-        "grupos": len(datos_consolidado)
-    }
-    
-    st.subheader("📈 Métricas del Consolidado")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Grupos", f"{total_general['grupos']}")
-        st.metric("Total Miembros", f"{total_general['miembros']}")
-    with col2:
-        st.metric("Total Ahorros", f"${total_general['ahorros']:,.2f}")
-        st.metric("Total Multas", f"${total_general['multas']:,.2f}")
-    with col3:
-        st.metric("Total Préstamos", f"${total_general['prestamos_capital']:,.2f}")
-        st.metric("Total Intereses", f"${total_general['intereses']:,.2f}")
-    with col4:
-        st.metric("Total Ingresos", f"${total_general['ingresos']:,.2f}")
-        st.metric("Promedio x Grupo", f"${total_general['ingresos']/max(1, total_general['grupos']):,.2f}")
+        st.write("### 🔄 Procesando grupos...")
+        progress_bar = st.progress(0)
+        
+        datos_consolidado = []
+        total_grupos = len(grupos)
+        
+        for i, grupo in enumerate(grupos):
+            st.write(f"**Procesando:** {grupo['nombre_grupo']} ({i+1}/{total_grupos})")
+            
+            consolidado = calcular_consolidado_grupo(
+                grupo["ID_Grupo"],
+                grupo["nombre_grupo"],
+                fecha_inicio,
+                fecha_fin
+            )
+            datos_consolidado.append(consolidado)
+            
+            # Actualizar progreso
+            progress_bar.progress((i + 1) / total_grupos)
+        
+        # =============================================
+        # FASE 6: MOSTRAR RESULTADOS
+        # =============================================
+        st.write("---")
+        st.write("## 📈 FASE 5: Resultados del Consolidado")
+        
+        # 1. Tabla de Consolidado
+        st.subheader("📋 Tabla de Consolidado")
+        mostrar_tabla_consolidado(datos_consolidado)
+        
+        # 2. Gráfico de Barras
+        st.subheader("📊 Gráfico de Barras")
+        fig = crear_grafico_barras_consolidado(datos_consolidado)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # 3. Métricas Resumen
+        st.subheader("🎯 Métricas Resumen")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            total_ahorros = sum(d["total_ahorros"] for d in datos_consolidado)
+            st.metric("Total Ahorros", f"${total_ahorros:,.2f}")
+        with col2:
+            total_prestamos = sum(d["total_prestamos_capital"] for d in datos_consolidado)
+            st.metric("Total Préstamos", f"${total_prestamos:,.2f}")
+        with col3:
+            total_multas = sum(d["total_multas"] for d in datos_consolidado)
+            st.metric("Total Multas", f"${total_multas:,.2f}")
+        with col4:
+            total_intereses = sum(d["total_intereses"] for d in datos_consolidado)
+            st.metric("Total Intereses", f"${total_intereses:,.2f}")
+        
+        st.balloons()
+        st.success("🎉 **CONSOLIDADO GENERADO EXITOSAMENTE**")
 
 # =============================================
-#  FUNCIÓN PRINCIPAL
+#  EJECUCIÓN DIRECTA (PARA PRUEBAS)
 # =============================================
-
-def mostrar_consolidado_promotora():
-    """Función principal - similar estructura a ciclo.py"""
-    
-    # Verificar sesión
-    verificar_sesion_promotora()
-    
-    st.header("📊 Consolidado de Promotora - Resumen Financiero")
-    
-    # Obtener grupos de la promotora
-    grupos = obtener_grupos_promotora()
-    if not grupos:
-        st.warning("ℹ️ No tienes grupos asignados como promotora.")
-        return
-    
-    st.success(f"✅ Promotora tiene {len(grupos)} grupo(s) asignado(s)")
-    
-    # Mostrar filtros
-    fecha_inicio, fecha_fin = mostrar_filtros()
-    if fecha_inicio is None:
-        return
-    
-    st.markdown("---")
-    
-    # Botón para generar consolidado
-    if st.button("🚀 Generar Consolidado de Promotora", type="primary", use_container_width=True):
-        
-        with st.spinner("🔍 Calculando consolidado de todos los grupos..."):
-            datos_consolidado = []
-            
-            for grupo in grupos:
-                consolidado = calcular_consolidado_grupo(
-                    grupo["ID_Grupo"],
-                    grupo["nombre_grupo"],
-                    fecha_inicio,
-                    fecha_fin
-                )
-                datos_consolidado.append(consolidado)
-            
-            # MOSTRAR RESULTADOS - IGUAL QUE EN CICLO.PY
-            
-            # 1. Tabla de Consolidado
-            st.subheader(f"📋 Tabla de Consolidado: {fecha_inicio} a {fecha_fin}")
-            mostrar_tabla_consolidado(datos_consolidado)
-            
-            # 2. Métricas
-            mostrar_metricas_consolidado(datos_consolidado)
-            
-            st.markdown("---")
-            
-            # 3. Gráficos de Barras (NUEVO - lo que solicitaste)
-            st.subheader("📊 Gráficos de Consolidado")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                fig_barras = crear_grafico_barras_consolidado(datos_consolidado)
-                if fig_barras:
-                    st.plotly_chart(fig_barras, use_container_width=True)
-            
-            with col2:
-                fig_totales = crear_grafico_totales(datos_consolidado)
-                if fig_totales:
-                    st.plotly_chart(fig_totales, use_container_width=True)
-            
-            # 4. Detalles por grupo
-            st.markdown("---")
-            st.subheader("👥 Detalles por Grupo")
-            
-            for dato in datos_consolidado:
-                with st.expander(f"📊 {dato['nombre_grupo']} - {dato['total_miembros']} miembros"):
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Ahorros", f"${dato['total_ahorros']:,.2f}")
-                    with col2:
-                        st.metric("Préstamos", f"${dato['total_prestamos_capital']:,.2f}")
-                    with col3:
-                        st.metric("Intereses", f"${dato['total_intereses']:,.2f}")
-                    with col4:
-                        st.metric("Multas", f"${dato['total_multas']:,.2f}")
 
 if __name__ == "__main__":
+    # Si se ejecuta directamente, simular una sesión para pruebas
+    if "id_promotora" not in st.session_state:
+        st.warning("""
+        🔧 **MODO PRUEBA - Sesión simulada**
+        
+        Para usar en producción, asegúrate de que el login guarde st.session_state.id_promotora
+        """)
+        # Simular una promotora para pruebas
+        st.session_state.id_promotora = 1  # Cambia este valor según tu BD
+    
     mostrar_consolidado_promotora()
