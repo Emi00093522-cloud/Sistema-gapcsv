@@ -17,6 +17,14 @@ except ImportError:
     def mostrar_ciclo():
         st.warning("Módulo de Cierre de Ciclo en desarrollo")
 
+# Agregar importación del módulo consolidado promotora
+try:
+    from modulos.consolidadopromotora import mostrar_consolidado_promotora
+except ImportError:
+    # Si el módulo no existe, creamos una función temporal
+    def mostrar_consolidado_promotora():
+        st.warning("Módulo de Consolidado Promotora en desarrollo")
+
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
@@ -55,7 +63,7 @@ def panel_secretaria():
         "👥 Miembros",
         "📜 Reglamentos",
         "📅 Reuniones",
-        "🔄 Cierre de Ciclo",  # Nueva pestaña agregada
+        "🔄 Cierre de Ciclo",
         "🚪 Cerrar sesión"
     ])
 
@@ -63,13 +71,13 @@ def panel_secretaria():
     with tabs[1]: mostrar_miembro()
     with tabs[2]: mostrar_reglamentos()
     with tabs[3]: mostrar_gestion_integrada()
-    with tabs[4]: mostrar_ciclo()  # Mostrar el módulo de cierre de ciclo
+    with tabs[4]: mostrar_ciclo()
 
-        
-    if st.button("Cerrar sesión"):
-        st.session_state.clear()
-        st.session_state["pagina_actual"] = "sesion_cerrada"
-        st.rerun()
+    with tabs[5]:
+        if st.button("Cerrar sesión"):
+            st.session_state.clear()
+            st.session_state["pagina_actual"] = "sesion_cerrada"
+            st.rerun()
 
 # ---------------------------------------------------------
 # PANEL PRESIDENTE
@@ -82,7 +90,7 @@ def panel_presidente():
         "👥 Miembros",
         "📜 Reglamentos",
         "💰 Préstamos",
-        "🔄 Cierre de Ciclo",  # También para presidente si es necesario
+        "🔄 Cierre de Ciclo",
         "🚪 Cerrar sesión"
     ])
 
@@ -90,7 +98,7 @@ def panel_presidente():
     with tabs[1]: mostrar_reglamentos()
     with tabs[2]: mostrar_miembro()
     with tabs[3]: mostrar_prestamo()
-    with tabs[4]: mostrar_ciclo()  # Cierre de ciclo para presidente
+    with tabs[4]: mostrar_ciclo()
 
     with tabs[5]:
         if st.button("Cerrar sesión"):
@@ -99,26 +107,29 @@ def panel_presidente():
             st.rerun()
 
 # ---------------------------------------------------------
-# PANEL PROMOTORA - SIN Cierre de Ciclo
+# PANEL PROMOTORA - CON Consolidado Promotora
 # ---------------------------------------------------------
 def panel_promotora(usuario):
     st.title("🤝 Panel de Promotora")
 
     tabs = st.tabs([
         "📈 Dashboard",
+        "📊 Consolidado Promotora",  # Nueva pestaña agregada
         "👩‍💼 Registro Promotora",
         "🏛️ Distrito",
-        "🚪 Cerrar sesión"  # Eliminada la pestaña de Cierre de Ciclo
+        "🚪 Cerrar sesión"
     ])
 
     with tabs[0]:
         st.success(f"Bienvenida, {usuario} 🌟")
         st.info("📊 Dashboard general de promotoras en desarrollo...")
 
-    with tabs[1]: mostrar_promotora()
-    with tabs[2]: mostrar_distrito()
+    with tabs[1]: 
+        mostrar_consolidado_promotora()  # Solo visible para promotoras
+    with tabs[2]: mostrar_promotora()
+    with tabs[3]: mostrar_distrito()
 
-    with tabs[3]:
+    with tabs[4]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
@@ -133,7 +144,7 @@ def panel_admin():
     tabs = st.tabs([
         "📊 Consolidado Distritos",
         "🧑‍💻 Registrar Usuario",
-        "🚪 Cerrar sesión"  # Eliminada la pestaña de Cierre de Ciclo
+        "🚪 Cerrar sesión"
     ])
 
     with tabs[0]:
