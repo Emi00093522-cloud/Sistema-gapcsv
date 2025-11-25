@@ -137,7 +137,7 @@ def obtener_pagos_prestamos_por_grupo_rango(id_grupo, fecha_inicio, fecha_fin):
         if 'con' in locals(): con.close()
 
 def mostrar_consolidado_promotora():
-    """Función principal que muestra el consolidado"""
+    """Función principal que muestra el consolidado - VERSIÓN AUTOMÁTICA"""
     
     st.header("📊 Consolidado de Promotora")
     
@@ -191,8 +191,19 @@ def mostrar_consolidado_promotora():
     
     st.markdown("---")
     
-    # Botón para actualizar datos
-    if st.button("🔄 Generar Reporte Consolidado", type="primary", use_container_width=True):
+    # ✅ CAMBIO PRINCIPAL: Mostrar datos automáticamente sin botón
+    # Usamos un estado para controlar cuándo mostrar los datos
+    if 'mostrar_consolidado' not in st.session_state:
+        st.session_state.mostrar_consolidado = True
+    
+    # Botón opcional para actualizar (pero los datos se muestran automáticamente)
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🔄 Actualizar Datos", use_container_width=True):
+            st.rerun()
+    
+    # ✅ MOSTRAR DATOS AUTOMÁTICAMENTE AL CARGAR LA PÁGINA
+    if st.session_state.mostrar_consolidado:
         
         # Obtener datos consolidados
         with st.spinner("📊 Calculando datos consolidados..."):
