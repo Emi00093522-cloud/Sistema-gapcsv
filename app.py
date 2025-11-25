@@ -9,22 +9,106 @@ from modulos.grupos import mostrar_grupos
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 
-# Agregar importación del módulo ciclo (si existe)
+# ---------------------------------------------------------
+# 🔧 DEBUG MEJORADO PARA DETECTAR ERRORES DE IMPORTACIÓN
+# ---------------------------------------------------------
+
+# Importación del módulo ciclo
 try:
     from modulos.ciclo import mostrar_ciclo
-except ImportError:
-    # Si el módulo no existe, creamos una función temporal
+    CICLO_CARGADO = True
+except ImportError as e:
+    st.sidebar.error(f"❌ Error cargando ciclo: {e}")
     def mostrar_ciclo():
         st.warning("Módulo de Cierre de Ciclo en desarrollo")
+    CICLO_CARGADO = False
 
-# Agregar importación del módulo consolidado promotora
+# Importación del módulo préstamo  
 try:
-    from modulos.consolidado_promotora import mostrar_consolidado_promotora
+    from modulos.prestamo import mostrar_prestamo
+    PRESTAMO_CARGADO = True
 except ImportError:
-    # Si el módulo no existe, creamos una función temporal
-    def mostrar_consolidado_promotora():
-        st.warning("Módulo de Consolidado Promotora en desarrollo")
+    def mostrar_prestamo():
+        st.warning("Módulo de Préstamos en desarrollo")
+    PRESTAMO_CARGADO = False
 
+# 🔥🔥🔥 NUEVO IMPORT CON DEBUG SUPER DETALLADO PARA CONSOLIDADO_PROMOTORA
+try:
+    st.sidebar.write("🔄 **DEBUG:** Intentando importar consolidado_promotora...")
+    
+    # Intento 1: Import normal
+    from modulos.consolidado_promotora import mostrar_consolidado_promotora
+    CONSOLIDADO_CARGADO = True
+    st.sidebar.success("✅ **DEBUG:** consolidado_promotora IMPORTADO EXITOSAMENTE")
+    
+except ImportError as e:
+    st.sidebar.error(f"❌ **DEBUG ERROR:** No se pudo importar consolidado_promotora")
+    st.sidebar.error(f"🔍 **Error detallado:** {e}")
+    CONSOLIDADO_CARGADO = False
+    
+    # Función de emergencia con DEBUG COMPLETO
+    def mostrar_consolidado_promotora():
+        st.error("🚫 **Módulo Consolidado Promotora - ERROR DE CARGA**")
+        
+        st.write("### 🔍 DEBUG DETALLADO DEL ERROR:")
+        
+        # Información del sistema
+        st.write("#### 📁 Información del Sistema:")
+        import os
+        import sys
+        st.write(f"**Directorio actual:** {os.getcwd()}")
+        st.write(f"**Ruta de Python:** {sys.path}")
+        
+        # Verificar si el archivo existe
+        archivo_path = os.path.join("modulos", "consolidado_promotora.py")
+        st.write(f"**Buscando archivo en:** {archivo_path}")
+        st.write(f"**¿Existe el archivo?:** {os.path.exists(archivo_path)}")
+        
+        # Intentar leer el archivo
+        if os.path.exists(archivo_path):
+            try:
+                with open(archivo_path, 'r', encoding='utf-8') as f:
+                    primeras_lineas = [next(f) for _ in range(10)]
+                st.write("**Primeras 10 líneas del archivo:**")
+                for i, linea in enumerate(primeras_lineas, 1):
+                    st.write(f"{i}: {linea.strip()}")
+            except Exception as file_error:
+                st.error(f"Error leyendo archivo: {file_error}")
+        
+        # Soluciones
+        st.write("#### 🔧 SOLUCIONES:")
+        st.write("""
+        1. **Verifica que el archivo existe** en `modulos/consolidado_promotora.py`
+        2. **Verifica que no tenga errores de sintaxis** - ejecuta: `python modulos/consolidado_promotora.py`
+        3. **Verifica los imports internos** del módulo
+        4. **Reinicia Streamlit** completamente
+        """)
+        
+        # Botón para diagnóstico automático
+        if st.button("🔄 EJECUTAR DIAGNÓSTICO AUTOMÁTICO"):
+            try:
+                # Intentar diagnóstico
+                import subprocess
+                result = subprocess.run([
+                    'python', '-c', 
+                    'from modulos.consolidado_promotora import mostrar_consolidado_promotora; print("✅ Módulo carga correctamente")'
+                ], capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    st.success("✅ Diagnóstico: El módulo debería funcionar")
+                    st.write("**Output:**", result.stdout)
+                else:
+                    st.error("❌ Diagnóstico: Error en el módulo")
+                    st.write("**Error:**", result.stderr)
+                    
+            except Exception as diag_error:
+                st.error(f"Error en diagnóstico: {diag_error}")
+
+except Exception as e:
+    st.sidebar.error(f"❌ **ERROR INESPERADO:** {e}")
+    def mostrar_consolidado_promotora():
+        st.error(f"Error crítico: {e}")
+    CONSOLIDADO_CARGADO = False
 
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
@@ -95,8 +179,8 @@ def panel_presidente():
     ])
 
     with tabs[0]: mostrar_grupos()
-    with tabs[1]: mostrar_reglamentos()
-    with tabs[2]: mostrar_miembro()
+    with tabs[1]: mostrar_miembro()
+    with tabs[2]: mostrar_reglamentos()
     with tabs[3]: mostrar_prestamo()
     with tabs[4]: mostrar_ciclo()
 
@@ -107,28 +191,54 @@ def panel_presidente():
             st.rerun()
 
 # ---------------------------------------------------------
-# PANEL PROMOTORA - CON Consolidado Promotora
+# PANEL PROMOTORA - CON DEBUG MEJORADO
 # ---------------------------------------------------------
 def panel_promotora(usuario):
     st.title("🤝 Panel de Promotora")
 
+    # DEBUG INFO EN EL PANEL PRINCIPAL
+    if not CONSOLIDADO_CARGADO:
+        st.error("🚫 **ADVERTENCIA:** El módulo Consolidado Promotora no se cargó correctamente")
+    
     tabs = st.tabs([
         "📈 Dashboard",
-
-        "👩‍💼 Registro Promotora",
+        "👩‍💼 Registro Promotora", 
         "🏛️ Distrito",
-        "📊 Consolidado Promotora",  # Nueva pestaña agregada
+        "📊 Consolidado Promotora",
         "🚪 Cerrar sesión"
     ])
 
     with tabs[0]:
         st.success(f"Bienvenida, {usuario} 🌟")
         st.info("📊 Dashboard general de promotoras en desarrollo...")
-
-    with tabs[1]: mostrar_distrito()
         
-    with tabs[2]: mostrar_promotora()
-    with tabs[3]: mostrar_consolidado_promotora()  # Solo visible para promotoras
+        # Estado de módulos
+        st.write("### 🔧 Estado de Módulos:")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            status = "✅ Cargado" if CICLO_CARGADO else "❌ Error"
+            st.metric("Módulo Ciclo", status)
+        with col2:
+            status = "✅ Cargado" if PRESTAMO_CARGADO else "⚠️ Desarrollo"
+            st.metric("Módulo Préstamos", status)
+        with col3:
+            status = "✅ Cargado" if CONSOLIDADO_CARGADO else "❌ ERROR"
+            st.metric("Módulo Consolidado", status)
+
+    with tabs[1]: mostrar_promotora()
+    with tabs[2]: mostrar_distrito()
+    
+    with tabs[3]: 
+        if CONSOLIDADO_CARGADO:
+            st.success("✅ Módulo Consolidado Promotora - CARGADO")
+            mostrar_consolidado_promotora()
+        else:
+            st.error("❌ **ERROR CRÍTICO:** El módulo no se pudo cargar")
+            st.info("Revisa la información de debug en el sidebar para más detalles")
+            
+            # Forzar recarga
+            if st.button("🔄 FORZAR RECARGA DEL MÓDULO"):
+                st.rerun()
 
     with tabs[4]:
         if st.button("Cerrar sesión"):
@@ -137,7 +247,7 @@ def panel_promotora(usuario):
             st.rerun()
 
 # ---------------------------------------------------------
-# PANEL ADMINISTRADORA - SIN Cierre de Ciclo
+# PANEL ADMINISTRADORA
 # ---------------------------------------------------------
 def panel_admin():
     st.title("🛡️ Panel de Administradora")
@@ -167,6 +277,17 @@ if st.session_state["sesion_iniciada"]:
     usuario = st.session_state.get("usuario", "Usuario")
     tipo = (st.session_state.get("tipo_usuario", "") or "").lower()
     cargo = (st.session_state.get("cargo_de_usuario", "") or "").upper()
+
+    # DEBUG INFO EN SIDEBAR
+    st.sidebar.write("### 👤 Información de Sesión")
+    st.sidebar.write(f"**Usuario:** {usuario}")
+    st.sidebar.write(f"**Tipo:** {tipo}")
+    st.sidebar.write(f"**Cargo:** {cargo}")
+    
+    if "id_promotora" in st.session_state:
+        st.sidebar.success(f"**ID Promotora:** {st.session_state.id_promotora}")
+    else:
+        st.sidebar.warning("⚠️ No hay id_promotora en session_state")
 
     if cargo == "SECRETARIA":
         panel_secretaria()
