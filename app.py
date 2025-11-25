@@ -9,6 +9,23 @@ from modulos.grupos import mostrar_grupos
 from modulos.reglamentos import mostrar_reglamentos
 from modulos.miembros import mostrar_miembro
 
+# Agregar importación del módulo ciclo (si existe)
+try:
+    from modulos.ciclo import mostrar_ciclo
+except ImportError:
+    # Si el módulo no existe, creamos una función temporal
+    def mostrar_ciclo():
+        st.warning("Módulo de Cierre de Ciclo en desarrollo")
+
+# Agregar importación del módulo consolidado promotora
+try:
+    from modulos.consolidado_promotora import mostrar_consolidado_promotora
+except ImportError:
+    # Si el módulo no existe, creamos una función temporal
+    def mostrar_consolidado_promotora():
+        st.warning("Módulo de Consolidado Promotora en desarrollo")
+
+
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
 # ---------------------------------------------------------
@@ -34,40 +51,6 @@ if "sesion_iniciada" not in st.session_state:
     st.session_state["sesion_iniciada"] = False
 if "pagina_actual" not in st.session_state:
     st.session_state["pagina_actual"] = "inicio"
-
-# ---------------------------------------------------------
-# DIAGNÓSTICO DE IMPORTS - TEMPORAL
-# ---------------------------------------------------------
-st.sidebar.title("🔍 Diagnóstico")
-
-# Agregar importación del módulo ciclo (si existe)
-try:
-    from modulos.ciclo import mostrar_ciclo
-    st.sidebar.success("✅ Módulo ciclo")
-except ImportError as e:
-    st.sidebar.error("❌ Módulo ciclo")
-    def mostrar_ciclo():
-        st.warning("Módulo de Cierre de Ciclo en desarrollo")
-
-# Agregar importación del módulo consolidado promotora - CON DIAGNÓSTICO VISIBLE
-try:
-    from modulos.consolidado_promotora import mostrar_consolidado_promotora
-    st.sidebar.success("✅ Módulo consolidado_promotora")
-    print("🎉 ¡Módulo consolidado_promotora importado EXITOSAMENTE!")
-except ImportError as e:
-    st.sidebar.error(f"❌ Módulo consolidado_promotora: {e}")
-    print(f"❌ ERROR importando consolidado_promotora: {e}")
-    
-    # Función temporal MEJORADA
-    def mostrar_consolidado_promotora():
-        st.error("🚨 Módulo Consolidado Promotora - ERROR DE CARGA")
-        st.write(f"**Error técnico:** {e}")
-        st.info("""
-        **Para solucionar:**
-        1. Verifica que el archivo `modulos/consolidado_promotora.py` exista
-        2. Revisa que el archivo tenga la función `mostrar_consolidado_promotora()`
-        3. Reinicia Streamlit con: `streamlit run app.py --server.clearCache`
-        """)
 
 # ---------------------------------------------------------
 # PANEL SECRETARIA
@@ -131,7 +114,8 @@ def panel_promotora(usuario):
 
     tabs = st.tabs([
         "📈 Dashboard",
-        "👩‍💼 Registro Promotora", 
+
+        "👩‍💼 Registro Promotora",
         "🏛️ Distrito",
         "📊 Consolidado Promotora",  # Nueva pestaña agregada
         "🚪 Cerrar sesión"
@@ -141,14 +125,10 @@ def panel_promotora(usuario):
         st.success(f"Bienvenida, {usuario} 🌟")
         st.info("📊 Dashboard general de promotoras en desarrollo...")
 
-    with tabs[1]: mostrar_promotora()
+    with tabs[1]: mostrar_distrito()
         
-    with tabs[2]: mostrar_distrito()
-    
-    with tabs[3]: 
-        st.subheader("📊 Consolidado de Promotora")
-        # Aquí se llamará a la función real o mostrará el error
-        mostrar_consolidado_promotora()
+    with tabs[2]: mostrar_promotora()
+    with tabs[3]: mostrar_consolidado_promotora()  # Solo visible para promotoras
 
     with tabs[4]:
         if st.button("Cerrar sesión"):
@@ -226,4 +206,3 @@ else:
     
     elif st.session_state["pagina_actual"] == "registro":
         registrar_usuario()
-        
