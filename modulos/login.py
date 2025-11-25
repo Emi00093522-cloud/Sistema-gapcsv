@@ -127,6 +127,90 @@ def validar_formato_dui(dui):
     return bool(re.match(patron, dui))
 
 
+def obtener_id_promotora_por_usuario(id_usuario):
+    """
+    Obtiene el ID de la Promotora asociada al usuario.
+    
+    Estrategias de búsqueda:
+    1. Por DUI (si la tabla Promotora tiene campo DUI)
+    2. Por nombre del usuario coincidente con nombre de promotora
+    3. Por relación directa ID_Usuario (si existe en la tabla Promotora)
+    
+    Retorna None si no es promotora o no se encuentra.
+    """
+    con = obtener_conexion()
+    if not con:
+        return None
+    
+    try:
+        cursor = con.cursor(dictionary=True)
+        
+        # Obtener información del usuario
+        cursor.execute("""
+            SELECT ID_Usuario, Usuario, DUI 
+            FROM Usuario 
+            WHERE ID_Usuario = %s
+        """, (id_usuario,))
+        
+        usuario_info = cursor.fetchone()
+        if not usuario_info:
+            return None
+        
+        # ESTRATEGIA 1: Buscar por DUI (si existe el campo en Promotora)
+        if usuario_info.get("DUI"):
+            try:
+                cursor.execute("""
+                    SELECT ID_Promotora FROM Promotora WHERE DUI = %s
+                """, (usuario_info["DUI"],))
+                
+                promotora_info = cursor.fetchone()
+                if promotora_info:
+                    return promotora_info["ID_Promotora"]
+            except:
+                pass  # La columna DUI no existe en Promotora
+        
+        # ESTRATEGIA 2: Buscar por coincidencia de nombre (case-insensitive)
+        # Limpiamos y comparamos los nombres
+        nombre_usuario = usuario_info["Usuario"].strip().lower()
+        
+        cursor.execute("""
+            SELECT ID_Promotora, nombre 
+            FROM Promotora
+        """)
+        
+        promotoras = cursor.fetchall()
+        
+        for promotora in promotoras:
+            nombre_promotora = promotora["nombre"].strip().lower()
+            # Verificar coincidencia exacta o si uno contiene al otro
+            if nombre_usuario == nombre_promotora or nombre_usuario in nombre_promotora or nombre_promotora in nombre_usuario:
+                return promotora["ID_Promotora"]
+        
+        # ESTRATEGIA 3: Buscar por ID_Usuario (si existe el campo en Promotora)
+        try:
+            cursor.execute("""
+                SELECT ID_Promotora FROM Promotora WHERE ID_Usuario = %s
+            """, (id_usuario,))
+            
+            promotora_info = cursor.fetchone()
+            if promotora_info:
+                return promotora_info["ID_Promotora"]
+        except:
+            pass  # La columna ID_Usuario no existe en Promotora
+        
+        # Si no se encontró, retornar None
+        return None
+        
+    except Exception as e:
+        st.warning(f"⚠️ Error al buscar promotora: {e}")
+        return None
+    finally:
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if con:
+            con.close()
+
+
 def login():
     """Interfaz del login."""
     st.title("Inicio de sesión 👩‍💼")
@@ -175,8 +259,10 @@ def login():
                 id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
                 st.session_state["id_grupo"] = id_grupo
 
-                # (Opcional) Debug temporal
-                # st.write("Debug - id_grupo:", id_grupo)
+                # 👉 Si es PROMOTORA, obtener su ID_Promotora
+                if datos_usuario["cargo"].upper() == "PROMOTORA" or datos_usuario["tipo_usuario"].lower() == "promotora":
+                    id_promotora = obtener_id_promotora_por_usuario(datos_usuario["ID_Usuario"])
+                    st.session_state["id_promotora"] = id_promotora
 
                 # Obtener permisos
                 from modulos.permisos import obtener_permisos_usuario
