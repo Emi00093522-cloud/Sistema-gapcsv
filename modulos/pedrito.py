@@ -1,8 +1,8 @@
-
 import streamlit as st
 
 # Importar módulos de cada panel
 from distrito import mostrar_distrito            # para PROMOTORA
+from consolidado_promotora import mostrar_consolidado_promotora  # NUEVO MÓDULO
 
 from grupos import mostrar_grupos                # para SECRETARIA
 from miembros import mostrar_miembros
@@ -21,11 +21,15 @@ def panel_promotora(usuario, dui):
 
     st.write(f"Promotora: **{usuario}** — DUI: **{dui}**")
 
-    menu = st.tabs(["Distritos"])
+    menu = st.tabs(["Distritos", "Consolidado Promotora"])  # NUEVA PESTAÑA AÑADIDA
 
     with menu[0]:
         st.header("Gestión de Distritos")
         mostrar_distrito()
+    
+    with menu[1]:  # NUEVA PESTAÑA
+        st.header("Consolidado Financiero")
+        mostrar_consolidado_promotora()
 
 
 # -----------------------------
@@ -77,7 +81,8 @@ def panel_admin(usuario, dui):
 
     # Menú con todas las funciones de Promotora y Secretaría
     menu = st.tabs([
-        "Distritos", 
+        "Distritos" 
+        # Se eliminó "Consolidado Promotora" del administrador
     ])
 
     with menu[0]:
