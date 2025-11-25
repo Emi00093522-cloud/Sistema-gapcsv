@@ -21,20 +21,20 @@ def obtener_grupos_promotora(id_promotora):
         return grupos
         
     except Exception as e:
-        st.error(f"❌ Error obteniendo grupos: {e}")
+        st.error(f"Error obteniendo grupos: {e}")
         return []
     finally:
         if 'cursor' in locals(): cursor.close()
         if 'con' in locals(): con.close()
 
-def obtener_total_ahorros_grupo(id_grupo, fecha_inicio, fecha_fin):
-    """Obtiene la sumatoria de TODOS los ahorros realizados"""
+def obtener_total_ahorros(id_grupo, fecha_inicio, fecha_fin):
+    """Obtiene total de ahorros del módulo ahorros.py"""
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT COALESCE(SUM(a.monto_ahorro), 0) as total_ahorros
+            SELECT COALESCE(SUM(a.monto_ahorro), 0) as total
             FROM Ahorro a
             JOIN Reunion r ON a.ID_Reunion = r.ID_Reunion
             WHERE r.ID_Grupo = %s 
@@ -42,23 +42,23 @@ def obtener_total_ahorros_grupo(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total_ahorros']) if resultado else 0.0
+        return float(resultado['total']) if resultado else 0.0
         
     except Exception as e:
-        st.error(f"❌ Error obteniendo ahorros: {e}")
+        st.error(f"Error en ahorros: {e}")
         return 0.0
     finally:
         if 'cursor' in locals(): cursor.close()
         if 'con' in locals(): con.close()
 
-def obtener_total_prestamos_grupo(id_grupo, fecha_inicio, fecha_fin):
-    """Obtiene la sumatoria de TODOS los préstamos hechos"""
+def obtener_total_prestamos(id_grupo, fecha_inicio, fecha_fin):
+    """Obtiene total de préstamos del módulo prestamos.py"""
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT COALESCE(SUM(p.monto), 0) as total_prestamos
+            SELECT COALESCE(SUM(p.monto), 0) as total
             FROM Prestamo p
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE m.ID_Grupo = %s 
@@ -66,23 +66,23 @@ def obtener_total_prestamos_grupo(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total_prestamos']) if resultado else 0.0
+        return float(resultado['total']) if resultado else 0.0
         
     except Exception as e:
-        st.error(f"❌ Error obteniendo préstamos: {e}")
+        st.error(f"Error en préstamos: {e}")
         return 0.0
     finally:
         if 'cursor' in locals(): cursor.close()
         if 'con' in locals(): con.close()
 
-def obtener_total_pagos_prestamos_grupo(id_grupo, fecha_inicio, fecha_fin):
-    """Obtiene el total de TODOS los préstamos pagados"""
+def obtener_total_pagos_prestamos(id_grupo, fecha_inicio, fecha_fin):
+    """Obtiene total de pagos de préstamos del módulo pagoprestamo.py"""
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT COALESCE(SUM(pp.total_cancelado), 0) as total_pagos
+            SELECT COALESCE(SUM(pp.total_cancelado), 0) as total
             FROM Pago_prestamo pp
             JOIN Prestamo p ON pp.ID_Prestamo = p.ID_Prestamo
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
@@ -91,23 +91,23 @@ def obtener_total_pagos_prestamos_grupo(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total_pagos']) if resultado else 0.0
+        return float(resultado['total']) if resultado else 0.0
         
     except Exception as e:
-        st.error(f"❌ Error obteniendo pagos de préstamos: {e}")
+        st.error(f"Error en pagos de préstamos: {e}")
         return 0.0
     finally:
         if 'cursor' in locals(): cursor.close()
         if 'con' in locals(): con.close()
 
-def obtener_total_multas_grupo(id_grupo, fecha_inicio, fecha_fin):
-    """Obtiene el total de TODAS las multas hechas"""
+def obtener_total_multas(id_grupo, fecha_inicio, fecha_fin):
+    """Obtiene total de multas del módulo pagomulta.py"""
     try:
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT COALESCE(SUM(pm.monto_pagado), 0) as total_multas
+            SELECT COALESCE(SUM(pm.monto_pagado), 0) as total
             FROM PagoMulta pm
             JOIN Miembro m ON pm.ID_Miembro = m.ID_Miembro
             WHERE m.ID_Grupo = %s 
@@ -115,17 +115,17 @@ def obtener_total_multas_grupo(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total_multas']) if resultado else 0.0
+        return float(resultado['total']) if resultado else 0.0
         
     except Exception as e:
-        st.error(f"❌ Error obteniendo multas: {e}")
+        st.error(f"Error en multas: {e}")
         return 0.0
     finally:
         if 'cursor' in locals(): cursor.close()
         if 'con' in locals(): con.close()
 
 def mostrar_consolidado_promotora():
-    """Función principal que muestra el consolidado simplificado"""
+    """Función principal del consolidado de promotora"""
     
     st.header("📊 Consolidado de Promotora")
     
@@ -143,7 +143,7 @@ def mostrar_consolidado_promotora():
         st.warning("⚠️ No tienes grupos asignados. Contacta al administrador.")
         return
     
-    # Filtro de fechas - PRIMERA FILA
+    # PRIMERA FILA: Filtros de fecha
     st.subheader("📅 Seleccionar Período de Análisis")
     
     col1, col2 = st.columns(2)
@@ -153,40 +153,42 @@ def mostrar_consolidado_promotora():
             "Fecha de Inicio",
             value=datetime.now().date() - timedelta(days=30),
             max_value=datetime.now().date(),
+            key="fecha_inicio_consolidado"
         )
     
     with col2:
         fecha_fin = st.date_input(
-            "Fecha de Fin",
+            "Fecha de Fin", 
             value=datetime.now().date(),
             max_value=datetime.now().date(),
+            key="fecha_fin_consolidado"
         )
     
     if fecha_inicio > fecha_fin:
         st.error("❌ La fecha de inicio no puede ser mayor que la fecha de fin")
         return
     
-    # Selector de grupo - SEGUNDA FILA
+    # SEGUNDA FILA: Selector de grupo
     st.subheader("🏢 Seleccionar Grupo")
     
     grupo_options = {f"{g['nombre_grupo']}": g['ID_Grupo'] for g in grupos}
     grupo_seleccionado = st.selectbox(
         "Selecciona el grupo a analizar:",
         options=list(grupo_options.keys()),
-        key="grupo_selector"
+        key="grupo_selector_consolidado"
     )
     
     id_grupo_seleccionado = grupo_options[grupo_seleccionado]
     
     st.markdown("---")
     
-    # Obtener datos automáticamente al seleccionar grupo y fechas
+    # Obtener datos automáticamente
     with st.spinner("📊 Calculando datos consolidados..."):
-        # Obtener los 4 datos específicos que necesitas
-        total_ahorros = obtener_total_ahorros_grupo(id_grupo_seleccionado, fecha_inicio, fecha_fin)
-        total_prestamos = obtener_total_prestamos_grupo(id_grupo_seleccionado, fecha_inicio, fecha_fin)
-        total_pagos_prestamos = obtener_total_pagos_prestamos_grupo(id_grupo_seleccionado, fecha_inicio, fecha_fin)
-        total_multas = obtener_total_multas_grupo(id_grupo_seleccionado, fecha_inicio, fecha_fin)
+        # Obtener los 4 datos específicos de cada módulo
+        total_ahorros = obtener_total_ahorros(id_grupo_seleccionado, fecha_inicio, fecha_fin)
+        total_prestamos = obtener_total_prestamos(id_grupo_seleccionado, fecha_inicio, fecha_fin)
+        total_pagos_prestamos = obtener_total_pagos_prestamos(id_grupo_seleccionado, fecha_inicio, fecha_fin)
+        total_multas = obtener_total_multas(id_grupo_seleccionado, fecha_inicio, fecha_fin)
     
     # Mostrar métricas principales
     st.subheader(f"💰 Resumen Financiero - {grupo_seleccionado}")
@@ -226,11 +228,11 @@ def mostrar_consolidado_promotora():
     # GRÁFICO DE BARRAS COMPARATIVO
     st.subheader("📊 Comparativa de Desempeño del Grupo")
     
-    # Preparar datos para el gráfico
+    # Preparar datos para el gráfico - SIEMPRE mostrar aunque sean 0
     datos_grafico = {
         'Categoría': ['Ahorros', 'Préstamos', 'Pagos Préstamos', 'Multas'],
         'Monto': [total_ahorros, total_prestamos, total_pagos_prestamos, total_multas],
-        'Color': ['#00CC96', '#636EFA', '#EF553B', '#AB63FA']  # Colores distintivos
+        'Color': ['#00CC96', '#636EFA', '#EF553B', '#AB63FA']
     }
     
     df_grafico = pd.DataFrame(datos_grafico)
@@ -263,8 +265,12 @@ def mostrar_consolidado_promotora():
         paper_bgcolor='rgba(0,0,0,0)',
     )
     
-    # Mostrar gráfico
+    # Mostrar gráfico (SIEMPRE mostrarlo aunque los datos sean 0)
     st.plotly_chart(fig, use_container_width=True)
+    
+    # Mostrar mensaje si no hay datos
+    if total_ahorros == 0 and total_prestamos == 0 and total_pagos_prestamos == 0 and total_multas == 0:
+        st.info("💡 **Nota:** No se encontraron datos en el período seleccionado. El gráfico se actualizará automáticamente cuando se registren datos.")
     
     # Tabla resumen debajo del gráfico
     st.subheader("📋 Detalle de Montos")
@@ -289,10 +295,17 @@ def mostrar_consolidado_promotora():
     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
     
     # Información del período
-    st.info(f"**Período analizado:** {fecha_inicio} al {fecha_fin}")
+    st.info(f"**📅 Período analizado:** {fecha_inicio} al {fecha_fin}")
+    
+    # Botón para actualizar datos
+    if st.button("🔄 Actualizar Datos", use_container_width=True):
+        st.rerun()
 
 # Para pruebas independientes
 if __name__ == "__main__":
-    # Simular que hay una promotora logueada
-    st.session_state.id_promotora = 1
+    # Simular que hay una promotora logueada para pruebas
+    if 'id_promotora' not in st.session_state:
+        st.session_state.id_promotora = 1
+        st.info("🔧 **MODO PRUEBA:** Usando ID de promotora = 1")
+    
     mostrar_consolidado_promotora()
