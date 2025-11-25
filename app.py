@@ -1,5 +1,3 @@
-que promotora y administrador ya no puedan ver cierre de ciclo
-
 import streamlit as st
 from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
