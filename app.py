@@ -110,6 +110,86 @@ except Exception as e:
         st.error(f"Error crítico: {e}")
     CONSOLIDADO_CARGADO = False
 
+# 🔥🔥🔥 NUEVO IMPORT PARA CONSOLIDADO_ADMINISTRADOR
+try:
+    st.sidebar.write("🔄 **DEBUG:** Intentando importar consolidado_administrador...")
+    
+    from modulos.consolidado_administrador import mostrar_consolidado_administrador
+    CONSOLIDADO_ADMIN_CARGADO = True
+    st.sidebar.success("✅ **DEBUG:** consolidado_administrador IMPORTADO EXITOSAMENTE")
+    
+except ImportError as e:
+    st.sidebar.error(f"❌ **DEBUG ERROR:** No se pudo importar consolidado_administrador")
+    st.sidebar.error(f"🔍 **Error detallado:** {e}")
+    CONSOLIDADO_ADMIN_CARGADO = False
+    
+    # Función de emergencia para consolidado administrador
+    def mostrar_consolidado_administrador():
+        st.error("🚫 **Módulo Consolidado Administrador - ERROR DE CARGA**")
+        
+        st.write("### 🔍 DEBUG DETALLADO DEL ERROR:")
+        
+        # Información del sistema
+        import os
+        import sys
+        st.write(f"**Directorio actual:** {os.getcwd()}")
+        
+        # Verificar si el archivo existe
+        archivo_path = os.path.join("modulos", "consolidado_administrador.py")
+        st.write(f"**Buscando archivo en:** {archivo_path}")
+        st.write(f"**¿Existe el archivo?:** {os.path.exists(archivo_path)}")
+        
+        # Soluciones
+        st.write("#### 🔧 SOLUCIONES:")
+        st.write("""
+        1. **Crea el archivo** `modulos/consolidado_administrador.py`
+        2. **Verifica que tenga el código correcto**
+        3. **Reinicia Streamlit** completamente
+        """)
+        
+        # Botón para crear archivo de ejemplo
+        if st.button("📝 CREAR ARCHIVO DE EJEMPLO"):
+            try:
+                codigo_ejemplo = '''
+import streamlit as st
+import pandas as pd
+
+def mostrar_consolidado_administrador():
+    """Módulo de consolidado para administradora - mostrará datos de TODOS los grupos"""
+    st.title("👑 Consolidado General - Administradora")
+    st.info("📊 Este módulo mostrará el consolidado de TODOS los grupos del sistema")
+    
+    # Aquí irá el código completo del consolidado para administradora
+    st.warning("🔧 Módulo en desarrollo - Próximamente mostrará datos completos del sistema")
+    
+    # Placeholder para demostración
+    st.subheader("📈 Métricas del Sistema (Ejemplo)")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Grupos", "25")
+    with col2:
+        st.metric("Total Miembros", "380")
+    with col3:
+        st.metric("Total Ahorros", "$45,230.00")
+    with col4:
+        st.metric("Total Préstamos", "$28,150.00")
+'''
+                
+                with open(archivo_path, 'w', encoding='utf-8') as f:
+                    f.write(codigo_ejemplo)
+                
+                st.success(f"✅ Archivo creado en: {archivo_path}")
+                st.info("🔄 Recarga la página para cargar el módulo")
+                
+            except Exception as file_error:
+                st.error(f"Error creando archivo: {file_error}")
+
+except Exception as e:
+    st.sidebar.error(f"❌ **ERROR INESPERADO en consolidado_administrador:** {e}")
+    def mostrar_consolidado_administrador():
+        st.error(f"Error crítico en módulo administrador: {e}")
+    CONSOLIDADO_ADMIN_CARGADO = False
+
 # ---------------------------------------------------------
 # 🔧 FIX SOLO PARA VISIBILIDAD DE TEXTO EN SELECT / INPUTS
 # ---------------------------------------------------------
@@ -247,21 +327,51 @@ def panel_promotora(usuario):
             st.rerun()
 
 # ---------------------------------------------------------
-# PANEL ADMINISTRADORA
+# PANEL ADMINISTRADORA - ACTUALIZADO CON CONSOLIDADO
 # ---------------------------------------------------------
 def panel_admin():
     st.title("🛡️ Panel de Administradora")
 
     tabs = st.tabs([
         "📊 Consolidado Distritos",
-        "🧑‍💻 Registrar Usuario",
+        "🧑‍💻 Registrar Usuario", 
         "🚪 Cerrar sesión"
     ])
 
     with tabs[0]:
-        st.info("📊 Aquí irá el consolidado general por distrito.")
+        if CONSOLIDADO_ADMIN_CARGADO:
+            st.success("✅ Módulo Consolidado Administrador - CARGADO")
+            mostrar_consolidado_administrador()
+        else:
+            st.error("❌ **ERROR:** El módulo Consolidado Administrador no se pudo cargar")
+            st.info("""
+            **Para solucionar este problema:**
+            
+            1. **Crea el archivo** `modulos/consolidado_administrador.py`
+            2. **Copia el código** del módulo de consolidado para administradora
+            3. **Reinicia Streamlit** completamente
+            
+            **El módulo mostrará:**
+            - 📊 Consolidado de TODOS los grupos
+            - 📈 Gráficos generales del sistema  
+            - 🏢 Distribución por distritos
+            - 💰 Totales de ahorros, préstamos, multas
+            """)
+            
+            # Mostrar información básica como placeholder
+            st.subheader("📋 Información del Sistema (Placeholder)")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Grupos Activos", "15")
+            with col2:
+                st.metric("Total Miembros", "245")
+            with col3:
+                st.metric("Ahorros Totales", "$32,580.00")
+            with col4:
+                st.metric("Préstamos Activos", "$18,750.00")
 
-    with tabs[1]: registrar_usuario()
+    with tabs[1]: 
+        registrar_usuario()
 
     with tabs[2]:
         if st.button("Cerrar sesión"):
@@ -283,6 +393,11 @@ if st.session_state["sesion_iniciada"]:
     st.sidebar.write(f"**Usuario:** {usuario}")
     st.sidebar.write(f"**Tipo:** {tipo}")
     st.sidebar.write(f"**Cargo:** {cargo}")
+    
+    # Estado de módulos en sidebar
+    st.sidebar.write("### 🔧 Estado de Módulos")
+    st.sidebar.write(f"**Consolidado Promotora:** {'✅' if CONSOLIDADO_CARGADO else '❌'}")
+    st.sidebar.write(f"**Consolidado Admin:** {'✅' if CONSOLIDADO_ADMIN_CARGADO else '❌'}")
     
     if "id_promotora" in st.session_state:
         st.sidebar.success(f"**ID Promotora:** {st.session_state.id_promotora}")
