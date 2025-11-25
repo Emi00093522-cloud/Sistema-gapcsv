@@ -18,6 +18,12 @@ def obtener_grupos_promotora(id_promotora):
         """, (id_promotora,))
         
         grupos = cursor.fetchall()
+        
+        # DEBUG: Mostrar qué grupos encontró
+        st.sidebar.write(f"🔍 Grupos encontrados: {len(grupos)}")
+        for grupo in grupos:
+            st.sidebar.write(f"   - {grupo['nombre_grupo']} (ID: {grupo['ID_Grupo']})")
+        
         return grupos
         
     except Exception as e:
@@ -42,7 +48,9 @@ def obtener_total_ahorros(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total']) if resultado else 0.0
+        total = float(resultado['total']) if resultado else 0.0
+        st.sidebar.write(f"💰 Ahorros grupo {id_grupo}: ${total:,.2f}")
+        return total
         
     except Exception as e:
         st.error(f"Error en ahorros: {e}")
@@ -66,7 +74,9 @@ def obtener_total_prestamos(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total']) if resultado else 0.0
+        total = float(resultado['total']) if resultado else 0.0
+        st.sidebar.write(f"🏦 Préstamos grupo {id_grupo}: ${total:,.2f}")
+        return total
         
     except Exception as e:
         st.error(f"Error en préstamos: {e}")
@@ -91,7 +101,9 @@ def obtener_total_pagos_prestamos(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total']) if resultado else 0.0
+        total = float(resultado['total']) if resultado else 0.0
+        st.sidebar.write(f"💵 Pagos préstamos grupo {id_grupo}: ${total:,.2f}")
+        return total
         
     except Exception as e:
         st.error(f"Error en pagos de préstamos: {e}")
@@ -115,7 +127,9 @@ def obtener_total_multas(id_grupo, fecha_inicio, fecha_fin):
         """, (id_grupo, fecha_inicio, fecha_fin))
         
         resultado = cursor.fetchone()
-        return float(resultado['total']) if resultado else 0.0
+        total = float(resultado['total']) if resultado else 0.0
+        st.sidebar.write(f"⚖️ Multas grupo {id_grupo}: ${total:,.2f}")
+        return total
         
     except Exception as e:
         st.error(f"Error en multas: {e}")
@@ -127,21 +141,65 @@ def obtener_total_multas(id_grupo, fecha_inicio, fecha_fin):
 def mostrar_consolidado_promotora():
     """Función principal del consolidado de promotora"""
     
-    st.header("📊 Consolidado de Promotora")
+    st.header("📊 Consolidado de Promotora - DEBUG")
     
-    # Verificar que la promotora esté logueada
+    # DEBUG: Mostrar session_state completo
+    st.sidebar.subheader("🔍 DEBUG Session State")
+    st.sidebar.write(st.session_state)
+    
+    # Verificar que la promotora esté logueada - MÚLTIPLES FORMAS
     if 'id_promotora' not in st.session_state:
-        st.error("🔒 Debes iniciar sesión como promotora para acceder a este panel")
+        st.error("🔒 ERROR: No hay 'id_promotora' en session_state")
+        
+        # Intentar otras posibles formas de identificar promotora
+        if 'usuario_actual' in st.session_state:
+            st.info(f"💡 Hay 'usuario_actual': {st.session_state.usuario_actual}")
+        if 'user_id' in st.session_state:
+            st.info(f"💡 Hay 'user_id': {st.session_state.user_id}")
+        if 'id_grupo' in st.session_state:
+            st.info(f"💡 Hay 'id_grupo': {st.session_state.id_grupo}")
+            
+        st.info("""
+        **Posibles soluciones:**
+        1. Inicia sesión como promotora
+        2. Verifica que el login guarde 'id_promotora' en session_state
+        3. O usa este ID de prueba:
+        """)
+        
+        # Botón para usar ID de prueba
+        if st.button("🧪 Usar ID de Prueba (1)"):
+            st.session_state.id_promotora = 1
+            st.rerun()
+            
         return
     
     id_promotora = st.session_state.id_promotora
+    st.success(f"✅ Promotora ID: {id_promotora}")
     
     # Obtener grupos de la promotora
+    st.write("🔄 Buscando grupos...")
     grupos = obtener_grupos_promotora(id_promotora)
     
     if not grupos:
-        st.warning("⚠️ No tienes grupos asignados. Contacta al administrador.")
+        st.error("❌ ERROR: No se encontraron grupos para esta promotora")
+        st.info("""
+        **Posibles causas:**
+        1. No tienes grupos asignados en la base de datos
+        2. El ID de promotora no existe en la tabla Grupo
+        3. Hay error en la conexión a la base de datos
+        """)
+        
+        # Mostrar consulta SQL para debug
+        st.code("""
+        CONSULTA SQL EJECUTADA:
+        SELECT g.ID_Grupo, g.nombre_grupo, g.descripcion
+        FROM Grupo g
+        WHERE g.ID_Promotora = %s
+        """, language='sql')
+        
         return
+    
+    st.success(f"✅ Se encontraron {len(grupos)} grupo(s)")
     
     # PRIMERA FILA: Filtros de fecha
     st.subheader("📅 Seleccionar Período de Análisis")
@@ -171,7 +229,7 @@ def mostrar_consolidado_promotora():
     # SEGUNDA FILA: Selector de grupo
     st.subheader("🏢 Seleccionar Grupo")
     
-    grupo_options = {f"{g['nombre_grupo']}": g['ID_Grupo'] for g in grupos}
+    grupo_options = {f"{g['nombre_grupo']} (ID: {g['ID_Grupo']})": g['ID_Grupo'] for g in grupos}
     grupo_seleccionado = st.selectbox(
         "Selecciona el grupo a analizar:",
         options=list(grupo_options.keys()),
@@ -183,7 +241,8 @@ def mostrar_consolidado_promotora():
     st.markdown("---")
     
     # Obtener datos automáticamente
-    with st.spinner("📊 Calculando datos consolidados..."):
+    st.write("📊 Consultando datos financieros...")
+    with st.spinner("Calculando datos consolidados..."):
         # Obtener los 4 datos específicos de cada módulo
         total_ahorros = obtener_total_ahorros(id_grupo_seleccionado, fecha_inicio, fecha_fin)
         total_prestamos = obtener_total_prestamos(id_grupo_seleccionado, fecha_inicio, fecha_fin)
@@ -296,10 +355,6 @@ def mostrar_consolidado_promotora():
     
     # Información del período
     st.info(f"**📅 Período analizado:** {fecha_inicio} al {fecha_fin}")
-    
-    # Botón para actualizar datos
-    if st.button("🔄 Actualizar Datos", use_container_width=True):
-        st.rerun()
 
 # Para pruebas independientes
 if __name__ == "__main__":
