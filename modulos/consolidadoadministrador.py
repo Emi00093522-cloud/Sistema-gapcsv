@@ -808,4 +808,136 @@ def pestaña_ciclo_activo():
         st.session_state.mostrar_resumen = True
     
     if st.session_state.mostrar_resumen:
-        datos_ciclo = mostrar_resumen_completo(fecha_in
+        datos_ciclo = mostrar_resumen_completo(fecha_inicio, fecha_fin)
+        if datos_ciclo is None:
+            return
+        
+        st.markdown("---")
+        st.write("### ✅ Confirmar Cierre Definitivo")
+        
+        if st.button("🔐 CONFIRMAR CIERRE DEL CICLO", type="primary", use_container_width=True):
+            ciclo_cerrado = {
+                "numero_ciclo": st.session_state.ciclo_actual_numero,
+                "datos":        datos_ciclo,
+                "fecha_cierre": datos_ciclo["fecha_cierre"],
+                "rango_fechas": f"{datos_ciclo['fecha_inicio']} a {datos_ciclo['fecha_fin']}",
+            }
+            st.session_state.ciclos_cerrados.append(ciclo_cerrado)
+            st.session_state.ciclo_actual_numero += 1
+            st.session_state.mostrar_resumen = False
+            
+            st.success("🎉 ¡Ciclo cerrado exitosamente! Se ha iniciado un nuevo ciclo.")
+            st.balloons()
+            st.info("📁 Puedes ver el historial en la pestaña 'Registro de Ciclos Cerrados'.")
+
+def pestaña_ciclos_cerrados():
+    """Pestaña 2: Registro de Ciclos Cerrados - Historial del grupo del usuario."""
+    st.header("📁 Registro de Ciclos Cerrados")
+    
+    if not verificar_grupo_usuario():
+        return
+    
+    if not st.session_state.ciclos_cerrados:
+        st.info("ℹ️ No hay ciclos cerrados registrados. Los ciclos cerrados aparecerán aquí.")
+        return
+    
+    for i, ciclo in enumerate(st.session_state.ciclos_cerrados):
+        with st.expander(
+            f"📊 Ciclo {ciclo['numero_ciclo']} - {ciclo['rango_fechas']} - {ciclo['fecha_cierre']}",
+            expanded=(i == 0),
+        ):
+            datos = ciclo["datos"]
+            
+            st.write(
+                f"**Ciclo {ciclo['numero_ciclo']} - Rango: {ciclo['rango_fechas']} - Cerrado el: {ciclo['fecha_cierre']}**"
+            )
+            
+            # Mostrar gráficos para ciclos cerrados también
+            crear_graficos_consolidado(
+                datos['ahorros_totales'], 
+                datos['multas_totales'], 
+                datos['prestamos_capital'], 
+                datos['prestamos_intereses'], 
+                datos['pagos_prestamos_totales'],
+                datos['fecha_inicio'],
+                datos['fecha_fin']
+            )
+            
+            # Consolidado
+            st.write("#### 📋 Tabla de Consolidado")
+            resumen_data = {
+                "Concepto": [
+                    "💰 Total de Ahorros",
+                    "⚖️ Total de Multas",
+                    "🏦 Total Préstamos (Capital)",
+                    "📈 Total Intereses",
+                    "💸 Total Pagos de Préstamos",
+                    "💵 **TOTAL INGRESOS**",
+                    "📊 **FLUJO NETO**"
+                ],
+                "Monto": [
+                    f"${datos['ahorros_totales']:,.2f}",
+                    f"${datos['multas_totales']:,.2f}",
+                    f"${datos['prestamos_capital']:,.2f}",
+                    f"${datos['prestamos_intereses']:,.2f}",
+                    f"${datos['pagos_prestamos_totales']:,.2f}",
+                    f"**${datos['total_ingresos']:,.2f}**",
+                    f"**${datos['total_ingresos'] - datos['pagos_prestamos_totales']:,.2f}**"
+                ],
+            }
+            df_resumen = pd.DataFrame(resumen_data)
+            st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+            
+            # Métricas
+            st.write("#### 📈 Métricas del Ciclo")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Ahorros", f"${datos['ahorros_totales']:,.2f}")
+            with col2:
+                st.metric("Multas", f"${datos['multas_totales']:,.2f}")
+            with col3:
+                st.metric("Préstamos", f"${datos['prestamos_capital']:,.2f}")
+            with col4:
+                st.metric("Intereses", f"${datos['prestamos_intereses']:,.2f}")
+            
+            # Ahorros por miembro
+            if datos["ahorros_por_miembro"]:
+                st.write("#### 📊 Ahorros por Miembro")
+                tabla_data = {
+                    "Miembro":       [m["miembro"] for m in datos["ahorros_por_miembro"]],
+                    "Total Ahorros": [f"${m['total_ahorros']:,.2f}" for m in datos["ahorros_por_miembro"]],
+                    "Total Otros":   [f"${m['total_otros']:,.2f}" for m in datos["ahorros_por_miembro"]],
+                    "TOTAL":         [f"${m['total_general']:,.2f}" for m in datos["ahorros_por_miembro"]],
+                }
+                df_tabla = pd.DataFrame(tabla_data)
+                st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+            
+            # Distribución de beneficios
+            if datos["distribucion_por_miembro"] > 0:
+                st.write("#### 📊 Distribución de Beneficios")
+                st.info(f"**Distribución por miembro: ${datos['distribucion_por_miembro']:,.2f}**")
+
+# =============================================
+#  FUNCIÓN PRINCIPAL
+# =============================================
+
+def mostrar_ciclo():
+    """Función principal que llama app.py - SOLO PARA EL GRUPO DEL USUARIO."""
+    if not verificar_grupo_usuario():
+        return
+        
+    verificar_modulos()
+    inicializar_session_state()
+    
+    tab1, tab2 = st.tabs(
+        ["🔒 Cierre de Ciclo Activo", "📁 Registro de Ciclos Cerrados"]
+    )
+    
+    with tab1:
+        pestaña_ciclo_activo()
+    
+    with tab2:
+        pestaña_ciclos_cerrados()
+
+if __name__ == "__main__":
+    mostrar_ciclo()
