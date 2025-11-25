@@ -171,12 +171,17 @@ def login():
                 st.session_state["cargo_de_usuario"] = datos_usuario["cargo"]
                 st.session_state["id_usuario"] = datos_usuario["ID_Usuario"]
 
-                # 👉 Obtener el grupo asociado a este usuario
-                id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
-                st.session_state["id_grupo"] = id_grupo
-
-                # (Opcional) Debug temporal
-                # st.write("Debug - id_grupo:", id_grupo)
+                # 👉 VERIFICACIÓN ESPECIAL PARA USUARIO PROMOTORA
+                if datos_usuario["cargo"] == "Promotora":
+                    # Usuario Promotora puede ver TODOS los grupos
+                    st.session_state["id_grupo"] = "TODOS_LOS_GRUPOS"
+                    st.session_state["acceso_total_promotora"] = True
+                    st.info("🔓 Modo Promotora: Acceso completo a todos los grupos")
+                else:
+                    # Para otros usuarios, obtener el grupo normalmente
+                    id_grupo = obtener_id_grupo_por_usuario(datos_usuario["ID_Usuario"])
+                    st.session_state["id_grupo"] = id_grupo
+                    st.session_state["acceso_total_promotora"] = False
 
                 # Obtener permisos
                 from modulos.permisos import obtener_permisos_usuario
