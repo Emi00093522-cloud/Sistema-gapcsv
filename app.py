@@ -114,9 +114,10 @@ def panel_promotora(usuario):
 
     tabs = st.tabs([
         "📈 Dashboard",
-        "📊 Consolidado Promotora",  # Nueva pestaña agregada
+
         "👩‍💼 Registro Promotora",
         "🏛️ Distrito",
+        "📊 Consolidado Promotora",  # Nueva pestaña agregada
         "🚪 Cerrar sesión"
     ])
 
@@ -124,10 +125,10 @@ def panel_promotora(usuario):
         st.success(f"Bienvenida, {usuario} 🌟")
         st.info("📊 Dashboard general de promotoras en desarrollo...")
 
-    with tabs[1]: 
-        mostrar_consolidado_promotora()  # Solo visible para promotoras
+    with tabs[1]: mostrar_distrito()
+        
     with tabs[2]: mostrar_promotora()
-    with tabs[3]: mostrar_distrito()
+    with tabs[3]: mostrar_consolidado_promotora()  # Solo visible para promotoras
 
     with tabs[4]:
         if st.button("Cerrar sesión"):
