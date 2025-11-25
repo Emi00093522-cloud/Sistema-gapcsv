@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import sys
 import os
@@ -256,7 +258,7 @@ def mostrar_consolidado_promotora():
             return 0
     
     # =============================================
-    # 6. GENERAR REPORTE
+    # 6. GENERAR REPORTE CON GRÁFICOS
     # =============================================
     
     if st.button("🚀 GENERAR REPORTE CONSOLIDADO", type="primary", use_container_width=True):
@@ -373,6 +375,135 @@ def mostrar_consolidado_promotora():
                 with col3:
                     st.metric("Intereses", f"${totales['intereses']:,.2f}")
                     st.metric("TOTAL GENERAL", f"${totales['general']:,.2f}")
+            
+            # =============================================
+            # 7. GRÁFICOS INTERACTIVOS
+            # =============================================
+            st.subheader("📊 Gráficos de Consolidado")
+            
+            # Preparar datos para gráficos
+            df_graficos = pd.DataFrame(datos_consolidado)
+            
+            # Gráfico 1: Distribución por categorías (Barras apiladas)
+            st.markdown("#### 💰 Distribución Financiera por Grupo")
+            
+            fig_barras = go.Figure(data=[
+                go.Bar(name='Ahorros', x=df_graficos['nombre_grupo'], y=df_graficos['total_ahorros'], 
+                       marker_color='#2E86AB'),
+                go.Bar(name='Préstamos', x=df_graficos['nombre_grupo'], y=df_graficos['total_prestamos'], 
+                       marker_color='#A23B72'),
+                go.Bar(name='Intereses', x=df_graficos['nombre_grupo'], y=df_graficos['total_intereses'], 
+                       marker_color='#F18F01'),
+                go.Bar(name='Multas', x=df_graficos['nombre_grupo'], y=df_graficos['total_multas'], 
+                       marker_color='#C73E1D')
+            ])
+            
+            fig_barras.update_layout(
+                title="Distribución Financiera por Grupo",
+                xaxis_title="Grupos",
+                yaxis_title="Monto ($)",
+                barmode='stack',
+                height=500,
+                showlegend=True
+            )
+            
+            st.plotly_chart(fig_barras, use_container_width=True)
+            
+            # Gráfico 2: Comparación de totales por grupo
+            st.markdown("#### 📈 Comparación de Totales por Grupo")
+            
+            fig_totales = px.bar(
+                df_graficos, 
+                x='nombre_grupo', 
+                y='total_general',
+                title="Total General por Grupo",
+                color='total_general',
+                color_continuous_scale='Viridis'
+            )
+            
+            fig_totales.update_layout(
+                xaxis_title="Grupos",
+                yaxis_title="Total General ($)",
+                height=400
+            )
+            
+            st.plotly_chart(fig_totales, use_container_width=True)
+            
+            # Gráfico 3: Pie chart de distribución general
+            st.markdown("#### 🥧 Distribución General de Ingresos")
+            
+            categorias_totales = {
+                'Ahorros': totales['ahorros'],
+                'Préstamos': totales['prestamos'],
+                'Intereses': totales['intereses'],
+                'Multas': totales['multas']
+            }
+            
+            # Filtrar categorías con valores mayores a 0
+            categorias_filtradas = {k: v for k, v in categorias_totales.items() if v > 0}
+            
+            if categorias_filtradas:
+                fig_pie = px.pie(
+                    names=list(categorias_filtradas.keys()),
+                    values=list(categorias_filtradas.values()),
+                    title="Distribución Porcentual de Ingresos",
+                    color_discrete_sequence=px.colors.qualitative.Set3
+                )
+                
+                fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                fig_pie.update_layout(height=500)
+                
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.info("No hay datos suficientes para mostrar el gráfico circular")
+            
+            # Gráfico 4: Relación Miembros vs Ahorros
+            st.markdown("#### 👥 Relación Miembros vs Ahorros")
+            
+            fig_scatter = px.scatter(
+                df_graficos,
+                x='total_miembros',
+                y='total_ahorros',
+                size='total_ahorros',
+                color='nombre_grupo',
+                title="Relación entre Número de Miembros y Total de Ahorros",
+                hover_name='nombre_grupo',
+                size_max=60
+            )
+            
+            fig_scatter.update_layout(
+                xaxis_title="Número de Miembros",
+                yaxis_title="Total Ahorros ($)",
+                height=500
+            )
+            
+            st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            # Gráfico 5: Barras horizontales para comparación
+            st.markdown("#### 📊 Comparación Horizontal de Grupos")
+            
+            # Ordenar por total general
+            df_ordenado = df_graficos.sort_values('total_general', ascending=True)
+            
+            fig_horizontal = go.Figure()
+            
+            fig_horizontal.add_trace(go.Bar(
+                y=df_ordenado['nombre_grupo'],
+                x=df_ordenado['total_general'],
+                orientation='h',
+                marker_color='#1f77b4',
+                text=df_ordenado['total_general'].apply(lambda x: f"${x:,.2f}"),
+                textposition='auto',
+            ))
+            
+            fig_horizontal.update_layout(
+                title="Total General por Grupo (Ordenado)",
+                xaxis_title="Total General ($)",
+                yaxis_title="Grupos",
+                height=400
+            )
+            
+            st.plotly_chart(fig_horizontal, use_container_width=True)
             
             st.balloons()
             st.success("🎉 Consolidado generado exitosamente")
