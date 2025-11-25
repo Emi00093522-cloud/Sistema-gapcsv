@@ -128,8 +128,11 @@ def panel_promotora(usuario):
     with tabs[1]: mostrar_distrito()
         
     with tabs[2]: mostrar_promotora()
-    with tabs[3]: mostrar_consolidado_promotora()  # Solo visible para promotoras
-
+   # En la sección donde manejas los tabs para promotoras
+    with tabs[3]: 
+    # Importar y usar la función correcta
+    from modulos.consolidadopromotora import panel_promotora
+    panel_promotora()
     with tabs[4]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
