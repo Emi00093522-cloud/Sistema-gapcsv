@@ -163,12 +163,23 @@ def consolidar_datos_por_mes(grupos_seleccionados, fecha_inicio, fecha_fin):
     
     for id_grupo in grupos_seleccionados:
         # Obtener nombre del grupo
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-        cursor.execute("SELECT nombre_grupo FROM Grupo WHERE ID_Grupo = %s", (id_grupo,))
-        grupo_nombre = cursor.fetchone()['nombre_grupo']
-        cursor.close()
-        con.close()
+        try:
+            con = obtener_conexion()
+            cursor = con.cursor(dictionary=True)
+            cursor.execute("SELECT nombre_grupo FROM Grupo WHERE ID_Grupo = %s", (id_grupo,))
+            grupo_data = cursor.fetchone()
+            if grupo_data:
+                grupo_nombre = grupo_data['nombre_grupo']
+            else:
+                grupo_nombre = f"Grupo {id_grupo}"
+        except Exception as e:
+            st.error(f"Error obteniendo nombre del grupo {id_grupo}: {e}")
+            grupo_nombre = f"Grupo {id_grupo}"
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'con' in locals():
+                con.close()
         
         # Obtener datos de cada módulo
         ahorros = obtener_ahorros_por_mes(id_grupo, fecha_inicio, fecha_fin)
@@ -234,66 +245,78 @@ def mostrar_graficas_consolidadas(datos_consolidados):
     # Gráfica de INGRESOS por mes y grupo
     st.subheader("📈 Ingresos por Mes y Grupo")
     
-    fig_ingresos = px.bar(
-        df,
-        x='mes',
-        y='total_ingresos',
-        color='grupo',
-        barmode='group',
-        title='Evolución de Ingresos Mensuales por Grupo',
-        labels={'mes': 'Mes', 'total_ingresos': 'Total Ingresos ($)', 'grupo': 'Grupo'}
-    )
-    st.plotly_chart(fig_ingresos, use_container_width=True)
+    try:
+        fig_ingresos = px.bar(
+            df,
+            x='mes',
+            y='total_ingresos',
+            color='grupo',
+            barmode='group',
+            title='Evolución de Ingresos Mensuales por Grupo',
+            labels={'mes': 'Mes', 'total_ingresos': 'Total Ingresos ($)', 'grupo': 'Grupo'}
+        )
+        st.plotly_chart(fig_ingresos, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error al crear gráfica de ingresos: {e}")
     
     # Gráfica de EGRESOS por mes y grupo
     st.subheader("📉 Egresos por Mes y Grupo")
     
-    fig_egresos = px.bar(
-        df,
-        x='mes',
-        y='total_egresos',
-        color='grupo',
-        barmode='group',
-        title='Evolución de Egresos Mensuales por Grupo',
-        labels={'mes': 'Mes', 'total_egresos': 'Total Egresos ($)', 'grupo': 'Grupo'}
-    )
-    st.plotly_chart(fig_egresos, use_container_width=True)
+    try:
+        fig_egresos = px.bar(
+            df,
+            x='mes',
+            y='total_egresos',
+            color='grupo',
+            barmode='group',
+            title='Evolución de Egresos Mensuales por Grupo',
+            labels={'mes': 'Mes', 'total_egresos': 'Total Egresos ($)', 'grupo': 'Grupo'}
+        )
+        st.plotly_chart(fig_egresos, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error al crear gráfica de egresos: {e}")
     
     # Gráfica de BALANCE por mes y grupo
     st.subheader("⚖️ Balance por Mes y Grupo")
     
-    fig_balance = px.bar(
-        df,
-        x='mes',
-        y='balance',
-        color='grupo',
-        barmode='group',
-        title='Balance Mensual por Grupo (Ingresos - Egresos)',
-        labels={'mes': 'Mes', 'balance': 'Balance ($)', 'grupo': 'Grupo'}
-    )
-    # Añadir línea en cero para referencia
-    fig_balance.add_hline(y=0, line_dash="dash", line_color="red")
-    st.plotly_chart(fig_balance, use_container_width=True)
+    try:
+        fig_balance = px.bar(
+            df,
+            x='mes',
+            y='balance',
+            color='grupo',
+            barmode='group',
+            title='Balance Mensual por Grupo (Ingresos - Egresos)',
+            labels={'mes': 'Mes', 'balance': 'Balance ($)', 'grupo': 'Grupo'}
+        )
+        # Añadir línea en cero para referencia
+        fig_balance.add_hline(y=0, line_dash="dash", line_color="red")
+        st.plotly_chart(fig_balance, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error al crear gráfica de balance: {e}")
     
     # Gráfica de COMPOSICIÓN de ingresos
     st.subheader("🍰 Composición de Ingresos por Grupo")
     
-    # Agrupar por grupo y sumar componentes
-    df_composicion = df.groupby('grupo')[['ahorros', 'prestamos_otorgados', 'multas']].sum().reset_index()
-    df_melted = df_composicion.melt(id_vars=['grupo'], 
-                                   value_vars=['ahorros', 'prestamos_otorgados', 'multas'],
-                                   var_name='tipo_ingreso', 
-                                   value_name='monto')
-    
-    fig_composicion = px.pie(
-        df_melted,
-        values='monto',
-        names='tipo_ingreso',
-        facet_col='grupo',
-        title='Composición de Ingresos Totales por Grupo',
-        hole=0.4
-    )
-    st.plotly_chart(fig_composicion, use_container_width=True)
+    try:
+        # Agrupar por grupo y sumar componentes
+        df_composicion = df.groupby('grupo')[['ahorros', 'prestamos_otorgados', 'multas']].sum().reset_index()
+        df_melted = df_composicion.melt(id_vars=['grupo'], 
+                                       value_vars=['ahorros', 'prestamos_otorgados', 'multas'],
+                                       var_name='tipo_ingreso', 
+                                       value_name='monto')
+        
+        fig_composicion = px.pie(
+            df_melted,
+            values='monto',
+            names='tipo_ingreso',
+            facet_col='grupo',
+            title='Composición de Ingresos Totales por Grupo',
+            hole=0.4
+        )
+        st.plotly_chart(fig_composicion, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error al crear gráfica de composición: {e}")
 
 def mostrar_tabla_resumen(datos_consolidados):
     """Muestra tabla resumen de los datos consolidados"""
@@ -305,44 +328,50 @@ def mostrar_tabla_resumen(datos_consolidados):
     st.subheader("📊 Tabla Resumen Consolidada")
     
     # Mostrar tabla detallada
-    st.dataframe(
-        df.round(2),
-        use_container_width=True,
-        hide_index=True
-    )
+    try:
+        st.dataframe(
+            df.round(2),
+            use_container_width=True,
+            hide_index=True
+        )
+    except Exception as e:
+        st.error(f"Error al mostrar tabla: {e}")
     
     # Resumen general por grupo
     st.subheader("🎯 Resumen General por Grupo")
     
-    resumen_grupo = df.groupby('grupo').agg({
-        'total_ingresos': 'sum',
-        'total_egresos': 'sum',
-        'balance': 'sum'
-    }).round(2).reset_index()
-    
-    col1, col2, col3 = st.columns(3)
-    
-    for _, grupo in resumen_grupo.iterrows():
-        with col1:
-            st.metric(
-                f"📈 Ingresos - {grupo['grupo']}",
-                f"${grupo['total_ingresos']:,.2f}"
-            )
-        with col2:
-            st.metric(
-                f"📉 Egresos - {grupo['grupo']}",
-                f"${grupo['total_egresos']:,.2f}"
-            )
-        with col3:
-            balance_color = "normal" if grupo['balance'] >= 0 else "inverse"
-            st.metric(
-                f"⚖️ Balance - {grupo['grupo']}",
-                f"${grupo['balance']:,.2f}",
-                delta_color=balance_color
-            )
+    try:
+        resumen_grupo = df.groupby('grupo').agg({
+            'total_ingresos': 'sum',
+            'total_egresos': 'sum',
+            'balance': 'sum'
+        }).round(2).reset_index()
+        
+        col1, col2, col3 = st.columns(3)
+        
+        for _, grupo in resumen_grupo.iterrows():
+            with col1:
+                st.metric(
+                    f"📈 Ingresos - {grupo['grupo']}",
+                    f"${grupo['total_ingresos']:,.2f}"
+                )
+            with col2:
+                st.metric(
+                    f"📉 Egresos - {grupo['grupo']}",
+                    f"${grupo['total_egresos']:,.2f}"
+                )
+            with col3:
+                balance_color = "normal" if grupo['balance'] >= 0 else "inverse"
+                st.metric(
+                    f"⚖️ Balance - {grupo['grupo']}",
+                    f"${grupo['balance']:,.2f}",
+                    delta_color=balance_color
+                )
+    except Exception as e:
+        st.error(f"Error al mostrar resumen: {e}")
 
 def mostrar_filtro_fechas():
-    """Muestra el filtro de fechas (mismo que en ciclo)"""
+    """Muestra el filtro de fechas"""
     st.subheader("📅 Seleccionar Rango del Período")
     
     col1, col2 = st.columns(2)
@@ -398,7 +427,7 @@ def panel_promotora():
         "Selecciona los grupos a consolidar:",
         options=list(grupos_dict.keys()),
         default=list(grupos_dict.keys())[:1] if grupos_dict else [],
-        key="grupos_seleccionados"
+        key="grupos_seleccionados_consolidado"
     )
     
     grupos_seleccionados = [grupos_dict[nombre] for nombre in grupos_seleccionados_nombres]
@@ -456,6 +485,11 @@ def panel_promotora():
         2. Define el rango de fechas para el análisis
         3. Haz clic en **'🚀 Generar Reporte Consolidado'** para visualizar los datos
         """)
+
+# Función alternativa si necesitas mantener compatibilidad
+def mostrar_consolidado_promotora():
+    """Función alternativa para mantener compatibilidad con el app.py existente"""
+    panel_promotora()
 
 # Ejecutar el panel
 if __name__ == "__main__":
