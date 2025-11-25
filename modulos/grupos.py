@@ -28,7 +28,13 @@ def mostrar_grupos():   # ⭐ Función para registrar grupos
 
     # 👤 ID del usuario que está creando el grupo (viene del login)
     id_usuario = st.session_state["id_usuario"]
-    # st.write("Debug id_usuario:", id_usuario)  # <- déjalo comentado si no lo necesitas
+    
+    # 👉 VERIFICAR SI ES USUARIO PROMOTORA
+    es_promotora = st.session_state.get("acceso_total_promotora", False)
+    cargo_usuario = st.session_state.get("cargo_de_usuario", "")
+    
+    if es_promotora:
+        st.info("🔓 **Modo Promotora**: Tienes acceso completo a todos los grupos")
 
     try:
         con = obtener_conexion()
@@ -146,6 +152,14 @@ def obtener_id_grupo_por_usuario(id_usuario: int):
     Si el usuario tiene varios grupos, devuelve el último creado.
     Si no tiene grupos, devuelve None.
     """
+    # 👉 VERIFICAR SI ES USUARIO PROMOTORA
+    es_promotora = st.session_state.get("acceso_total_promotora", False)
+    
+    if es_promotora:
+        # Para promotora, no retornamos un grupo específico (se manejará en otros módulos)
+        return "TODOS_LOS_GRUPOS"
+    
+    # Para otros usuarios, comportamiento normal
     con = obtener_conexion()
     if not con:
         return None
@@ -163,6 +177,52 @@ def obtener_id_grupo_por_usuario(id_usuario: int):
         return fila["ID_Grupo"] if fila else None
 
     except Exception:
+        return None
+
+    finally:
+        con.close()
+
+
+def obtener_grupos_por_usuario():
+    """
+    Función auxiliar para obtener grupos según el tipo de usuario
+    Útil para usar en otros módulos
+    """
+    # 👉 VERIFICAR SI ES USUARIO PROMOTORA
+    es_promotora = st.session_state.get("acceso_total_promotora", False)
+    id_usuario = st.session_state.get("id_usuario")
+    
+    if not id_usuario:
+        return None
+    
+    con = obtener_conexion()
+    if not con:
+        return None
+
+    try:
+        cursor = con.cursor(dictionary=True)
+        
+        if es_promotora:
+            # Promotora ve TODOS los grupos
+            cursor.execute("""
+                SELECT ID_Grupo, nombre, fecha_inicio, ID_Estado
+                FROM Grupo
+                ORDER BY ID_Grupo DESC
+            """)
+        else:
+            # Otros usuarios ven solo sus grupos
+            cursor.execute("""
+                SELECT ID_Grupo, nombre, fecha_inicio, ID_Estado
+                FROM Grupo
+                WHERE ID_Usuario = %s
+                ORDER BY ID_Grupo DESC
+            """, (id_usuario,))
+        
+        grupos = cursor.fetchall()
+        return grupos
+
+    except Exception as e:
+        st.error(f"❌ Error al obtener grupos: {e}")
         return None
 
     finally:
