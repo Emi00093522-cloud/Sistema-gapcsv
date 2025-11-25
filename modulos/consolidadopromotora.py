@@ -5,9 +5,16 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from modulos.config.conexion import obtener_conexion
 
-def obtener_grupos_promotora(id_promotora):
-    """Obtiene los grupos asignados a la promotora"""
+def obtener_grupos_promotora():
+    """Obtiene los grupos asignados a la promotora logueada"""
     try:
+        # Verificar que la promotora esté en session_state
+        if 'user_id' not in st.session_state:
+            st.error("No hay usuario logueado")
+            return []
+            
+        id_promotora = st.session_state.user_id
+        
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         
@@ -140,13 +147,15 @@ def obtener_pagos_prestamos_por_mes(id_grupo, fecha_inicio, fecha_fin):
             JOIN Prestamo p ON cp.ID_Prestamo = p.ID_Prestamo
             JOIN Miembro m ON p.ID_Miembro = m.ID_Miembro
             WHERE m.ID_Grupo = %s
+              AND cp.fecha_pago_real IS NOT NULL
               AND cp.fecha_pago_real BETWEEN %s AND %s
               AND cp.estado = 'pagado'
             GROUP BY DATE_FORMAT(cp.fecha_pago_real, '%Y-%m')
             ORDER BY mes
         """, (id_grupo, fecha_inicio, fecha_fin))
         
-        return cursor.fetchall()
+        resultados = cursor.fetchall()
+        return resultados
         
     except Exception as e:
         st.error(f"❌ Error obteniendo pagos de préstamos: {e}")
@@ -166,9 +175,16 @@ def consolidar_datos_por_mes(grupos_seleccionados, fecha_inicio, fecha_fin):
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         cursor.execute("SELECT nombre_grupo FROM Grupo WHERE ID_Grupo = %s", (id_grupo,))
-        grupo_nombre = cursor.fetchone()['nombre_grupo']
+        grupo_data = cursor.fetchone()
+        
+        if not grupo_data:
+            continue
+            
+        grupo_nombre = grupo_data['nombre_grupo']
         cursor.close()
         con.close()
+        
+        st.info(f"📊 Procesando datos del grupo: {grupo_nombre}")
         
         # Obtener datos de cada módulo
         ahorros = obtener_ahorros_por_mes(id_grupo, fecha_inicio, fecha_fin)
@@ -176,12 +192,22 @@ def consolidar_datos_por_mes(grupos_seleccionados, fecha_inicio, fecha_fin):
         multas = obtener_multas_por_mes(id_grupo, fecha_inicio, fecha_fin)
         pagos_prestamos = obtener_pagos_prestamos_por_mes(id_grupo, fecha_inicio, fecha_fin)
         
+        # Debug: mostrar cuántos registros se encontraron
+        st.write(f"✅ {grupo_nombre}: {len(ahorros)} meses con ahorros, {len(prestamos)} meses con préstamos, {len(multas)} meses con multas, {len(pagos_prestamos)} meses con pagos")
+        
         # Crear estructura unificada por mes
         meses_unicos = set()
+        
+        # Agregar meses de todas las fuentes
         for data in [ahorros, prestamos, multas, pagos_prestamos]:
             for item in data:
-                meses_unicos.add(item['mes'])
+                if item['mes']:
+                    meses_unicos.add(item['mes'])
         
+        if not meses_unicos:
+            st.warning(f"No hay datos para el grupo {grupo_nombre} en el período seleccionado")
+            continue
+            
         for mes in sorted(meses_unicos):
             # Buscar datos para este mes
             ahorro_mes = next((a for a in ahorros if a['mes'] == mes), {
@@ -223,6 +249,37 @@ def consolidar_datos_por_mes(grupos_seleccionados, fecha_inicio, fecha_fin):
     
     return datos_consolidados
 
+def mostrar_filtro_fechas():
+    """Muestra el filtro de fechas"""
+    st.subheader("📅 Seleccionar Rango del Período")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fecha_inicio = st.date_input(
+            "Fecha de Inicio",
+            value=datetime.now().date() - timedelta(days=90),
+            max_value=datetime.now().date(),
+            key="fecha_inicio_consolidado"
+        )
+    
+    with col2:
+        fecha_fin = st.date_input(
+            "Fecha de Fin",
+            value=datetime.now().date(),
+            max_value=datetime.now().date(),
+            key="fecha_fin_consolidado"
+        )
+    
+    if fecha_inicio > fecha_fin:
+        st.error("❌ La fecha de inicio no puede ser mayor que la fecha de fin")
+        return None, None
+    
+    dias_periodo = (fecha_fin - fecha_inicio).days
+    st.info(f"**📊 Rango seleccionado:** {fecha_inicio} a {fecha_fin} ({dias_periodo} días)")
+    
+    return fecha_inicio, fecha_fin
+
 def mostrar_graficas_consolidadas(datos_consolidados):
     """Muestra gráficas de ingresos, egresos y balance"""
     if not datos_consolidados:
@@ -234,66 +291,48 @@ def mostrar_graficas_consolidadas(datos_consolidados):
     # Gráfica de INGRESOS por mes y grupo
     st.subheader("📈 Ingresos por Mes y Grupo")
     
-    fig_ingresos = px.bar(
-        df,
-        x='mes',
-        y='total_ingresos',
-        color='grupo',
-        barmode='group',
-        title='Evolución de Ingresos Mensuales por Grupo',
-        labels={'mes': 'Mes', 'total_ingresos': 'Total Ingresos ($)', 'grupo': 'Grupo'}
-    )
-    st.plotly_chart(fig_ingresos, use_container_width=True)
-    
-    # Gráfica de EGRESOS por mes y grupo
-    st.subheader("📉 Egresos por Mes y Grupo")
-    
-    fig_egresos = px.bar(
-        df,
-        x='mes',
-        y='total_egresos',
-        color='grupo',
-        barmode='group',
-        title='Evolución de Egresos Mensuales por Grupo',
-        labels={'mes': 'Mes', 'total_egresos': 'Total Egresos ($)', 'grupo': 'Grupo'}
-    )
-    st.plotly_chart(fig_egresos, use_container_width=True)
-    
-    # Gráfica de BALANCE por mes y grupo
-    st.subheader("⚖️ Balance por Mes y Grupo")
-    
-    fig_balance = px.bar(
-        df,
-        x='mes',
-        y='balance',
-        color='grupo',
-        barmode='group',
-        title='Balance Mensual por Grupo (Ingresos - Egresos)',
-        labels={'mes': 'Mes', 'balance': 'Balance ($)', 'grupo': 'Grupo'}
-    )
-    # Añadir línea en cero para referencia
-    fig_balance.add_hline(y=0, line_dash="dash", line_color="red")
-    st.plotly_chart(fig_balance, use_container_width=True)
-    
-    # Gráfica de COMPOSICIÓN de ingresos
-    st.subheader("🍰 Composición de Ingresos por Grupo")
-    
-    # Agrupar por grupo y sumar componentes
-    df_composicion = df.groupby('grupo')[['ahorros', 'prestamos_otorgados', 'multas']].sum().reset_index()
-    df_melted = df_composicion.melt(id_vars=['grupo'], 
-                                   value_vars=['ahorros', 'prestamos_otorgados', 'multas'],
-                                   var_name='tipo_ingreso', 
-                                   value_name='monto')
-    
-    fig_composicion = px.pie(
-        df_melted,
-        values='monto',
-        names='tipo_ingreso',
-        facet_col='grupo',
-        title='Composición de Ingresos Totales por Grupo',
-        hole=0.4
-    )
-    st.plotly_chart(fig_composicion, use_container_width=True)
+    if len(df) > 0:
+        fig_ingresos = px.bar(
+            df,
+            x='mes',
+            y='total_ingresos',
+            color='grupo',
+            barmode='group',
+            title='Evolución de Ingresos Mensuales por Grupo',
+            labels={'mes': 'Mes', 'total_ingresos': 'Total Ingresos ($)', 'grupo': 'Grupo'}
+        )
+        st.plotly_chart(fig_ingresos, use_container_width=True)
+        
+        # Gráfica de EGRESOS por mes y grupo
+        st.subheader("📉 Egresos por Mes y Grupo")
+        
+        fig_egresos = px.bar(
+            df,
+            x='mes',
+            y='total_egresos',
+            color='grupo',
+            barmode='group',
+            title='Evolución de Egresos Mensuales por Grupo',
+            labels={'mes': 'Mes', 'total_egresos': 'Total Egresos ($)', 'grupo': 'Grupo'}
+        )
+        st.plotly_chart(fig_egresos, use_container_width=True)
+        
+        # Gráfica de BALANCE por mes y grupo
+        st.subheader("⚖️ Balance por Mes y Grupo")
+        
+        fig_balance = px.bar(
+            df,
+            x='mes',
+            y='balance',
+            color='grupo',
+            barmode='group',
+            title='Balance Mensual por Grupo (Ingresos - Egresos)',
+            labels={'mes': 'Mes', 'balance': 'Balance ($)', 'grupo': 'Grupo'}
+        )
+        fig_balance.add_hline(y=0, line_dash="dash", line_color="red")
+        st.plotly_chart(fig_balance, use_container_width=True)
+    else:
+        st.info("No hay suficientes datos para generar gráficas")
 
 def mostrar_tabla_resumen(datos_consolidados):
     """Muestra tabla resumen de los datos consolidados"""
@@ -320,82 +359,64 @@ def mostrar_tabla_resumen(datos_consolidados):
         'balance': 'sum'
     }).round(2).reset_index()
     
-    col1, col2, col3 = st.columns(3)
+    # Mostrar métricas en columnas
+    cols = st.columns(len(resumen_grupo))
     
-    for _, grupo in resumen_grupo.iterrows():
-        with col1:
+    for idx, (_, grupo) in enumerate(resumen_grupo.iterrows()):
+        with cols[idx % len(cols)]:
             st.metric(
                 f"📈 Ingresos - {grupo['grupo']}",
                 f"${grupo['total_ingresos']:,.2f}"
             )
-        with col2:
+            
             st.metric(
                 f"📉 Egresos - {grupo['grupo']}",
                 f"${grupo['total_egresos']:,.2f}"
             )
-        with col3:
-            balance_color = "normal" if grupo['balance'] >= 0 else "inverse"
+            
+            balance_color = "normal" if grupo['balance'] >= 0 else "off"
             st.metric(
                 f"⚖️ Balance - {grupo['grupo']}",
                 f"${grupo['balance']:,.2f}",
                 delta_color=balance_color
             )
 
-def mostrar_filtro_fechas():
-    """Muestra el filtro de fechas (mismo que en ciclo)"""
-    st.subheader("📅 Seleccionar Rango del Período")
+def mostrar_consolidado_promotora():
+    """Función principal del módulo de consolidado"""
+    st.title("🏦 Consolidado Promotora")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        fecha_inicio = st.date_input(
-            "Fecha de Inicio",
-            value=datetime.now().date() - timedelta(days=30),
-            max_value=datetime.now().date(),
-        )
-    
-    with col2:
-        fecha_fin = st.date_input(
-            "Fecha de Fin",
-            value=datetime.now().date(),
-            max_value=datetime.now().date(),
-        )
-    
-    if fecha_inicio > fecha_fin:
-        st.error("❌ La fecha de inicio no puede ser mayor que la fecha de fin")
-        return None, None
-    
-    dias_periodo = (fecha_fin - fecha_inicio).days
-    st.info(f"**📊 Rango seleccionado:** {fecha_inicio} a {fecha_fin} ({dias_periodo} días)")
-    
-    return fecha_inicio, fecha_fin
-
-def panel_promotora():
-    """Panel principal de consolidación para la promotora"""
-    st.title("🏦 Panel de Consolidación - Promotora")
-    
-    # Verificar que la promotora esté logueada
-    if 'id_promotora' not in st.session_state:
-        st.warning("⚠️ Debes iniciar sesión como promotora para acceder a este panel.")
+    # Verificar que el usuario esté logueado y sea promotora
+    if 'user_id' not in st.session_state:
+        st.warning("⚠️ Debes iniciar sesión para acceder a este módulo.")
+        return
+        
+    if 'user_type' not in st.session_state or st.session_state.user_type != 'promotora':
+        st.error("❌ Esta funcionalidad es exclusiva para promotoras.")
         return
     
-    id_promotora = st.session_state.id_promotora
+    st.info("Este módulo te permite ver el consolidado financiero de todos tus grupos.")
     
     # Obtener grupos de la promotora
-    grupos = obtener_grupos_promotora(id_promotora)
+    grupos = obtener_grupos_promotora()
     
     if not grupos:
         st.warning("No tienes grupos asignados. Contacta al administrador.")
         return
     
-    # Selección de grupos
-    st.sidebar.subheader("👥 Grupos Asignados")
+    # Mostrar información de grupos
+    st.subheader("👥 Grupos Asignados")
+    grupos_df = pd.DataFrame(grupos)
+    st.dataframe(grupos_df[['nombre_grupo', 'descripcion']], use_container_width=True, hide_index=True)
     
-    grupos_dict = {f"{g['nombre_grupo']}": g['ID_Grupo'] for g in grupos}
-    grupos_seleccionados_nombres = st.sidebar.multiselect(
+    # Selección de grupos
+    st.subheader("🎯 Seleccionar Grupos para Consolidar")
+    
+    grupos_dict = {f"{g['nombre_grupo']} (ID: {g['ID_Grupo']})": g['ID_Grupo'] for g in grupos}
+    grupos_seleccionados_nombres = st.multiselect(
         "Selecciona los grupos a consolidar:",
         options=list(grupos_dict.keys()),
-        default=list(grupos_dict.keys())[:1] if grupos_dict else []
+        default=list(grupos_dict.keys())[:1] if grupos_dict else [],
+        help="Puedes seleccionar uno o varios grupos para comparar"
     )
     
     grupos_seleccionados = [grupos_dict[nombre] for nombre in grupos_seleccionados_nombres]
@@ -411,10 +432,12 @@ def panel_promotora():
     
     # Botón para generar reporte
     if st.button("🚀 Generar Reporte Consolidado", type="primary", use_container_width=True):
-        with st.spinner("Calculando consolidado..."):
+        with st.spinner("Calculando consolidado... Esto puede tomar unos segundos."):
             datos_consolidados = consolidar_datos_por_mes(grupos_seleccionados, fecha_inicio, fecha_fin)
         
         if datos_consolidados:
+            st.success(f"✅ Reporte generado con éxito! Se encontraron datos para {len(datos_consolidados)} períodos.")
+            
             # Mostrar gráficas
             mostrar_graficas_consolidadas(datos_consolidados)
             
@@ -422,16 +445,24 @@ def panel_promotora():
             mostrar_tabla_resumen(datos_consolidados)
             
             # Botón para exportar
+            csv = pd.DataFrame(datos_consolidados).to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Descargar Reporte en Excel",
-                data=pd.DataFrame(datos_consolidados).to_csv(index=False).encode('utf-8'),
-                file_name=f"consolidado_promotora_{datetime.now().strftime('%Y%m%d')}.csv",
+                label="📥 Descargar Reporte en CSV",
+                data=csv,
+                file_name=f"consolidado_promotora_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
         else:
-            st.warning("No se encontraron datos para los grupos y fechas seleccionados.")
+            st.error("""
+            ❌ No se encontraron datos para los grupos y fechas seleccionados.
+            
+            **Posibles causas:**
+            - No hay reuniones registradas en el período
+            - No hay ahorros, préstamos o multas en las fechas seleccionadas
+            - Los grupos no tienen actividad financiera en este período
+            """)
 
-# Ejecutar el panel
+# Si el archivo se ejecuta directamente
 if __name__ == "__main__":
-    panel_promotora()
+    mostrar_consolidado_promotora()
