@@ -1,3 +1,5 @@
+que promotora y administrador ya no puedan ver cierre de ciclo
+
 import streamlit as st
 from modulos.registro_usuario import registrar_usuario
 from modulos.login import login
@@ -99,7 +101,7 @@ def panel_presidente():
             st.rerun()
 
 # ---------------------------------------------------------
-# PANEL PROMOTORA
+# PANEL PROMOTORA - SIN Cierre de Ciclo
 # ---------------------------------------------------------
 def panel_promotora(usuario):
     st.title("🤝 Panel de Promotora")
@@ -108,8 +110,7 @@ def panel_promotora(usuario):
         "📈 Dashboard",
         "👩‍💼 Registro Promotora",
         "🏛️ Distrito",
-        "🔄 Cierre de Ciclo",  # Para promotora si es necesario
-        "🚪 Cerrar sesión"
+        "🚪 Cerrar sesión"  # Eliminada la pestaña de Cierre de Ciclo
     ])
 
     with tabs[0]:
@@ -118,16 +119,15 @@ def panel_promotora(usuario):
 
     with tabs[1]: mostrar_promotora()
     with tabs[2]: mostrar_distrito()
-    with tabs[3]: mostrar_ciclo()  # Cierre de ciclo para promotora
 
-    with tabs[4]:
+    with tabs[3]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
             st.rerun()
 
 # ---------------------------------------------------------
-# PANEL ADMINISTRADORA
+# PANEL ADMINISTRADORA - SIN Cierre de Ciclo
 # ---------------------------------------------------------
 def panel_admin():
     st.title("🛡️ Panel de Administradora")
@@ -135,17 +135,15 @@ def panel_admin():
     tabs = st.tabs([
         "📊 Consolidado Distritos",
         "🧑‍💻 Registrar Usuario",
-        "🔄 Cierre de Ciclo",  # Para administradora
-        "🚪 Cerrar sesión"
+        "🚪 Cerrar sesión"  # Eliminada la pestaña de Cierre de Ciclo
     ])
 
     with tabs[0]:
         st.info("📊 Aquí irá el consolidado general por distrito.")
 
     with tabs[1]: registrar_usuario()
-    with tabs[2]: mostrar_ciclo()  # Cierre de ciclo para administradora
 
-    with tabs[3]:
+    with tabs[2]:
         if st.button("Cerrar sesión"):
             st.session_state.clear()
             st.session_state["pagina_actual"] = "sesion_cerrada"
