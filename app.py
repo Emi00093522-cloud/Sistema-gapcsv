@@ -19,7 +19,7 @@ except ImportError:
 
 # Agregar importación del módulo consolidado promotora
 try:
-    from modulos.consolidadopromotora import mostrar_consolidado_promotora
+    from modulos.consolidado_promotora import mostrar_consolidado_promotora
 except ImportError:
     # Si el módulo no existe, creamos una función temporal
     def mostrar_consolidado_promotora():
